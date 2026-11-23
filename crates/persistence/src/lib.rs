@@ -571,7 +571,7 @@ fn available_space(directory: &Path) -> Result<u64> {
             .map_err(|_| Error(ErrorCode::StateNotDurable))?
             .filter_map(|e| e.ok()?.metadata().ok())
             .filter(|m| m.is_file())
-            .map(|m| m.len())
+            .map(|m| std::os::unix::fs::MetadataExt::blocks(&m) * 512)
             .sum::<u64>();
         return Ok(capacity.saturating_sub(used));
     }
@@ -585,6 +585,10 @@ thread_local! {
     static OPEN_DISK_CAPACITY: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
     /// Tests: `Store::open` opens its database with this SQLite VFS.
     static OPEN_VFS: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+    /// Tests: runs between the snapshot and the migration transaction.
+    static BEFORE_MIGRATING: std::cell::Cell<Option<fn(&Path)>> = const { std::cell::Cell::new(None) };
+    /// Tests: the migrations the last `Store::open` on this thread ran.
+    static APPLIED: std::cell::RefCell<Vec<u32>> = const { std::cell::RefCell::new(Vec::new()) };
     /// Tests: the schema-17 index build runs with this page limit, which
     /// fails it as a full disk would.
     static UPGRADE_MAX_PAGES: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
@@ -694,31 +698,56 @@ pub struct UpgradeSpace {
     pub needed: u64,
     pub available: u64,
 }
+/// Bytes of one page in the WAL: the page and its 24-byte frame header.
+fn frame_bytes(conn: &Connection) -> Result<u64> {
+    let size: i64 = conn
+        .pragma_query_value(None, "page_size", |r| r.get(0))
+        .map_err(durable)?;
+    Ok(u64::try_from(size).unwrap_or(0).saturating_add(24))
+}
 /// The upgrade to schema 19 (`migration-v19.sql`): it sets `settled` on
-/// every settled job and builds `jobs_retention` over them. Bounded by the
-/// whole `jobs` table, measured from its rows: each row rewritten (its text
-/// columns, three integers, the new one, and [`ENTRY_OVERHEAD`] for its
-/// cell) and one index entry per row (two integers and the rowid), with the
-/// same 4/3 for page fill and the same two writes (the WAL, then the
-/// database file) as the schema-17 build.
+/// every settled job and builds `jobs_retention` over them.
+///
+/// Bounded from the pages of `jobs` (leaf, interior and overflow, counted
+/// by `dbstat`), not its rows: setting `settled` enlarges each record, and
+/// in the worst case every page of the table is rewritten and split, as a
+/// leaf that held two records does when they no longer fit. Each page is
+/// then written once to the WAL with its new sibling (two frames), and the
+/// sibling is added to the database file by the checkpoint (one page), so
+/// three pages per page of `jobs`; an overflow chain rewritten elsewhere
+/// costs no more. The index adds one entry per row (two integers and the
+/// rowid, plus [`ENTRY_OVERHEAD`]), with the schema-17 build's 4/3 for page
+/// fill and its two writes. Both are what remains on disk at the peak, after
+/// the commit's checkpoint and before the WAL is next reset.
 fn retention_writes(conn: &Connection) -> Result<u64> {
-    let (rows, text): (i64, i64) = conn
+    let (pages, rows): (i64, i64) = conn
         .query_row(
-            "SELECT count(*),coalesce(sum(octet_length(id)+octet_length(principal)+octet_length(idempotency)+octet_length(intent)+octet_length(digest)+octet_length(resource)+octet_length(state)),0) FROM jobs",
+            "SELECT (SELECT count(*) FROM dbstat WHERE name='jobs'),(SELECT count(*) FROM jobs)",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .map_err(durable)?;
+    let pages = u64::try_from(pages).unwrap_or(0);
     let rows = u64::try_from(rows).unwrap_or(0);
-    let text = u64::try_from(text).unwrap_or(0);
-    let rewritten = text.saturating_add(rows.saturating_mul(ENTRY_OVERHEAD + 4 * 9));
-    let index = rows.saturating_mul(ENTRY_OVERHEAD + 2 * 9);
-    Ok(rewritten.saturating_add(index).saturating_mul(4) / 3 * 2)
+    let table = pages.saturating_mul(3).saturating_mul(frame_bytes(conn)?);
+    let index = rows
+        .saturating_mul(ENTRY_OVERHEAD + 2 * 9)
+        .saturating_mul(4)
+        / 3
+        * 2;
+    Ok(table.saturating_add(index))
 }
-/// What the migrations of an upgrade from `from` write before it commits:
-/// the schema-17 index build when it crosses 17, and the schema-19 rewrite
-/// when it crosses 19. Like `INDEXED_SCHEMA`, keyed by version here rather
-/// than in the migration table.
+/// Bytes startup recovery adds for each interrupted job: one event row (at
+/// most `EVENT_BYTES` of audit text) with its four index entries, rounded up
+/// to 1 KiB, with the same 4/3 and two writes. The job's own row change is
+/// on a page the schema-19 bound already counts.
+const RECOVERY_EVENT_BYTES: u64 = 1024 * 4 / 3 * 2;
+/// What an upgrade from `from` writes before it commits, beyond the
+/// snapshot: the schema-17 index build when it crosses 17, and the
+/// schema-19 rewrite when it crosses 19 (like `INDEXED_SCHEMA`, keyed by
+/// version here rather than in the migration table), plus startup
+/// recovery's events. Retention's `make_room`, which runs only when even
+/// the audit reserve cannot hold the recovery records, is not counted.
 fn upgrade_writes(conn: &Connection, from: u32) -> Result<(IndexBuild, u64)> {
     let build = if (1..INDEXED_SCHEMA).contains(&from) {
         IndexBuild::measure(conn)?
@@ -730,53 +759,71 @@ fn upgrade_writes(conn: &Connection, from: u32) -> Result<(IndexBuild, u64)> {
     } else {
         0
     };
-    Ok((build, retention))
+    // A new store has no jobs (and no table to count them in).
+    let recovery = if from >= 1 {
+        u64::try_from(interrupted_jobs(conn)?)
+            .unwrap_or(0)
+            .saturating_mul(RECOVERY_EVENT_BYTES)
+    } else {
+        0
+    };
+    Ok((build, retention.saturating_add(recovery)))
 }
 /// Free space the migrations of an upgrade from `from` need once the
-/// snapshot is in place: their writes, plus the fixed allowance and the
-/// write reserve that must remain afterwards.
-fn upgrade_remaining(from: u32, build: IndexBuild, retention: u64) -> u64 {
+/// snapshot is in place: their writes ([`upgrade_writes`]: the index build
+/// and `others`), plus the fixed allowance and the write reserve that must
+/// remain afterwards.
+fn upgrade_remaining(from: u32, build: IndexBuild, others: u64) -> u64 {
     let base = if (1..INDEXED_SCHEMA).contains(&from) {
         build.needed()
     } else {
         MIN_FREE_BYTES.saturating_add(UPGRADE_FIXED_BYTES)
     };
-    base.saturating_add(retention)
+    base.saturating_add(others)
 }
 /// Free space, and space needed, before an upgrade from `from` starts, as
-/// `Store::open` measures them: the snapshot files it removes count as free
-/// (`available`), and `needed` is the new snapshot (none when an unchanged
-/// one is kept) plus [`upgrade_remaining`].
+/// `Store::open` measures them: `available` is the free space plus what
+/// removing the store's other snapshot files gives back, and `needed` is
+/// the new snapshot (none when an unchanged one is kept) plus
+/// [`upgrade_remaining`]. Also returns the free space alone.
 fn upgrade_figures(
     conn: &Connection,
     path: &Path,
     from: u32,
-    checkpoint: bool,
-) -> Result<(migrations::snapshot::Plan, UpgradeSpace)> {
+    look: migrations::snapshot::Look,
+) -> Result<(migrations::snapshot::Plan, u64, UpgradeSpace)> {
     let directory = path.parent().ok_or(Error(ErrorCode::InvalidInput))?;
-    let (build, retention) = upgrade_writes(conn, from)?;
-    let plan = migrations::snapshot::plan(conn, path, from, checkpoint)?;
+    let (build, others) = upgrade_writes(conn, from)?;
+    let plan = migrations::snapshot::plan(conn, path, from, look)?;
+    let free = available_space(directory)?;
     Ok((
         plan,
+        free,
         UpgradeSpace {
             from,
             needed: plan
                 .bytes
-                .saturating_add(upgrade_remaining(from, build, retention)),
-            available: available_space(directory)?.saturating_add(plan.reclaimable),
+                .saturating_add(upgrade_remaining(from, build, others)),
+            available: free.saturating_add(plan.freed),
         },
     ))
 }
-/// An index build that ran out of space although the check passed, noted by
-/// `Store::open` for [`upgrade_space`]: the database path and the shortfall.
-static UPGRADE_SHORT: std::sync::Mutex<Option<(PathBuf, UpgradeSpace)>> =
+/// What `Store::open` found about an upgrade's space, for [`upgrade_space`]
+/// to report without measuring again: the database path, and the shortfall
+/// (`None`: the space was checked and fitted).
+static UPGRADE_NOTE: std::sync::Mutex<Option<(PathBuf, Option<UpgradeSpace>)>> =
     std::sync::Mutex::new(None);
+fn note_upgrade(path: &Path, space: Option<UpgradeSpace>) {
+    if let Ok(mut note) = UPGRADE_NOTE.lock() {
+        *note = Some((path.to_path_buf(), space));
+    }
+}
 /// The error for a failed index build or startup commit while upgrading: a
 /// full disk is noted (asking for another estimate's worth, `remaining`, on
 /// top of what was free once the snapshot was in place) so core logs the
 /// same message as for a refused upgrade. The snapshot is not asked for
-/// again: the next start keeps it, the store being unchanged, or removes it
-/// before writing another, which [`upgrade_space`] counts as free.
+/// again: the next start keeps it, the store being unchanged, or counts
+/// removing it as freed.
 fn upgrade_failed(
     path: &Path,
     from: u32,
@@ -784,36 +831,33 @@ fn upgrade_failed(
     remaining: u64,
     error: rusqlite::Error,
 ) -> Error {
-    if from >= 1
-        && error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull)
-        && let Ok(mut short) = UPGRADE_SHORT.lock()
-    {
-        *short = Some((
-            path.to_path_buf(),
-            UpgradeSpace {
+    if from >= 1 && error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull) {
+        note_upgrade(
+            path,
+            Some(UpgradeSpace {
                 from,
                 needed: available.saturating_add(remaining - MIN_FREE_BYTES),
                 available,
-            },
-        ));
+            }),
+        );
     }
     Error(ErrorCode::StateNotDurable)
 }
 /// After `Database::open` fails: whether a pending upgrade lacks free space,
-/// so the daemon can say how much it needs. Reads the store without changing
-/// it; `None` when no upgrade is pending, it fits, or the store is unreadable.
-/// The figures are `Store::open`'s: the store's own snapshot files count as
-/// free (open removes them before writing), and a snapshot it would keep
-/// costs nothing; the read-only look keeps one only when the WAL is already
-/// empty, as it is after core stops. An upgrade that `Store::open` found
-/// short of space mid-build is reported once, as noted then.
+/// so the daemon can say how much it needs; `None` when no upgrade is
+/// pending, it fits, or the store is unreadable. Reports what `Store::open`
+/// noted when it got as far as checking (once), so a failing start costs no
+/// second look. Otherwise it estimates on a read-only connection without
+/// hashing anything: the store's other snapshot files count as freed (open
+/// removes them), and a snapshot whose record matches on lengths, inode and
+/// modification time, with the WAL empty, as kept.
 pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
-    if let Some((_, space)) = UPGRADE_SHORT
+    if let Some((_, space)) = UPGRADE_NOTE
         .lock()
         .ok()
-        .and_then(|mut short| short.take_if(|(noted, _)| noted == path))
+        .and_then(|mut note| note.take_if(|(noted, _)| noted == path))
     {
-        return Some(space);
+        return space;
     }
     let conn =
         Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
@@ -823,8 +867,27 @@ pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
     if !(1..SCHEMA_VERSION).contains(&from) {
         return None;
     }
-    let (_, space) = upgrade_figures(&conn, path, from, false).ok()?;
+    let (_, _, space) =
+        upgrade_figures(&conn, path, from, migrations::snapshot::Look::Estimate).ok()?;
     (space.available < space.needed).then_some(space)
+}
+/// The store whose last pre-upgrade snapshot was written without a durable
+/// record, noted for [`unrecorded_snapshot`].
+static UNRECORDED: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+pub(crate) fn note_unrecorded(path: &Path) {
+    if let Ok(mut noted) = UNRECORDED.lock() {
+        *noted = Some(path.to_path_buf());
+    }
+}
+/// After `Database::open` fails: whether it wrote a pre-upgrade snapshot it
+/// could not record, so that the next attempt cannot keep it and writes a
+/// new copy. Reported once.
+pub fn unrecorded_snapshot(path: &Path) -> bool {
+    UNRECORDED
+        .lock()
+        .ok()
+        .and_then(|mut noted| noted.take_if(|noted| noted == path))
+        .is_some()
 }
 /// A schema object of the store that differs from this build's: a trigger,
 /// or a table or index the migration table names, missing or with other SQL.
@@ -837,6 +900,11 @@ pub struct SchemaMismatch {
 /// The mismatch `Store::open` refused, noted for [`schema_mismatch`].
 static SCHEMA_MISMATCH: std::sync::Mutex<Option<(PathBuf, SchemaMismatch)>> =
     std::sync::Mutex::new(None);
+pub(crate) fn note_mismatch(path: &Path, mismatch: SchemaMismatch) {
+    if let Ok(mut noted) = SCHEMA_MISMATCH.lock() {
+        *noted = Some((path.to_path_buf(), mismatch));
+    }
+}
 /// After `Database::open` fails: the schema object it refused the store
 /// over, if that was the reason, so the daemon can name it. Reported once.
 pub fn schema_mismatch(path: &Path) -> Option<SchemaMismatch> {
@@ -907,6 +975,8 @@ impl Store {
         lock.try_lock_exclusive()
             .map_err(|_| Error(ErrorCode::Conflict))?;
         let lock = core_lock::CoreLock(lock);
+        // Under the core lock, before SQLite opens anything.
+        migrations::snapshot::remove_leftovers(path)?;
         let flags = rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW;
         #[cfg(test)]
         let opened = match OPEN_VFS.get() {
@@ -946,21 +1016,34 @@ impl Store {
         // Measured before the transaction: `temp_store` cannot change inside
         // one, and no earlier migration touches `events`.
         let upgrading = (1..INDEXED_SCHEMA).contains(&version);
-        let (build, retention) = upgrade_writes(&conn, version)?;
+        let (build, others) = upgrade_writes(&conn, version)?;
         // An existing store about to be migrated keeps a snapshot beside
         // itself, for an operator to restore; a new store has nothing to
-        // keep. Leftovers of an interrupted snapshot go before measuring.
-        // Refused, writing nothing, unless the snapshot and then the
-        // migrations fit above the free-space reserve, counting the store's
-        // other snapshot files as free (`upgrade_space` reports the same
-        // figures). An unchanged snapshot from an earlier attempt is kept.
+        // keep. Refused, removing and writing nothing, unless the snapshot
+        // and then the migrations fit above the free-space reserve, with
+        // what removing the store's other snapshot files gives back
+        // (`upgrade_space` reports the same figures). An unchanged snapshot
+        // from an earlier attempt is kept. `matched` is the `data_version`
+        // at which the store matched the snapshot.
+        let mut matched = None;
         if (1..target).contains(&version) {
-            migrations::snapshot::remove_leftovers(path)?;
-            let (plan, space) = upgrade_figures(&conn, path, version, true)?;
+            let (plan, free, space) =
+                upgrade_figures(&conn, path, version, migrations::snapshot::Look::Writer)?;
             if space.available < space.needed {
+                note_upgrade(path, Some(space));
                 return Err(Error(ErrorCode::StateNotDurable));
             }
-            migrations::snapshot::take(&conn, path, plan)?;
+            note_upgrade(path, None);
+            matched = Some(migrations::snapshot::take(
+                &conn,
+                path,
+                plan,
+                free < space.needed,
+            )?);
+            #[cfg(test)]
+            if let Some(hook) = BEFORE_MIGRATING.get() {
+                hook(path);
+            }
         }
         // Free space once the snapshot is in place, for the error noted if
         // the commit then runs out (the schema-17 build measures it again).
@@ -977,12 +1060,26 @@ impl Store {
         let tx = conn
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(durable)?;
+        // Another connection that committed between the snapshot and this
+        // transaction would be migrated without being in the snapshot.
+        if let Some(matched) = matched {
+            let now: i64 = tx
+                .pragma_query_value(None, "data_version", |r| r.get(0))
+                .map_err(durable)?;
+            if now != matched {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
+        }
+        #[cfg(test)]
+        APPLIED.with(|applied| applied.borrow_mut().clear());
         for (index, migration) in migrations.iter().enumerate() {
             if migration.version <= version {
                 continue;
             }
+            #[cfg(test)]
+            APPLIED.with(|applied| applied.borrow_mut().push(migration.version));
             if migration.version != INDEXED_SCHEMA {
-                migrations::apply(&tx, migrations, index)?;
+                migrations::apply(&tx, path, migrations, index)?;
                 continue;
             }
             // Version 17 builds three indexes over `events` inside this
@@ -991,7 +1088,7 @@ impl Store {
             // then logs the space needed (`upgrade_space`), and also when
             // the build or the commit runs out of space all the same.
             available = available_space(&directory)?;
-            if available < upgrade_remaining(version, build, retention) {
+            if available < upgrade_remaining(version, build, others) {
                 return Err(Error(ErrorCode::StateNotDurable));
             }
             #[cfg(test)]
@@ -1000,10 +1097,10 @@ impl Store {
                     .map_err(durable)?;
             }
             tx.execute_batch(migration.sql).map_err(|error| {
-                let remaining = upgrade_remaining(version, build, retention);
+                let remaining = upgrade_remaining(version, build, others);
                 upgrade_failed(path, version, available, remaining, error)
             })?;
-            migrations::verify(&tx, migrations, index)?;
+            migrations::verify(&tx, path, migrations, index)?;
         }
         let check: String = tx
             .query_row("PRAGMA quick_check", [], |r| r.get(0))
@@ -1012,9 +1109,7 @@ impl Store {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         if let Some(mismatch) = migrations::mismatch(&tx, migrations)? {
-            if let Ok(mut noted) = SCHEMA_MISMATCH.lock() {
-                *noted = Some((path.to_path_buf(), mismatch));
-            }
+            note_mismatch(path, mismatch);
             return Err(Error(ErrorCode::StateNotDurable));
         }
         resources::check_data(&tx)?;
@@ -1053,7 +1148,7 @@ impl Store {
         )
         .map_err(durable)?;
         tx.commit().map_err(|error| {
-            let remaining = upgrade_remaining(version, build, retention);
+            let remaining = upgrade_remaining(version, build, others);
             upgrade_failed(path, version, available, remaining, error)
         })?;
         if upgrading {

@@ -677,6 +677,8 @@ fn v16_upgrade_on_a_nearly_full_disk_refuses_before_building_indexes() {
         .unwrap();
     assert_eq!((version, indexes), (16, 0));
     drop(conn);
+    // What the refused open measured is what core logs.
+    assert_eq!(crate::upgrade_space(&path), Some(space));
     // With the space it asked for, the upgrade goes through.
     crate::OPEN_FREE_BYTES.set(Some(space.needed));
     assert_eq!(crate::upgrade_space(&path), None);

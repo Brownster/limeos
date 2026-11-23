@@ -51,6 +51,13 @@ pub(crate) struct Migration {
     /// the startup check compares with the reference, on every start.
     /// Every trigger is compared whatever the entries say.
     pub(crate) checked: &'static [Object],
+    /// Tables this migration edits as text through `writable_schema`, which
+    /// SQLite neither parses nor checks against what was meant: compared
+    /// with the reference at this version as soon as it has run. The final
+    /// check would refuse the same store, but only after every later
+    /// migration had run (and spilled its pages to the WAL) inside the
+    /// doomed transaction, on every restart; this refuses before them.
+    pub(crate) rewrites: &'static [&'static str],
 }
 
 const fn plain(version: u32, description: &'static str, sql: &'static str) -> Migration {
@@ -59,6 +66,7 @@ const fn plain(version: u32, description: &'static str, sql: &'static str) -> Mi
         description,
         sql,
         checked: &[],
+        rewrites: &[],
     }
 }
 const fn checked(
@@ -72,6 +80,7 @@ const fn checked(
         description,
         sql,
         checked,
+        rewrites: &[],
     }
 }
 
@@ -160,15 +169,14 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
     // `jobs` state CHECK with a `replace` that silently does nothing if the
     // text is not exactly what it expects (or already names 'resolved').
     // Version 19's triggers and job resolution assume the widened CHECK, so
-    // `jobs` is compared at the end of every open, upgrade or not. No later
-    // migration rewrites that CHECK, so a check right after this step would
-    // refuse nothing the final one does not (both inside one transaction).
-    checked(
-        16,
-        "job resolution: the resolved job state and job_resolutions",
-        include_str!("migration-v16.sql"),
-        &[Table("job_resolutions"), Table("jobs")],
-    ),
+    // `jobs` is compared right after this step and at the end of every open.
+    Migration {
+        version: 16,
+        description: "job resolution: the resolved job state and job_resolutions",
+        sql: include_str!("migration-v16.sql"),
+        checked: &[Table("job_resolutions"), Table("jobs")],
+        rewrites: &["jobs"],
+    },
     checked(
         17,
         "event indexes by job, kind and notification",
@@ -258,18 +266,49 @@ pub(crate) fn check_schema(conn: &Connection, migrations: &[Migration]) -> Resul
 }
 
 /// Applies `migrations[index]` inside the startup transaction and confirms
-/// what SQLite will not: that it set its version.
-pub(crate) fn apply(tx: &Transaction<'_>, migrations: &[Migration], index: usize) -> Result<()> {
+/// what SQLite will not: that it set its version, and that every table it
+/// rewrote as text is now exactly the reference at that version.
+pub(crate) fn apply(
+    tx: &Transaction<'_>,
+    path: &Path,
+    migrations: &[Migration],
+    index: usize,
+) -> Result<()> {
     tx.execute_batch(migrations[index].sql).map_err(durable)?;
-    verify(tx, migrations, index)
+    verify(tx, path, migrations, index)
 }
-/// The check [`apply`] makes after running `migrations[index]`.
-pub(crate) fn verify(tx: &Transaction<'_>, migrations: &[Migration], index: usize) -> Result<()> {
+/// The checks [`apply`] makes after running `migrations[index]`.
+/// A rewritten table that differs is noted for the daemon to name.
+pub(crate) fn verify(
+    tx: &Transaction<'_>,
+    path: &Path,
+    migrations: &[Migration],
+    index: usize,
+) -> Result<()> {
+    let migration = &migrations[index];
     let version: u32 = tx
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .map_err(durable)?;
-    if version != migrations[index].version {
+    if version != migration.version {
         return Err(Error(ErrorCode::StateNotDurable));
+    }
+    if migration.rewrites.is_empty() {
+        return Ok(());
+    }
+    let reference = reference(&migrations[..=index])?;
+    for table in migration.rewrites {
+        let expected =
+            stored_sql(&reference, "table", table)?.ok_or(Error(ErrorCode::StateNotDurable))?;
+        if stored_sql(tx, "table", table)?.as_ref() != Some(&expected) {
+            crate::note_mismatch(
+                path,
+                SchemaMismatch {
+                    kind: "table",
+                    name: (*table).to_owned(),
+                },
+            );
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
     }
     Ok(())
 }

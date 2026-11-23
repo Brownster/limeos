@@ -1,7 +1,6 @@
 use super::snapshot::{Kind, classify, snapshot_bytes, snapshot_path, state_path};
 use super::*;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::time::UNIX_EPOCH;
 
 /// Every schema object, as `(type, name, table, sql)`, in a fixed order.
 type Dump = Vec<(String, String, String, Option<String>)>;
@@ -52,19 +51,44 @@ fn kept(from: u32) -> [String; 2] {
         format!("core.sqlite.v{from}.snapshot.state"),
     ]
 }
-/// Marks a file with an mtime no write can give it, to tell later whether
-/// it was written again.
-const MARK: Duration = Duration::from_secs(1_000_000);
-fn mark(file: &Path) {
-    File::options()
-        .write(true)
-        .open(file)
-        .unwrap()
-        .set_modified(UNIX_EPOCH + MARK)
-        .unwrap();
+/// What the snapshot code removed and wrote since the last call, in order.
+fn events() -> Vec<String> {
+    super::snapshot::EVENTS.with(|events| std::mem::take(&mut *events.borrow_mut()))
 }
-fn marked(file: &Path) -> bool {
-    std::fs::metadata(file).unwrap().modified().unwrap() == UNIX_EPOCH + MARK
+fn writes(events: &[String]) -> usize {
+    events.iter().filter(|e| e.starts_with("write ")).count()
+}
+/// Bytes the store's directory holds, as the simulated disk counts them,
+/// leaving out the WAL and its index (which SQLite removes on close).
+fn allocated(dir: &Path) -> u64 {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            !name.ends_with("-wal") && !name.ends_with("-shm")
+        })
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.blocks() * 512)
+        .sum()
+}
+fn listing(dir: &Path) -> Vec<(String, u64, u64)> {
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| {
+            let meta = e.metadata().unwrap();
+            (
+                e.file_name().to_string_lossy().into_owned(),
+                meta.len(),
+                meta.blocks() * 512,
+            )
+        })
+        .collect();
+    files.sort();
+    files
 }
 /// The migration table with one more entry after it, which forgets to set
 /// its version: every upgrade to it fails after the snapshot is in place.
@@ -75,6 +99,7 @@ fn failing() -> Vec<Migration> {
         description: "test only: forgets its version",
         sql: "CREATE TABLE probe (id INTEGER PRIMARY KEY) STRICT;",
         checked: &[],
+        rewrites: &[],
     });
     extended
 }
@@ -247,6 +272,7 @@ PRAGMA user_version={next};"
         description: "test only: a probe table",
         sql,
         checked: &[Object::Table("probe")],
+        rewrites: &[],
     });
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("core.sqlite");
@@ -332,9 +358,9 @@ fn a_migration_that_does_not_reach_its_version_is_refused() {
 /// Version 16 widens the `jobs` state CHECK by editing its text; when the
 /// text is not what it expects, its `replace` changes nothing and SQLite
 /// reports no error. Before PR-23 such a store reached version 19 with no
-/// `resolved` state, so no stuck job could ever be resolved. The startup
-/// comparison of `jobs` (in version 16's `checked`) refuses it and names
-/// the table; remove `Table("jobs")` there and this fails.
+/// `resolved` state, so no stuck job could ever be resolved. Version 16's
+/// `rewrites` refuses it right after that step and names the table; remove
+/// it and this fails (the final check would refuse too, after v17-v19).
 #[test]
 fn a_jobs_table_that_version_16_could_not_widen_refuses_the_upgrade() {
     let dir = tempfile::tempdir().unwrap();
@@ -351,6 +377,9 @@ fn a_jobs_table_that_version_16_could_not_widen_refuses_the_upgrade() {
         Store::open(&path).err().unwrap().0,
         ErrorCode::StateNotDurable
     );
+    // Refused right after version 16, before versions 17 to 19 ran (and
+    // wrote their pages) inside the transaction that is rolled back.
+    crate::APPLIED.with(|applied| assert_eq!(*applied.borrow(), [16]));
     assert_eq!(
         crate::schema_mismatch(&path),
         Some(SchemaMismatch {
@@ -439,35 +468,71 @@ fn the_snapshot_holds_what_is_still_in_the_wal() {
     assert_eq!(user_version(&store), SCHEMA_VERSION);
 }
 
-/// A snapshot that cannot be written stops the upgrade: the store keeps its
-/// version and no partial file is left.
+/// A snapshot whose copy, sync or rename fails stops the upgrade: the store
+/// keeps its version, no partial file is left, and the previous snapshot
+/// (which the free space did not need) is still there.
 #[test]
-fn a_failed_snapshot_stops_the_migration() {
-    let dir = tempfile::tempdir().unwrap();
+fn a_failed_snapshot_write_stops_the_migration_and_keeps_the_previous_one() {
     let from = SCHEMA_VERSION - 1;
-    let path = store_at(dir.path(), from);
-    let blocked = snapshot_path(&path, from).unwrap();
-    std::fs::create_dir(&blocked).unwrap();
-    std::fs::write(blocked.join("occupied"), b"x").unwrap();
-    assert_eq!(
-        Store::open(&path).err().unwrap().0,
-        ErrorCode::StateNotDurable
-    );
-    assert_eq!(user_version(&path), from);
+    for step in ["vacuum", "sync", "rename"] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = store_at(dir.path(), from);
+        std::fs::write(dir.path().join("core.sqlite.v12.snapshot"), b"old").unwrap();
+        events();
+        super::snapshot::FAIL_AT.set(Some(step));
+        let opened = Store::open(&path);
+        super::snapshot::FAIL_AT.set(None);
+        assert_eq!(
+            opened.err().unwrap().0,
+            ErrorCode::StateNotDurable,
+            "{step}"
+        );
+        assert_eq!(
+            events(),
+            [format!("write core.sqlite.v{from}.snapshot")],
+            "{step}"
+        );
+        assert_eq!(user_version(&path), from, "{step}");
+        assert_eq!(
+            snapshots(dir.path()),
+            ["core.sqlite.v12.snapshot"],
+            "{step}"
+        );
+        drop(Store::open(&path).unwrap());
+        assert_eq!(snapshots(dir.path()), kept(from), "{step}");
+    }
+}
+
+/// A record that cannot be written leaves a snapshot the next attempt cannot
+/// keep: noted for the daemon to log, and taken (and recorded) again then.
+#[test]
+fn a_snapshot_without_its_record_is_noted_and_taken_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    drop(Store::open(&path).unwrap());
+    let extended = failing();
+    events();
+    super::snapshot::FAIL_AT.set(Some("record"));
+    assert!(Store::open_migrating(&path, &extended).is_err());
+    super::snapshot::FAIL_AT.set(None);
+    assert!(crate::unrecorded_snapshot(&path));
+    assert!(!crate::unrecorded_snapshot(&path), "reported once");
     assert_eq!(
         snapshots(dir.path()),
-        [format!("core.sqlite.v{from}.snapshot")]
+        [format!("core.sqlite.v{SCHEMA_VERSION}.snapshot")]
     );
-    assert!(blocked.is_dir(), "only the directory in the way remains");
-    std::fs::remove_dir_all(&blocked).unwrap();
-    drop(Store::open(&path).unwrap());
-    assert_eq!(user_version(&path), SCHEMA_VERSION);
-    assert_eq!(snapshots(dir.path()), kept(from));
+    assert_eq!(writes(&events()), 1);
+    assert!(Store::open_migrating(&path, &extended).is_err());
+    assert_eq!(writes(&events()), 1, "taken again");
+    assert!(!crate::unrecorded_snapshot(&path));
+    assert_eq!(snapshots(dir.path()), kept(SCHEMA_VERSION));
+    assert!(Store::open_migrating(&path, &extended).is_err());
+    assert_eq!(writes(&events()), 0, "then kept");
 }
 
 /// Short of space for the snapshot and the upgrade, the open is refused
-/// before writing anything, and `upgrade_space` reports the figures open
-/// used: the new snapshot plus the migrations' writes and the reserve.
+/// before writing anything; `upgrade_space` then reports what the open
+/// measured (once), and its own estimate agrees.
 #[test]
 fn a_snapshot_that_would_not_fit_refuses_and_says_how_much_it_needs() {
     let dir = tempfile::tempdir().unwrap();
@@ -479,42 +544,46 @@ fn a_snapshot_that_would_not_fit_refuses_and_says_how_much_it_needs() {
     )
     .unwrap();
     let bytes = snapshot_bytes(&conn).unwrap();
-    let (build, retention) = upgrade_writes(&conn, from).unwrap();
+    let (build, others) = upgrade_writes(&conn, from).unwrap();
     drop(conn);
     crate::OPEN_FREE_BYTES.set(Some(0));
     let needed = crate::upgrade_space(&path).unwrap().needed;
-    assert_eq!(needed, bytes + upgrade_remaining(from, build, retention));
+    assert_eq!(needed, bytes + upgrade_remaining(from, build, others));
     crate::OPEN_FREE_BYTES.set(Some(needed - 1));
-    assert_eq!(
-        crate::upgrade_space(&path),
-        Some(UpgradeSpace {
-            from,
-            needed,
-            available: needed - 1
-        })
-    );
+    let short = Some(UpgradeSpace {
+        from,
+        needed,
+        available: needed - 1,
+    });
     assert_eq!(
         Store::open(&path).err().unwrap().0,
         ErrorCode::StateNotDurable
     );
+    assert_eq!(crate::upgrade_space(&path), short, "as the open measured");
+    assert_eq!(crate::upgrade_space(&path), short, "and estimated");
     assert_eq!(user_version(&path), from);
     assert!(snapshots(dir.path()).is_empty());
     crate::OPEN_FREE_BYTES.set(Some(needed));
-    assert_eq!(crate::upgrade_space(&path), None);
     drop(Store::open(&path).unwrap());
+    assert_eq!(crate::upgrade_space(&path), None);
     crate::OPEN_FREE_BYTES.set(None);
     let written = std::fs::metadata(snapshot_path(&path, from).unwrap())
         .unwrap()
         .len();
     assert!(written <= bytes, "estimated {bytes}, wrote {written}");
-    assert_eq!(crate::upgrade_space(&path), None);
 }
 
-/// On a disk that holds the store, an interrupted snapshot's leftovers, a
-/// stale snapshot of the same version or an older version's snapshot, and
-/// exactly enough besides for the new snapshot and the migrations, the
-/// upgrade goes through: those files are counted as free and removed
-/// before the new snapshot is written. With less, it is refused.
+/// On a disk that holds the store, one more snapshot-sized file and exactly
+/// enough besides for the new snapshot and the migrations (no slack), the
+/// upgrade goes through when that file is a leftover of an interrupted
+/// snapshot, a stale snapshot of the same version or an older version's:
+/// a leftover is removed before the store is opened, a finished snapshot
+/// before the new one is written (it is needed as space). With one byte
+/// less it is refused and a finished snapshot is still there.
+///
+/// The simulated disk is consulted where `Store::open` measures free space;
+/// it cannot make SQLite's own allocation of the WAL index fail, which is
+/// why `leftovers_go_before_the_store_is_opened` checks that ordering.
 #[test]
 fn snapshot_files_that_go_count_as_free_space() {
     let from = SCHEMA_VERSION - 1;
@@ -528,35 +597,153 @@ fn snapshot_files_that_go_count_as_free_space() {
         crate::OPEN_FREE_BYTES.set(Some(0));
         let needed = crate::upgrade_space(&path).unwrap().needed;
         crate::OPEN_FREE_BYTES.set(None);
-        let store = std::fs::metadata(&path).unwrap().len();
-        let leave = |size: u64| {
-            std::fs::write(dir.path().join(&stale), vec![7u8; size as usize]).unwrap();
-            std::fs::write(
-                dir.path()
-                    .join(format!("core.sqlite.v{from}.snapshot.partial-journal")),
-                b"j",
-            )
+        // The WAL index SQLite creates when it opens the store, as large as
+        // the open will find it.
+        let index = {
+            let conn = Connection::open(&path).unwrap();
+            conn.query_row("SELECT count(*) FROM sqlite_schema", [], |r| {
+                r.get::<_, i64>(0)
+            })
             .unwrap();
+            let mut shm = path.as_os_str().to_owned();
+            shm.push("-shm");
+            std::fs::metadata(PathBuf::from(shm)).unwrap().blocks() * 512
         };
-        // The open's own WAL index (32 KiB) and some slack: far less than
-        // a second copy (`needed` bytes) would need.
-        let capacity = store + needed + 64 * 1024;
-        leave(needed);
-        crate::OPEN_DISK_CAPACITY.set(Some(capacity - needed / 2));
+        let capacity = allocated(dir.path()) + index + needed;
+        // Whole blocks, so the file takes no more than its share of the
+        // disk: the rest of `needed` is free space.
+        let size = needed / 4096 * 4096;
+        let leave = || {
+            std::fs::write(dir.path().join(&stale), vec![7u8; size as usize]).unwrap();
+        };
+        leave();
+        crate::OPEN_DISK_CAPACITY.set(Some(capacity - 1));
+        events();
+        let refused = Store::open(&path);
         assert_eq!(
-            Store::open(&path).err().unwrap().0,
-            ErrorCode::StateNotDurable,
-            "{stale}"
+            refused.err().map(|e| e.0),
+            Some(ErrorCode::StateNotDurable),
+            "{stale}: capacity {capacity}, index {index}, needed {needed}, {:?}",
+            listing(dir.path())
         );
         assert_eq!(user_version(&path), from);
-        leave(needed);
+        if !stale.ends_with(".partial") {
+            assert!(dir.path().join(&stale).exists(), "{stale} kept on refusal");
+        }
+        leave();
         crate::OPEN_DISK_CAPACITY.set(Some(capacity));
+        events();
         let opened = Store::open(&path);
         crate::OPEN_DISK_CAPACITY.set(None);
         drop(opened.unwrap());
+        let order = events();
+        let removed = order.iter().position(|e| *e == format!("remove {stale}"));
+        let written = order.iter().position(|e| e.starts_with("write "));
+        assert!(removed.unwrap() < written.unwrap(), "{stale}: {order:?}");
         assert_eq!(user_version(&path), SCHEMA_VERSION, "{stale}");
         assert_eq!(snapshots(dir.path()), kept(from), "{stale}");
     }
+}
+
+/// With free space enough on its own, the new snapshot is written before
+/// the previous one goes, so a failed write cannot leave none.
+#[test]
+fn the_previous_snapshot_goes_after_the_new_one_when_space_allows() {
+    let from = SCHEMA_VERSION - 1;
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), from);
+    std::fs::write(dir.path().join("core.sqlite.v12.snapshot"), b"old").unwrap();
+    std::fs::write(dir.path().join("core.sqlite.v12.snapshot.state"), b"{}").unwrap();
+    events();
+    drop(Store::open(&path).unwrap());
+    let order = events();
+    assert_eq!(
+        order[0],
+        format!("write core.sqlite.v{from}.snapshot"),
+        "{order:?}"
+    );
+    assert!(
+        order[1..]
+            .iter()
+            .all(|e| e.starts_with("remove core.sqlite.v12."))
+    );
+    assert_eq!(order.len(), 3);
+}
+
+/// Only what removing a file gives back counts as free: nothing for a file
+/// another name still holds (a hard link), and only the allocated blocks of
+/// a sparse one. Refused then, and the old snapshot keeps its name.
+#[test]
+fn only_space_that_removing_frees_is_counted() {
+    let from = SCHEMA_VERSION - 1;
+    for kind in ["linked", "sparse", "plain"] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = store_at(dir.path(), from);
+        crate::OPEN_FREE_BYTES.set(Some(0));
+        let needed = crate::upgrade_space(&path).unwrap().needed;
+        let old = dir.path().join("core.sqlite.v12.snapshot");
+        match kind {
+            "linked" => {
+                let other = dir.path().join("kept-elsewhere");
+                std::fs::write(&other, vec![7u8; needed as usize]).unwrap();
+                std::fs::hard_link(&other, &old).unwrap();
+            }
+            "sparse" => File::create(&old).unwrap().set_len(needed).unwrap(),
+            _ => std::fs::write(&old, vec![7u8; needed as usize]).unwrap(),
+        }
+        crate::OPEN_FREE_BYTES.set(Some(needed - 1));
+        let opened = Store::open(&path);
+        crate::OPEN_FREE_BYTES.set(None);
+        if kind == "plain" {
+            drop(opened.unwrap());
+            assert!(!old.exists());
+        } else {
+            assert_eq!(
+                opened.err().unwrap().0,
+                ErrorCode::StateNotDurable,
+                "{kind}"
+            );
+            assert!(old.exists(), "{kind}");
+            assert_eq!(user_version(&path), from);
+        }
+    }
+}
+
+/// Leftovers of an interrupted snapshot go by plain file operations before
+/// SQLite opens the store: even when the open then fails at once.
+#[test]
+fn leftovers_go_before_the_store_is_opened() {
+    let leftover = |dir: &Path| {
+        let file = dir.join("core.sqlite.v18.snapshot.partial");
+        std::fs::write(&file, b"partial").unwrap();
+        file
+    };
+    // A store from a newer build.
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), 1);
+    Connection::open(&path)
+        .unwrap()
+        .pragma_update(None, "user_version", 999)
+        .unwrap();
+    let file = leftover(dir.path());
+    assert_eq!(Store::open(&path).err().unwrap().0, ErrorCode::Conflict);
+    assert!(!file.exists());
+    // Not a database at all.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    std::fs::write(&path, vec![1u8; 8192]).unwrap();
+    let file = leftover(dir.path());
+    assert!(Store::open(&path).is_err());
+    assert!(!file.exists());
+    // A leftover that cannot be removed refuses before the store exists.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    std::fs::create_dir(dir.path().join("core.sqlite.v18.snapshot.partial")).unwrap();
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    assert!(!path.exists(), "SQLite never opened it");
 }
 
 /// An upgrade that fails after its snapshot, started again and again (as
@@ -568,13 +755,10 @@ fn a_failing_upgrade_started_again_writes_one_snapshot() {
     let path = dir.path().join("core.sqlite");
     drop(Store::open(&path).unwrap());
     let extended = failing();
+    events();
     assert!(Store::open_migrating(&path, &extended).is_err());
-    let (snapshot, state) = (
-        snapshot_path(&path, SCHEMA_VERSION).unwrap(),
-        state_path(&path, SCHEMA_VERSION).unwrap(),
-    );
-    mark(&snapshot);
-    mark(&state);
+    assert_eq!(writes(&events()), 1);
+    let snapshot = snapshot_path(&path, SCHEMA_VERSION).unwrap();
     let inode = std::fs::metadata(&snapshot).unwrap().ino();
     for _ in 0..5 {
         assert_eq!(
@@ -582,7 +766,7 @@ fn a_failing_upgrade_started_again_writes_one_snapshot() {
             ErrorCode::StateNotDurable
         );
     }
-    assert!(marked(&snapshot) && marked(&state), "nothing written again");
+    assert_eq!(events(), Vec::<String>::new(), "nothing removed or written");
     assert_eq!(std::fs::metadata(&snapshot).unwrap().ino(), inode);
     assert_eq!(snapshots(dir.path()), kept(SCHEMA_VERSION));
     assert_eq!(user_version(&path), SCHEMA_VERSION);
@@ -590,7 +774,8 @@ fn a_failing_upgrade_started_again_writes_one_snapshot() {
 
 /// The snapshot is taken again whenever it cannot be shown to match the
 /// store: after a commit (checkpointed, or only in the WAL), and with its
-/// record missing, unreadable, for another version or for other bytes.
+/// record missing, unreadable or for another version, its modification time
+/// changed (ruled out without reading) or its bytes changed.
 #[test]
 fn a_snapshot_that_may_not_match_is_taken_again() {
     let dir = tempfile::tempdir().unwrap();
@@ -602,11 +787,11 @@ fn a_snapshot_that_may_not_match_is_taken_again() {
         state_path(&path, SCHEMA_VERSION).unwrap(),
     );
     let attempt = || {
-        mark(&snapshot);
+        events();
         assert!(Store::open_migrating(&path, &extended).is_err());
-        !marked(&snapshot)
+        writes(&events()) == 1
     };
-    assert!(Store::open_migrating(&path, &extended).is_err());
+    assert!(attempt(), "first");
     assert!(!attempt(), "unchanged: kept");
     // A commit, checkpointed when the writer closes.
     Connection::open(&path)
@@ -642,14 +827,56 @@ fn a_snapshot_that_may_not_match_is_taken_again() {
     )
     .unwrap();
     assert!(attempt(), "record for another version");
-    // The snapshot's bytes.
-    let mut bytes = std::fs::read(&snapshot).unwrap();
-    let last = bytes.len() - 1;
-    bytes[last] ^= 1;
-    std::fs::write(&snapshot, bytes).unwrap();
-    assert!(attempt(), "snapshot changed");
+    // The snapshot's modification time, then its bytes (in place, keeping
+    // its length, inode and modification time).
+    File::options()
+        .write(true)
+        .open(&snapshot)
+        .unwrap()
+        .set_modified(std::time::UNIX_EPOCH + Duration::from_secs(1_000_000))
+        .unwrap();
+    assert!(attempt(), "modification time changed");
+    let modified = std::fs::metadata(&snapshot).unwrap().modified().unwrap();
+    {
+        use std::io::{Seek, SeekFrom, Write};
+        let mut file = File::options().write(true).open(&snapshot).unwrap();
+        file.seek(SeekFrom::End(-1)).unwrap();
+        file.write_all(&[0x5a]).unwrap();
+        file.set_modified(modified).unwrap();
+    }
+    assert!(attempt(), "bytes changed");
     assert!(!attempt(), "and kept once taken again");
     assert_eq!(snapshots(dir.path()), kept(SCHEMA_VERSION));
+}
+
+/// A commit by another connection between the snapshot and the migration
+/// transaction refuses the upgrade (the snapshot would not hold it); the
+/// next start takes a snapshot that does.
+#[test]
+fn a_commit_after_the_snapshot_refuses_the_upgrade() {
+    fn commit(path: &Path) {
+        Connection::open(path)
+            .unwrap()
+            .execute(
+                "INSERT INTO budgets(id,limit_units) VALUES ('between',1)",
+                [],
+            )
+            .unwrap();
+    }
+    let from = SCHEMA_VERSION - 1;
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), from);
+    crate::BEFORE_MIGRATING.set(Some(commit));
+    let opened = Store::open(&path);
+    crate::BEFORE_MIGRATING.set(None);
+    assert_eq!(opened.err().unwrap().0, ErrorCode::StateNotDurable);
+    assert_eq!(user_version(&path), from);
+    let snapshot = snapshot_path(&path, from).unwrap();
+    assert_eq!(budget_rows(&snapshot, "between"), 0);
+    events();
+    drop(Store::open(&path).unwrap());
+    assert_eq!(writes(&events()), 1);
+    assert_eq!(budget_rows(&snapshot, "between"), 1);
 }
 
 /// One snapshot is kept, with its record. Older ones, records and leftovers
@@ -740,15 +967,10 @@ fn a_store_that_cannot_use_wal_is_refused() {
     drop(Store::open(&path).unwrap());
 }
 
-/// The estimate for an upgrade from version 18 follows what it writes: the
-/// snapshot, and version 19's settlement times and retention index over
-/// every settled job (WAL and database file). Admitted with exactly the
-/// space it asks for, it leaves the write reserve free, and it asks for no
-/// more than three times what it uses.
-#[test]
-fn the_v18_upgrade_estimate_covers_what_it_writes() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("core.sqlite");
+/// A version-18 store of `rows` settled container jobs whose intents carry
+/// `pad` bytes, packed by `VACUUM`.
+fn settled_jobs_store(dir: &Path, rows: u32, pad: u32) -> PathBuf {
+    let path = dir.join("core.sqlite");
     let mut store = Store::open(&path).unwrap();
     store.issue_bootstrap("token", 100).unwrap();
     store
@@ -758,12 +980,12 @@ fn the_v18_upgrade_estimate_covers_what_it_writes() {
     store
         .conn
         .execute(
-            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<20000)
+            "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<?2)
              INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
-             SELECT printf('%064d',x),?,printf('key-%d',x),
-                 json_object('operation','container_restart','plan',hex(randomblob(120))),
-                 hex(randomblob(32)),printf('container:%d',x),'queued',1,1,4000000000 FROM c",
-            [&principal.id],
+             SELECT printf('%064d',x),?1,printf('key-%06d',x),
+                 json_object('operation','container_restart','plan',substr(hex(zeroblob(?3)),1,?3)),
+                 printf('%064d',x),printf('container:%06d',x),'queued',1,1,4000000000 FROM c",
+            params![principal.id, rows, pad],
         )
         .unwrap();
     // Queued first: a job's resource set is written while it is queued.
@@ -777,6 +999,62 @@ fn the_v18_upgrade_estimate_covers_what_it_writes() {
         .execute_batch("PRAGMA user_version=18; VACUUM;")
         .unwrap();
     drop(store);
+    path
+}
+/// The leaves of `jobs`: how many, how many hold two records, and the free
+/// bytes most two-record leaves have.
+fn job_leaves(path: &Path) -> (i64, i64, i64) {
+    let conn =
+        Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    conn.query_row(
+        "SELECT (SELECT count(*) FROM dbstat WHERE name='jobs' AND pagetype='leaf'),
+                (SELECT count(*) FROM dbstat WHERE name='jobs' AND pagetype='leaf' AND ncell=2),
+                coalesce((SELECT unused FROM dbstat WHERE name='jobs' AND pagetype='leaf' AND ncell=2
+                    GROUP BY unused ORDER BY count(*) DESC LIMIT 1),-1)",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )
+    .unwrap()
+}
+
+/// The schema-19 estimate is an upper bound at its worst case: every leaf
+/// of `jobs` holds two records with fewer free bytes than setting
+/// `settled` adds, so every leaf splits (one WAL frame for it and one for
+/// its sibling, and the sibling added to the database file). Admitted with
+/// exactly the space it asks for, the upgrade leaves the write reserve free
+/// at its peak (after the commit's checkpoint, before the WAL is reset:
+/// database, WAL, snapshot and record as they stand when open returns);
+/// a bound from rows alone would not have covered it; and the estimate asks
+/// for no more than twice what it uses.
+#[test]
+fn the_v19_estimate_covers_every_job_leaf_splitting() {
+    // Find the padding that leaves 4 or 5 free bytes on a two-record leaf:
+    // fewer than the 10 that two records gain (a serial type byte and a
+    // 4-byte integer each).
+    let probe = tempfile::tempdir().unwrap();
+    let (_, two, free) = job_leaves(&settled_jobs_store(probe.path(), 40, 1650));
+    assert!(
+        two > 0 && free >= 10,
+        "calibration: {two} leaves, {free} free"
+    );
+    let pad = 1650 + u32::try_from(free / 2 - 2).unwrap();
+    drop(probe);
+    let dir = tempfile::tempdir().unwrap();
+    let path = settled_jobs_store(dir.path(), 3000, pad);
+    let (leaves, two, free) = job_leaves(&path);
+    assert!(
+        two * 100 >= leaves * 95,
+        "{two} of {leaves} leaves hold two"
+    );
+    assert!((0..10).contains(&free), "{free} bytes free");
+    let row_bound: i64 = Connection::open(&path)
+        .unwrap()
+        .query_row(
+            "SELECT (sum(octet_length(id)+octet_length(principal)+octet_length(idempotency)+octet_length(intent)+octet_length(digest)+octet_length(resource)+octet_length(state))+count(*)*104)*8/3 FROM jobs",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     let on_disk = || -> u64 {
         [
             path.clone(),
@@ -795,26 +1073,27 @@ fn the_v18_upgrade_estimate_covers_what_it_writes() {
     let opened = Store::open(&path);
     crate::OPEN_FREE_BYTES.set(None);
     let store = opened.unwrap();
-    // The commit's checkpoint has copied the WAL into the database, and
-    // the WAL keeps its size until the next write: the peak.
+    // Measured with the store still open: the WAL keeps its size until the
+    // next write (closing would checkpoint and remove it).
     let used = on_disk() - before;
-    let settled: i64 = store
-        .conn
-        .query_row(
-            "SELECT count(*) FROM jobs WHERE settled IS NOT NULL",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap();
     drop(store);
-    assert_eq!(settled, 20000);
+    let snapshot = std::fs::metadata(snapshot_path(&path, 18).unwrap())
+        .unwrap()
+        .len();
+    let (after, _, _) = job_leaves(&path);
+    assert!(after * 10 >= leaves * 19, "{leaves} leaves became {after}");
     assert!(
         used + MIN_FREE_BYTES <= needed,
         "used {used}, allowed {}",
         needed - MIN_FREE_BYTES
     );
     assert!(
-        needed - MIN_FREE_BYTES <= 3 * used,
+        used - snapshot > u64::try_from(row_bound).unwrap(),
+        "a bound from rows ({row_bound}) would have covered {}",
+        used - snapshot
+    );
+    assert!(
+        needed - MIN_FREE_BYTES <= 2 * used,
         "used {used}, allowed {}",
         needed - MIN_FREE_BYTES
     );

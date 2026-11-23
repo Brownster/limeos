@@ -1273,6 +1273,11 @@ async fn run() -> Result<()> {
                 "the database schema upgrade needs more free space on the filesystem holding the state directory; the store was not changed. Free space there (old logs, the apt cache, unused container images) and restart. The store's own pre-upgrade snapshots (core.sqlite.v*.snapshot) are removed automatically and already counted as free"
             );
         }
+        if limeos_persistence::unrecorded_snapshot(&store) {
+            tracing::warn!(
+                "the pre-upgrade snapshot was written but its record was not, so the next start cannot keep it and writes another copy; check the state directory's free space and permissions"
+            );
+        }
         if let Some(mismatch) = limeos_persistence::schema_mismatch(&store) {
             tracing::error!(
                 kind = mismatch.kind,
