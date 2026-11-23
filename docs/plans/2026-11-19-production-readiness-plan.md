@@ -73,8 +73,24 @@ batches, at most once a minute, and writes nothing when there is nothing to prun
 | PR-20 | Storage reader: move blocking sysfs and block-device reads to `spawn_blocking` with a deadline; add `WatchdogSec` and `sd_notify` to resident units. | A hung read is abandoned and the unit recovers without operator action. |
 | PR-21 | Separate the permits shared by stack refresh, health and storage inventory, or queue with a deadline instead of `try_lock`. | Overlapping requests no longer mark the stack cache stale. |
 | PR-22 | Per-request timeouts in place of the 30 s whole-connection timeout; SSE readers capped per session. | Keep-alive test across the 30 s mark; one session cannot take all eight streams. |
-| PR-23 | Migrations: one ordered table used by both `open` and the schema check; snapshot the database file before migrating; check the `PRAGMA journal_mode` result; verify the `jobs` table SQL after v16. | A migration added to the table alone is applied and checked. |
+| PR-23 ✔ | Migrations: one ordered table used by both `open` and the schema check; snapshot the database file before migrating; check the `PRAGMA journal_mode` result; verify the `jobs` table SQL after v16. | A migration added to the table alone is applied and checked. Done: see the note below the table. |
 | PR-24 | `postrm`/`prerm`: tolerate already-removed or never-enabled units; restart optional units that were running before an upgrade. | VM: remove twice, upgrade with the reader running. |
+
+**PR-23 as built.** `crates/persistence/src/migrations.rs` holds `MIGRATIONS`, one entry per
+version (its SQL, a description, the tables and indexes the startup check compares, and the
+tables it rewrites as text). `Store::open` applies the entries above the store's version and
+confirms each set its version; `resources::check` builds its reference from the same entries
+and compares every trigger plus the objects they name. `SCHEMA_VERSION` is the last entry.
+`a_migration_added_to_the_table_alone_is_applied_and_checked` adds a test-only entry and
+nothing else. Before migrating an existing store, open writes `core.sqlite.v<from>.snapshot`
+beside it with `VACUUM INTO` (WAL included), synced, checked, mode 0600, and keeps only the
+newest; a failed or unaffordable snapshot refuses the start with the store unchanged, and
+`upgrade_space` counts the snapshot. Open fails unless `journal_mode` answers `wal`. The
+v16 hazard: its `replace` on the `jobs` text does nothing, silently, when the text is not
+exactly as expected, and the startup check never compared `jobs`; the store then reached
+v19 without the `resolved` state. The table is now compared right after v16 and at every
+start. Not verified: an upgrade of a real pre-upgrade store (no such fixture exists; tests
+build older stores from the same SQL files). Operator steps: `docs/p03-operations.md`.
 
 ## Phase 2 — Security
 
