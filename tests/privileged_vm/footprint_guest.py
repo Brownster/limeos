@@ -51,25 +51,26 @@ from pathlib import Path
 
 MIB = 1024 * 1024
 # Gates. The architecture budgets are 30 MiB, 20 MB/day, 0.1 % of a core and 1 s.
-# PSS: core plus base executors settled on a month-old, used store read 13.94 to 14.09 MiB in three
-# runs of the suite (14.22 MiB in a trace run), core 10.74 to 10.81 MiB; 15 MiB is 0.78 MiB above
-# the highest, about three times the largest run-to-run swing (0.28 MiB, mostly the executors'
-# shared code pages), so a regression of a MiB fails.
-PSS_GATE_BYTES = 15 * MIB
-# Disk writes: a steady metrics flush on a month-old store writes 24 KiB (two WAL frames, one for
-# the inserted rows and one for the deleted oldest rows, and the WAL index), every five minutes:
-# 7.07 MB/day, the figure all three runs read. The 600 s normally holds two flushes; when one lands
-# at each end it holds three (10.6 MB/day), and a WAL checkpoint, every 64 flushes, adds about
-# 12 KiB (12.4 MB/day if both coincide). 13 MB/day passes those alignments, fails a flush that
-# grows by a third, and stays under the 20 MB/day budget.
+# PSS: core plus base executors settled on a month-old, used store read 13.94 to 14.31 MiB over
+# nine runs (six on this laptop's guest, ascending and descending seeds; one on the GitHub runner,
+# 14.26 MiB; two traces), core 10.67 to 11.06 MiB. The spread, 0.37 MiB, is mostly the
+# executors' shared code pages. 15.5 MiB is 1.19 MiB above the highest, three times that spread,
+# so noise does not fail it and a regression of 1.5 MiB does; it is half the budget.
+PSS_GATE_BYTES = int(15.5 * MIB)
+# Disk writes: a steady metrics flush on a month-old store writes 24 KiB of write_bytes (two WAL
+# frames, one for the leaf of the inserted rows and one for the leaf of the deleted oldest rows,
+# and the WAL index) every five minutes: 7.07 MB/day, which every run read. The 600 s normally
+# holds two flushes, sometimes three (10.6 MB/day), and a checkpoint every 64 flushes adds about
+# 12 KiB (12.4 MB/day if both fall in one run). Below 20 MB/day, 13 MB/day passes those, and fails
+# when a steady flush passes 45 KiB (1.9 times today's) with two flushes in the run, or 30 KiB with
+# three, or when another idle writer adds about 6 MB/day.
 DISK_GATE_MB_DAY = 13.0
 READY_GATE_MS = 1000.0
 CPU_BUDGET_PERCENT = 0.1
-# Not the budget, which neither guest meets: a regression ceiling over both measured figures.
-# Over the 600 s, the GitHub runner's guest read 0.148 % (windows 0.145 to 0.155 %; reader 0.058,
-# core 0.075) and this laptop's 0.203 to 0.205 % (windows 0.18 to 0.225 %; reader 0.12, core 0.07).
-# 0.3 % is 1.46 times the higher figure and twice the runner's: a doubling of idle CPU on the
-# runner fails it, and so does half as much again on the slower laptop guest.
+# Not the budget, which neither guest meets: a regression ceiling over the measured figures.
+# Over the 600 s, the GitHub runner's guest read 0.148 % and 0.188 % in two runs (core 0.075 and
+# 0.103, reader 0.058 and 0.070) and this laptop's 0.200 to 0.210 % in nine (reader about 0.12,
+# core 0.07). 0.3 % is 1.43 times the highest: a doubling of idle CPU fails it anywhere.
 CPU_CEILING_PERCENT = 0.3
 # The per-process sums must match measure.sh's rows to their rounding (4 and 3 decimals).
 CPU_AGREEMENT = 0.0005
@@ -105,8 +106,13 @@ NO_PROXY_PORT = "8002"
 CHANGE_NOTE = "process set changed during the window"
 THP_ENABLED = Path("/sys/kernel/mm/transparent_hugepage/enabled")
 METRICS = Path("/var/lib/limeos/core/metrics.sqlite")
-# A host that has run a month: core's metrics store holds the 31 days it keeps, one sample a minute.
-MONTH_SAMPLES = 31 * 24 * 60
+# A host that has run past a month: core's metrics store holds the 31 days it keeps, one sample a
+# minute, written as core writes them (telemetry.rs): every five minutes one transaction inserts
+# the five newest samples and deletes those older than 31 days. Seeding 35 days leaves four days of
+# that pruning (and of SQLite reusing the freed pages) behind the 31 kept.
+RETENTION_S = 31 * 86400
+SEEDED_DAYS = 35
+FLUSH_SAMPLES = 5
 LOGIN = {"username": "footprint-admin", "password": "Synthetic-VM-password-2026"}
 GATED_ROWS = ("core_base_idle_pss", "backend_cpu_idle", "resident_disk_writes")
 
@@ -302,7 +308,7 @@ def evaluate(windows, readiness, thp=None):
             "value_bytes": max(pss) if pss and None not in pss else None,
             "value_mib": round(max(pss) / MIB, 2) if pss and None not in pss else None,
             "per_window_mib": [None if p is None else round(p / MIB, 2) for p in pss],
-            "gate": f"every window <= {PSS_GATE_BYTES // MIB} MiB",
+            "gate": f"every window <= {PSS_GATE_BYTES / MIB:g} MiB",
             "pass": pss_ok,
         },
         "resident_disk_writes": {
@@ -392,18 +398,31 @@ def disable_thp():
     return THP_ENABLED.read_text().strip()
 
 
-def month_of_samples(now):
-    """(minute, cpu, memory, temperature, disk) rows for the 31 days before `now`."""
-    minute = now // 60 * 60
-    return [(minute - i * 60, 12.5, 40.0, 51.0, 63.0) for i in range(1, MONTH_SAMPLES + 1)]
+def seeded_flushes(now):
+    """The flushes core would have written over the `SEEDED_DAYS` before `now`, oldest first:
+    (five (minute, cpu, memory, temperature, disk) rows, ascending, and the cutoff its `DELETE`
+    used, the newest row's time less 31 days)."""
+    last = now // 60 * 60 - 60
+    minutes = range(last - (SEEDED_DAYS * 1440 - 1) * 60, last + 60, 60)
+    rows = [(m, 12.5, 40.0, 51.0, 63.0) for m in minutes]
+    return [(rows[i:i + FLUSH_SAMPLES], rows[i + FLUSH_SAMPLES - 1][0] - RETENTION_S)
+            for i in range(0, len(rows) - FLUSH_SAMPLES + 1, FLUSH_SAMPLES)]
 
 
 def seed_metrics():
-    """Stop core, fill its metrics store with a month of samples, start it again: the measured
-    core opens a store the size a month-old host's is."""
+    """Stop core, write its metrics store's last five weeks as core writes them, start it again:
+    the measured core opens a store laid out as a month-old host's is."""
     sh("systemctl stop limeos-core", 60)
-    with sqlite3.connect(METRICS) as db:
-        db.executemany("INSERT OR REPLACE INTO samples VALUES(?,?,?,?,?)", month_of_samples(int(time.time())))
+    db = sqlite3.connect(METRICS, isolation_level=None)
+    # The connection settings core's own uses (telemetry.rs), so pages split, free and are
+    # checkpointed back as they would be.
+    db.execute("PRAGMA synchronous=NORMAL")
+    db.execute("PRAGMA wal_autocheckpoint=128")
+    for rows, cutoff in seeded_flushes(int(time.time())):
+        db.execute("BEGIN")
+        db.executemany("INSERT OR REPLACE INTO samples VALUES(?,?,?,?,?)", rows)
+        db.execute("DELETE FROM samples WHERE at<?", (cutoff,))
+        db.execute("COMMIT")
     db.close()
     owner = METRICS.parent.stat()
     for path in METRICS.parent.glob(METRICS.name + "*"):

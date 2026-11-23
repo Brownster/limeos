@@ -130,12 +130,22 @@ class HealthyTests(unittest.TestCase):
         self.assertEqual(window["memory_kb"]["limeos-core.service"]["AnonHugePages"], 0)
         self.assertIn("Pss_File", window["memory_kb"][READER])
 
-    def test_a_month_of_samples_is_31_days_one_a_minute(self):
-        rows = guest.month_of_samples(1_800_000_030)
-        self.assertEqual(len(rows), 31 * 24 * 60)
-        self.assertEqual(rows[0][0], 1_800_000_000 - 60)
-        self.assertEqual(rows[-1][0], 1_800_000_000 - 31 * 86400)
-        self.assertEqual(len({r[0] for r in rows}), len(rows))
+    def test_seeding_writes_flushes_as_core_does(self):
+        now = 1_800_000_030
+        flushes = guest.seeded_flushes(now)
+        rows = [row for batch, _ in flushes for row in batch]
+        self.assertTrue(all(len(batch) == 5 for batch, _ in flushes))
+        times = [row[0] for row in rows]
+        self.assertEqual(times, sorted(times))
+        self.assertEqual(len(set(times)), len(times))
+        self.assertEqual(times[-1], 1_800_000_000 - 60)
+        self.assertEqual(len(times), 35 * 1440)
+        # Each flush deletes what is 31 days older than its newest sample, as telemetry.rs does.
+        for batch, cutoff in flushes:
+            self.assertEqual(cutoff, batch[-1][0] - 31 * 86400)
+        kept = [t for t in times if t >= flushes[-1][1]]
+        # The oldest kept sits on the boundary, as the soak finds (44,641 rows).
+        self.assertEqual(len(kept), 31 * 1440 + 1)
 
     def test_lib_base_units_reads_the_real_library(self):
         lib = (ROOT / "scripts/cutover/lib.sh").read_text()
