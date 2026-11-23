@@ -109,9 +109,9 @@ the installed VM in CI, with the Pi night as confirmation.
 
 | Measure | Budget | Last recorded | Action |
 |---|---|---|---|
-| Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct); 13.2–13.5 MiB fresh, 15.8 MiB on a month of metrics before the cache change (amd64 guest, 23 Nov) | **Gated at 15 MiB; the settled-state threshold is open** (below). |
+| Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct); 13.2–13.5 MiB fresh; settled on a month-old used store 15.78 MiB before the cache change, 13.94–14.09 MiB after (amd64 guest, 23 Nov) | **Gated at 15 MiB on the settled state** (below). |
 | Idle CPU | 0.1% of a core | 0.051% earlier; 0.203–0.205% (laptop amd64 guest with the stack reader, 23 Nov), 0.148% (GitHub runner's guest) — **budget not met** | **Gated at a 0.3% regression ceiling**, not the budget (below). Re-measure with the 1 Hz automation pass enabled. |
-| Resident disk writes | 20 MB/day | 4.72 MB/day fresh; 10.6 MB/day on a month of metrics (amd64 guest, 23 Nov) | **Gated at 10 MB/day, which a month-old store exceeds: open** (below). |
+| Resident disk writes | 20 MB/day | 4.72 MB/day was a fresh store's; 7.07 MB/day settled on a month-old store (amd64 guest, 23 Nov) | **Gated at 13 MB/day on the settled state** (below). |
 | Cold readiness | 1 s | 457 ms; 111–167 ms (amd64 guest, 23 Nov) | **Gated at 1 s** as readiness after `systemctl restart` (warm cache, the stop included; below); a true cold start is not measured. Repeat at the PR-13 database size. |
 | Cached overview p95 | 20 ms | 0.83 ms (AMD64) | Not gated in CI: gate on the Pi figure. |
 | Storage inventory p95 | 20 ms | 61.4 ms — fails | Not gated. Profile; cache topology between udev events, or set a separate reasoned budget. |
@@ -128,13 +128,15 @@ job. The guest is left as the basic cutover leaves a host: Docker with a Compose
 project (four running members, one created) and two standalone containers, the
 candidate installed from the signed test repository with one enrolled account,
 the management catalog from `limeosctl migrate propose-catalog --install`, and
-the stack reader started, not enabled. After 90 s to settle, the unchanged
+the stack reader started, not enabled. After a settle (90 s in the first round, now 360 s; see below), the unchanged
 `scripts/cutover/measure.sh` runs three consecutive 200 s idle windows, then three
 `--measure-core-restart` runs. The gated figures are measure.sh's own row values:
 PSS per window, and CPU and disk writes as each window's row weighted by its
 elapsed time:
 
-| Gate | Threshold | Statistic | Local guest runs 1 / 2 / 3 / 4 (4 on the final suite) |
+First round, on a fresh install (superseded by the settled state below):
+
+| Gate | Threshold then | Statistic | Local guest runs 1 / 2 / 3 / 4 |
 |---|---|---|---|
 | Core plus base executors, idle PSS | ≤ 15 MiB | every window | 13.48 / 13.24 / 13.48 / 13.32 MiB |
 | Resident disk writes | < 10 MB/day | all 600 s together | 4.716 / 4.716 / 4.715 / 4.716 MB/day |
@@ -250,20 +252,121 @@ its third window, idle, while the executors stayed put. Traced in the VM:
 and starts core again, so the measured process opened a month-old store.
 Postinst starts core on install, so this is core's second start, not its
 first. The suite then runs a use pass (login, overview, resources, 30-day and
-24-hour history) before the settle. This adds about 30 s.
+24-hour history) before the settle. With the settle lengthened to 360 s, past
+core's first metrics flush after that restart (below), the suite takes about
+1050 s, about 18 minutes with the guest's boot; the job's 45-minute limit
+holds it with the other suites' 15.
 
-**Open, pending three VM runs of a package with the cache change.** The
-in-guest build of that package was stopped by the laptop's memory pressure.
-`run.py` keeps the guest's disk overlay in `TMPDIR`, which was RAM-backed `/tmp`,
-and the overlay reached 2.8 GB. So the following are still open:
+**Before and after, on the same month-old, used store.** Both runs used the
+same fixture: THP off, 31 days of metrics, the use pass. "Before" is CI's
+package of production-readiness `c5b654a8`, the same code without the cache
+change but with the ceilings merge (PR-31). "After" is CI's package of this
+branch at `3298cff5`. Each was traced for 600 s of memory, then 1000 s under
+strace with core's `/proc/PID/io`:
 
-- the after-change figures, before and after on the same month-old store;
-- the PSS threshold (the settled plateau plus a margin; still 15 MiB in the
-  suite);
-- the disk-write threshold. On a month-old metrics store the 600 s read 10.6
-  MB/day (windows 0, 21.2 and 10.6) against 4.72 fresh, over the 10 MB/day gate
-  and under the 20 MB/day budget. A flush on a full store also deletes the
-  oldest rows, and checkpoints copy the WAL pages back into the database file.
+| | Before | After |
+|---|---|---|
+| Core PSS | 12.19 MiB | 11.06 MiB |
+| Core heap, other anonymous | 3.64, 0.71 MiB | 2.09, 0.84 MiB |
+| Core `Pss_Anon`, `Pss_File` | 4.65, 7.55 MiB | 3.23, 7.83 MiB |
+| Core plus base executors | 15.78 MiB | 14.22 MiB |
+| Metrics flush | 2 WAL frames, 24 KiB of `write_bytes` | the same |
+| First flush after a start | 48 KiB | the same |
+
+The heap is 1.55 MiB smaller. The file-backed and executor differences come from
+the two builds being different binaries, not from the cache; the receipt store
+here is small. The smaller cache changed no write: the same frames, the same
+pages and the same bytes per flush.
+
+**Where the disk writes go.** Core samples host metrics once a minute
+(`crates/observations/src/collectors.rs:192`). The telemetry thread flushes
+when it holds five samples (`telemetry.rs:70-87`), in one transaction:
+`INSERT OR REPLACE` of the five rows (`:137`), then `DELETE FROM samples WHERE
+at<now-31 days` (`:148`). `samples` has no index besides its rowid (`at`).
+`synchronous=NORMAL` means no fsync per commit, and `wal_autocheckpoint=128`
+(`:40`) checkpoints once the WAL holds 128 frames.
+
+On a month-old store each flush wrote exactly two frames in the WAL, read back
+from its frame headers: one for the leaf holding the newest rows (the insert)
+and one for the leaf holding the oldest (the delete). That is 4 `pwrite64`
+calls, 8,240 bytes, no fsync. Index maintenance is nil, and there was no
+checkpoint in 1,600 s; one comes every 64 flushes (about 5.3 hours), copies the
+few distinct pages back and adds about 12 KiB. `/proc/PID/io` `write_bytes`
+counted 24,576 bytes per flush, every time:
+
+- the two frames, at unaligned WAL offsets, dirty three file pages (12 KiB);
+- the WAL index (the mmapped `-shm`, no system call to see) is inferred to
+  account for the rest, about 12 KiB.
+
+A fresh store's flush has no delete frame: 16 KiB, which is the long-standing
+4.72 MB/day. A month-old store's is 24 KiB, 7.07 MB/day. The first flush after
+core starts writes 48 KiB, because the WAL and its index are created again.
+
+The earlier 10.6 MB/day (windows 0 / 21.2 / 10.6) was that first flush falling
+inside the windows: the suite had restarted core around the seeding 90 s
+before them. It was not aliasing alone. The settle is now 360 s from the use
+pass, past that flush. The 600 s still normally holds two flushes and rarely
+three (10.6 MB/day at the steady rate), which the threshold allows for.
+
+**Reductions, proposed and not applied.** Each changes the soak's metrics
+assertions (rows kept, "a flush is five samples"), so none is a small change the
+soak already covers:
+
+- Flush every 15 samples instead of 5. One transaction then writes the same two
+  frames for three times the rows, about 2.4 MB/day instead of 7.1. The cost is
+  up to 15 minutes of history lost on a crash instead of 5; pending samples are
+  already served from memory.
+- Delete the oldest rows once an hour instead of at every flush. This drops the
+  delete frame from 11 flushes in 12, about 1.5 to 2.5 MB/day.
+- `locking_mode=EXCLUSIVE` on the metrics store would keep the WAL index in heap
+  memory instead of the mmapped `-shm` file, saving its share (inferred about
+  12 KiB a flush). It is rejected: it locks out every other connection,
+  including the soak's checker.
+- A larger `wal_autocheckpoint` saves almost nothing, because checkpoints are
+  already rare.
+
+**The settled gates**, from three runs of the final suite on the branch's
+package (THP off, a month of metrics, the use pass, 360 s settle; 1040 to 1070 s
+each):
+
+| Gate | Threshold | Runs 1 / 2 / 3 |
+|---|---|---|
+| Core plus base executors, idle PSS (every window) | ≤ 15 MiB | 14.05 / 13.96 / 14.09 MiB (core 10.74–10.81 MiB) |
+| Resident disk writes (600 s) | < 13 MB/day | 7.074 / 7.074 / 7.073 MB/day |
+| Idle CPU (600 s) | < 0.3% | 0.2032 / 0.2032 / 0.1999 % |
+| Core ready after `systemctl restart` (median) | < 1000 ms | 171 / 139 / 141 ms |
+
+- **PSS, 15 MiB.** The highest settled figure seen was 14.22 MiB, in the trace
+  run. The threshold is 0.78 MiB above that, about three times the largest
+  run-to-run swing (0.28 MiB, mostly the executors' shared code pages), so a
+  regression of a MiB fails. The number equals the old gate, but it now rests
+  on a measured plateau.
+- **Disk, 13 MB/day.** The steady figure is 7.07. Three flushes in one 600 s
+  give 10.6, and adding a checkpoint gives about 12.4; 13 MB/day passes those
+  alignments, fails a flush a third larger, and stays under the 20 MB/day
+  budget.
+- **`AnonHugePages`** was 0 for every unit in every window.
+
+**Startup reads with the smaller writer cache.** The soak comparison above
+showed where the reads moved. On the soak's largest store (28 to 31 MiB, days
+27 to 54), core's open read 2.62 to 2.72 pages per page of file against 2.32 to
+2.44 before, 85% of the 3.2 bound. Over days 63 to 89 the figure was unchanged
+(1.75 to 1.93).
+
+"In the open beyond the statements cold" reached 367 pages against a bound of
+about 711 (3% of 15,185 plus 256), which is 52%. The open took the same time as
+before (74 to 114 ms against 74 to 111 ms). The extra reads are re-reads of
+pages the open itself just read, so they come from the kernel's page cache, not
+the SD card, unless memory is short. A store near the 64 MiB cap is not built by
+the soak. If its ratio grew the way the job-heavy copies' did, it would come
+close to the 3.2 bound.
+
+Running the check with the default cache and shrinking afterwards would bring
+the reads back. In a test with Debian's Python and SQLite on the 2.2 MB metrics
+store, the default-cache check added 2.0 MiB of anonymous memory and
+`shrink_memory` gave back only 0.6 MiB of it: glibc keeps the freed pages. That
+would forfeit most of the saving, so the check stays on the small cache. The
+margin is recorded here, to revisit if the bound is approached.
 
 The architecture budget for core plus base executors stays 30 MiB.
 
