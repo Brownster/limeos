@@ -109,9 +109,9 @@ the installed VM in CI, with the Pi night as confirmation.
 
 | Measure | Budget | Last recorded | Action |
 |---|---|---|---|
-| Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct); 13.2–13.5 MiB (amd64 guest, 23 Nov) | **Gated at 15 MiB** (below). |
-| Idle CPU | 0.1% of a core | 0.051% earlier; 0.203–0.205% (amd64 guest with the stack reader, 23 Nov) — **budget not met** | **Gated at a 0.4% regression ceiling**, not the budget (below). Re-measure with the 1 Hz automation pass enabled. |
-| Resident disk writes | 20 MB/day | 4.72 MB/day; 4.72 (amd64 guest, 23 Nov) | **Gated at 10 MB/day** (below). |
+| Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct); 13.2–13.5 MiB fresh, 15.8 MiB on a month of metrics before the cache change (amd64 guest, 23 Nov) | **Gated at 15 MiB; the settled-state threshold is open** (below). |
+| Idle CPU | 0.1% of a core | 0.051% earlier; 0.203–0.205% (laptop amd64 guest with the stack reader, 23 Nov), 0.148% (GitHub runner's guest) — **budget not met** | **Gated at a 0.3% regression ceiling**, not the budget (below). Re-measure with the 1 Hz automation pass enabled. |
+| Resident disk writes | 20 MB/day | 4.72 MB/day fresh; 10.6 MB/day on a month of metrics (amd64 guest, 23 Nov) | **Gated at 10 MB/day, which a month-old store exceeds: open** (below). |
 | Cold readiness | 1 s | 457 ms; 111–167 ms (amd64 guest, 23 Nov) | **Gated at 1 s** as readiness after `systemctl restart` (warm cache, the stop included; below); a true cold start is not measured. Repeat at the PR-13 database size. |
 | Cached overview p95 | 20 ms | 0.83 ms (AMD64) | Not gated in CI: gate on the Pi figure. |
 | Storage inventory p95 | 20 ms | 61.4 ms — fails | Not gated. Profile; cache topology between udev events, or set a separate reasoned budget. |
@@ -138,7 +138,7 @@ elapsed time:
 |---|---|---|---|
 | Core plus base executors, idle PSS | ≤ 15 MiB | every window | 13.48 / 13.24 / 13.48 / 13.32 MiB |
 | Resident disk writes | < 10 MB/day | all 600 s together | 4.716 / 4.716 / 4.715 / 4.716 MB/day |
-| Idle CPU | < 0.4% of a core | all 600 s together | 0.2032 / 0.2032 / 0.2049 / 0.2049 % |
+| Idle CPU | < 0.3% of a core (was 0.4%) | all 600 s together | 0.2032 / 0.2032 / 0.2049 / 0.2049 % |
 | Core ready after a restart | < 1000 ms | median of three (includes the stop) | 122 / 124 / 133 / 129 ms |
 
 Figures over the whole 600 s, not per window: core's metrics store flushes every
@@ -178,11 +178,10 @@ job's limit went from 30 to 45 minutes.
   and every window (0.18 to 0.225%). No reader helper was caught at a window
   boundary in the twelve windows. The stack reader takes 0.12% of it, which
   confirms the attribution, core 0.07%, storaged 0.01%, containerd 0.003%.
-  The gate is a regression ceiling at twice today's figure, which leaves room for
-  a slower or busier runner and still fails if idle CPU doubles; it is not a
-  widened budget. No runner figure is behind it yet: the first CI runs record
-  one (per window and per unit), and the ceiling should then move towards 1.5
-  times the runner's figure. The suite's result says `budget_met: false`.
+  The gate is a regression ceiling, not a widened budget. The first CI run gave
+  the runner's figure: 0.148% (windows 0.145 to 0.155%; reader 0.058, core
+  0.075, storaged 0.015). The ceiling is now 0.3%: 1.46 times the laptop's
+  0.205% and twice the runner's, so a doubling of idle CPU on the runner fails. The suite's result says `budget_met: false`.
 - **PSS has 1.5 MiB of headroom here,** not the 4.5 MiB the Pi figure suggests:
   core alone is 10.2 MiB in this guest and each executor 1.6 MiB, steady to
   within 0.05 MiB across windows. Growth past 15 MiB fails the job, as intended.
@@ -196,6 +195,77 @@ job's limit went from 30 to 45 minutes.
   rows), the two HTTPS p95 rows (no proxy in the guest; cached overview p95 stays
   a Pi gate), storage inventory p95 and mount admission (failing or deferred, and
   not measured by measure.sh).
+
+### Core's memory and the settled state (23 November, second round)
+
+The first CI run failed the PSS gate: core stepped from 10.37 to 12.36 MiB in
+its third window, idle, while the executors stayed put. Traced in the VM:
+
+- **What core's PSS is.** On a fresh install, idle for 90 minutes (180 samples),
+  core settles at 10.36 MiB: 7.2 MiB is its own code (the binary's text,
+  file-backed and clean, which the kernel can drop under pressure), 2.2 MiB heap,
+  0.55 MiB other anonymous memory, 0.24 MiB libc and libm. It grew 130 KiB in
+  40 minutes and then stayed flat. glibc's `malloc_trim` gave back only 0.45 MiB,
+  so the allocator does not hold much freed memory.
+- **The step was a transparent huge page.** The Debian 12 guest runs THP
+  `[always]`. When an aligned 2 MiB block falls inside core's heap, a fault or
+  khugepaged backs all of it, used or not: in eight restarts with khugepaged
+  scanning fast, every one showed 2 to 4 MiB of `AnonHugePages`. Whether the heap
+  holds an aligned block depends on address randomisation, which is why one run
+  in CI stepped and none of the laptop's did. **The production Pi's kernel has no
+  THP** (6.12.25+rpt-rpi-2712, 16 KiB pages), so this cannot happen there. The
+  suite now sets THP to `never` in the guest before LimeOS starts, records
+  `AnonHugePages`, `Pss_Anon` and `Pss_File` per unit per window, and fails if a
+  unit still has huge pages. On the Pi, PSS moves in 16 KiB pages, not 4 KiB.
+- **What grows with time: SQLite page caches.** No connection set `cache_size`,
+  so each kept SQLite's 2000 KiB default. Each open-time `quick_check` reads
+  every page, so the cache fills from the first minute on a grown store and
+  stays filled. With a month of metrics (`metrics.sqlite` 2.2 MB) core started
+  at 13.65 MiB under THP, and at 12.4 MiB with THP off (`Pss_Anon` 4.65 MiB
+  against 2.8 MiB fresh). Core plus base executors came to 15.77 to 15.78 MiB,
+  over the 15 MiB gate. After a 60 s burst of 8 clients, core sat 0.7 MiB higher
+  for good (arenas and code pages).
+- **The change** (`crates/persistence/src/cache.rs`, `telemetry.rs`, the
+  receipt store): each connection gets a cache sized to its work. The
+  `core.sqlite` writer has 1024 KiB. A full retention batch (1024 events)
+  writes 72 pages, and the same WAL bytes as with the default, so nothing
+  spills. A migration keeps the default until it commits. The reader has 512
+  KiB, and `metrics.sqlite` and the container receipt store have 256 KiB each
+  (a full prune batch writes 26 pages, the same WAL bytes as with the
+  default). The open-time checks now read through the small caches. The soak
+  passed all five long tests. Its only moved figures are startup page reads:
+  52 to 54 statements (the two cache pragmas), the core open's page reads per
+  page of file at median 1.88 to 2.12 and at most 2.32 to 2.73 (bound 3.2), and
+  "in the open beyond the statements cold" from at most -5 to at most 283 and
+  367 pages (bound: 3% plus 256 pages). Each statement reads the same cold.
+  Metrics writes (113 KiB an hour) and idle-hour writes (none) are unchanged.
+- **Estimate for a `core.sqlite` near its cap** (events at their 32 MiB budget).
+  This is an estimate, not measured. Before the change the writer and the
+  reader could each hold about 2 MiB, so core would sit near 16 MiB and core plus
+  base near 19 to 20 MiB. With it they hold at most 1 MiB and 0.5 MiB, about
+  2.5 MiB less.
+
+**The gate now measures a settled state.** Before the windows, the suite fills
+`metrics.sqlite` with 31 days of samples: it stops core, inserts the samples
+and starts core again, so the measured process opened a month-old store.
+Postinst starts core on install, so this is core's second start, not its
+first. The suite then runs a use pass (login, overview, resources, 30-day and
+24-hour history) before the settle. This adds about 30 s.
+
+**Open, pending three VM runs of a package with the cache change.** The
+in-guest build of that package was stopped by the laptop's memory pressure.
+`run.py` keeps the guest's disk overlay in `TMPDIR`, which was RAM-backed `/tmp`,
+and the overlay reached 2.8 GB. So the following are still open:
+
+- the after-change figures, before and after on the same month-old store;
+- the PSS threshold (the settled plateau plus a margin; still 15 MiB in the
+  suite);
+- the disk-write threshold. On a month-old metrics store the 600 s read 10.6
+  MB/day (windows 0, 21.2 and 10.6) against 4.72 fresh, over the 10 MB/day gate
+  and under the 20 MB/day budget. A flush on a full store also deletes the
+  oldest rows, and checkpoints copy the WAL pages back into the database file.
+
+The architecture budget for core plus base executors stays 30 MiB.
 
 ### Shell and Python suites on Debian 12
 
