@@ -201,6 +201,9 @@ fct_execute_this() {
     if fct_systemd_running; then
         systemctl daemon-reload
         systemctl enable limeos-core.service limeos-containerd.service limeos-storaged.service
+        # A package change starts core afresh: a start limit it hit before
+        # (a store it could not open or upgrade) must not refuse this restart.
+        systemctl reset-failed limeos-core.service
         systemctl restart "${restart[@]+"${restart[@]}"}" limeos-core.service
         # Optional units that were running before an upgrade start again,
         # except an executor whose ceiling was refused.

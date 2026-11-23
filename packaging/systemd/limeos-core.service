@@ -2,6 +2,17 @@
 Description=LimeOS core
 After=network.target limeos-containerd.service limeos-storaged.service
 Wants=limeos-containerd.service limeos-storaged.service
+# A store core cannot open or upgrade fails every start the same way, and
+# Restart= below would retry it every two seconds forever; a failing upgrade
+# also reads the store each time and can spill its pages to the WAL. Ten
+# starts in six hours, then the unit stays failed ("Start request repeated
+# too quickly") until `systemctl reset-failed limeos-core` or a reboot. Six
+# hours, so that it trips even for starts that fail late: ten starts of up
+# to the 31 minutes core may extend its start timeout to (30, plus the last
+# minute it asked for), each followed by RestartSec, fit in it. Every start counts, manual and watchdog restarts included;
+# postinst resets the count before its own restart.
+StartLimitIntervalSec=6h
+StartLimitBurst=10
 [Service]
 # Ready once the store is open and the listeners are bound (READY=1), so
 # systemd's watchdog clock starts then, not at exec.

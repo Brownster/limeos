@@ -21,7 +21,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from current_authority_schema import SOURCE_NAME
+from current_authority_schema import LEGACY_SOURCE, MIGRATIONS_SOURCE, SOURCE_NAME, schema_source
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -286,7 +286,7 @@ def main():
                     *common,
                     "-P",
                     str(port),
-                    str(ROOT / "crates/persistence/src/lib.rs"),
+                    str(schema_source(ROOT)),
                     "root@127.0.0.1:/root/" + SOURCE_NAME,
                 )
                 for source, destination in [
@@ -363,8 +363,9 @@ def main():
                     # Deliver the source that was actually built, explicitly.
                     run(
                         *ssh,
-                        "install -m 0644 /root/build/source/crates/persistence/src/lib.rs /root/"
-                        + SOURCE_NAME,
+                        f"f=/root/build/source/{MIGRATIONS_SOURCE}; "
+                        f"[ -f \"$f\" ] || f=/root/build/source/{LEGACY_SOURCE}; "
+                        f"install -m 0644 \"$f\" /root/{SOURCE_NAME}",
                     )
                     if args.build_output:
                         args.build_output.mkdir(parents=True, exist_ok=True)

@@ -114,7 +114,7 @@ case "${verb}" in
             [[ "$(get "${unit}" active inactive)" == active ]] || exit 3
         done ;;
     enable) for unit in "$@"; do put "${unit}" unitfile enabled; done ;;
-    disable|daemon-reload) ;;
+    disable|daemon-reload|reset-failed) ;;
     *) exit 97 ;;
 esac
 """
@@ -237,7 +237,7 @@ class Sandbox:
     def manager(self):
         """Mutating systemctl calls only."""
         return [c for c in self.calls() if not c.startswith(("show ", "is-active ")) and c.split()[0] in
-                {"stop", "start", "restart", "enable", "disable", "daemon-reload"}]
+                {"stop", "start", "restart", "enable", "disable", "daemon-reload", "reset-failed"}]
 
     def clear(self):
         (self.state / "calls.log").write_text("")
@@ -736,7 +736,7 @@ ABORTS = [
     ("abort-remove", "in-favour", "other", "1.0"),
     ("abort-deconfigure", "in-favour", "other", "1.0", "removing", "conflict", "2.0"),
 ]
-CONFIGURE_TAIL = ["daemon-reload", f"enable {' '.join(ENABLED)}",
+CONFIGURE_TAIL = ["daemon-reload", f"enable {' '.join(ENABLED)}", f"reset-failed {CORE}",
                   f"restart {EXECUTORS[1]} {EXECUTORS[0]} {CORE}"]
 
 
@@ -824,7 +824,7 @@ class PostinstTests(SandboxTest):
                 others = [u for u in EXECUTORS[::-1] if u != unit]
                 self.assertEqual(
                     box.manager(),
-                    ["daemon-reload", f"enable {' '.join(ENABLED)}",
+                    ["daemon-reload", f"enable {' '.join(ENABLED)}", f"reset-failed {CORE}",
                      f"restart {' '.join(others)} {CORE}", f"start {READER}"],
                 )
                 self.assertStates(box, [CORE, *others, READER])
