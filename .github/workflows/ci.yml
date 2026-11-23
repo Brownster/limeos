@@ -197,10 +197,31 @@ jobs:
       - name: Long-uptime soak (90 simulated days)
         run: cargo test -p limeos-core --bin limeos-core --locked -- --ignored soak_ --nocapture
 
+  # Production runs Debian 12, whose bash 5.2 behaved differently from the
+  # runner's bash 5.3 and hid a return.sh defect. The suites whose code runs on
+  # the host (cutover and maintainer scripts, the guest and reference-host
+  # scripts) run again on Debian 12 in a container, as an unprivileged user;
+  # scripts/debian12_suites.sh lists them, and the plan's Phase 4 section says
+  # which suites are left out and why. About ten minutes, nearly all of it
+  # the cutover suite; it runs beside the check job, so publishing waits no
+  # longer for it.
+  debian12-suites:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # The multi-arch index of debian:12 (bookworm); change it deliberately.
+      DEBIAN_12_IMAGE: debian:12@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Cutover, maintainer-script and reference suites on Debian 12
+        run: docker run --rm -v "$PWD:/src" -w /src -e TEST_UID="$(id -u)" "$DEBIAN_12_IMAGE" bash scripts/debian12_suites.sh
+
   # Packages and the probe are published only once every gate passed: the
-  # check job's and the soak's.
+  # check job's, the soak's and the Debian 12 suites'.
   publish:
-    needs: [check, soak]
+    needs: [check, soak, debian12-suites]
     strategy:
       fail-fast: false
       matrix:
@@ -230,10 +251,14 @@ jobs:
           path: dist/rw040-public-library-probe/
           if-no-files-found: error
 
+  # The footprint suite (Phase 4 gates, docs/plans/2026-11-19-production-
+  # readiness-plan.md) adds about 18 minutes (a 6-minute settle past core's
+  # first metrics flush, then 10 of idle windows) to the 15 the other suites
+  # take; the job ran 27 minutes with the 13-minute suite, so the limit is 45.
   debian-vm:
     needs: publish
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -271,12 +296,16 @@ jobs:
           python3 -m unittest discover -s tests/reference -p 'test_*.py'
           fct_run_vm --repository dist/test-repo --guest-script tests/privileged_vm/ci_reference_guest.py --output docs/rewrite-evidence/p03/ci-reference-vm-result.json
           fct_run_vm --repository dist/test-repo --guest-script tests/privileged_vm/ci_dependencies_guest.py --output docs/rewrite-evidence/p04/ci-dependencies-vm-result.json
+          # measure.sh on the installed, idle candidate: PSS, disk writes, idle
+          # CPU (a regression ceiling; the 0.1 % budget is not met) and readiness.
+          fct_run_vm --repository dist/test-repo --guest-script tests/privileged_vm/ci_footprint_guest.py --output docs/rewrite-evidence/p06/ci-footprint-vm-result.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: debian-vm-evidence
           path: |
             docs/rewrite-evidence/p*/*vm-result.json
+            docs/rewrite-evidence/p*/*vm-result-failed.json
             docs/rewrite-evidence/p*/*vm-failure.txt
   # Storage mounts are dormant in the shipped product, and this suite has not
   # passed on a runner since 16 October. It still runs and uploads its evidence,

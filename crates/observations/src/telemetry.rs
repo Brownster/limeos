@@ -23,32 +23,39 @@ pub struct Telemetry {
     sender: mpsc::Sender<Message>,
     healthy: Arc<AtomicBool>,
 }
+/// The metrics store's connection. Its cache is 256 KiB, not SQLite's 2000 KiB default,
+/// which the open-time `quick_check` (every page) and a 30-day history read would
+/// otherwise fill and keep: a flush writes a few rows and one range `DELETE`, a history
+/// read is one pass over the rows in range, so neither gains from pages kept in memory.
+fn connect(path: &Path) -> Result<Connection> {
+    if std::fs::symlink_metadata(path).is_ok_and(|m| !m.is_file() || m.len() > 8 * 1024 * 1024) {
+        return Err(Error(ErrorCode::Unavailable));
+    }
+    let connection = Connection::open(path).map_err(|_| Error(ErrorCode::Unavailable))?;
+    std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
+        .map_err(|_| Error(ErrorCode::Unavailable))?;
+    connection
+        .busy_timeout(Duration::from_millis(200))
+        .map_err(|_| Error(ErrorCode::Unavailable))?;
+    connection.execute_batch("PRAGMA cache_size=-256; PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA trusted_schema=OFF; PRAGMA max_page_count=2048; PRAGMA wal_autocheckpoint=128;
+        CREATE TABLE IF NOT EXISTS samples(at INTEGER PRIMARY KEY,cpu REAL,memory REAL,temperature REAL,disk REAL);").map_err(|_|Error(ErrorCode::Unavailable))?;
+    if connection
+        .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
+        .map_err(|_| Error(ErrorCode::Unavailable))?
+        != "ok"
+    {
+        return Err(Error(ErrorCode::Unavailable));
+    }
+    {
+        let _ = connection
+            .prepare("SELECT at,cpu,memory,temperature,disk FROM samples LIMIT 0")
+            .map_err(|_| Error(ErrorCode::Unavailable))?;
+    }
+    Ok(connection)
+}
 impl Telemetry {
     pub fn open(path: &Path) -> Result<Self> {
-        if std::fs::symlink_metadata(path).is_ok_and(|m| !m.is_file() || m.len() > 8 * 1024 * 1024)
-        {
-            return Err(Error(ErrorCode::Unavailable));
-        }
-        let mut connection = Connection::open(path).map_err(|_| Error(ErrorCode::Unavailable))?;
-        std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
-            .map_err(|_| Error(ErrorCode::Unavailable))?;
-        connection
-            .busy_timeout(Duration::from_millis(200))
-            .map_err(|_| Error(ErrorCode::Unavailable))?;
-        connection.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA trusted_schema=OFF; PRAGMA max_page_count=2048; PRAGMA wal_autocheckpoint=128;
-            CREATE TABLE IF NOT EXISTS samples(at INTEGER PRIMARY KEY,cpu REAL,memory REAL,temperature REAL,disk REAL);").map_err(|_|Error(ErrorCode::Unavailable))?;
-        if connection
-            .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
-            .map_err(|_| Error(ErrorCode::Unavailable))?
-            != "ok"
-        {
-            return Err(Error(ErrorCode::Unavailable));
-        }
-        {
-            let _ = connection
-                .prepare("SELECT at,cpu,memory,temperature,disk FROM samples LIMIT 0")
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
-        }
+        let mut connection = connect(path)?;
         let (sender, mut receiver) = mpsc::channel(16);
         let healthy = Arc::new(AtomicBool::new(true));
         let health = healthy.clone();
@@ -372,5 +379,19 @@ mod tests {
         assert!(t.healthy());
         assert!(t.query(HistoryRange::Day, 6000).await.is_ok());
         assert!(std::fs::metadata(path).unwrap().len() < 8 * 1024 * 1024);
+    }
+    #[test]
+    fn the_metrics_connection_has_its_cache_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let connection = connect(&dir.path().join("metrics.sqlite")).unwrap();
+        let cache: i64 = connection
+            .pragma_query_value(None, "cache_size", |r| r.get(0))
+            .unwrap();
+        assert_eq!(cache, -256);
+        // `connect` is the only connection this module opens outside its tests;
+        // a new one fails here until it has a cache size too.
+        let source = include_str!("telemetry.rs");
+        let production = source.split("#[cfg(test)]\nmod tests").next().unwrap();
+        assert_eq!(production.matches("Connection::open").count(), 1);
     }
 }

@@ -509,6 +509,7 @@ fn open_reader(path: &Path) -> Result<Connection> {
             "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA wal_autocheckpoint=0;",
         )
         .map_err(durable)?;
+    cache::settle(&reader, cache::READER_KIB)?;
     Ok(reader)
 }
 
@@ -1322,8 +1323,15 @@ impl Store {
             conn = connect(path, &directory, false)?;
             generation
         } else {
+            // No upgrade: the startup check reads through the small cache.
+            if version == target {
+                cache::settle(&conn, cache::WRITER_KIB)?;
+            }
             startup(&mut conn, path, &directory, wall, migrations, version, None)?
         };
+        // The normal connection keeps the small cache (`cache`); an upgrade
+        // ran with SQLite's default on its own connection, now closed.
+        cache::settle(&conn, cache::WRITER_KIB)?;
         Ok(Self {
             conn,
             _lock: lock,
@@ -1395,6 +1403,7 @@ pub use automation::{
 };
 mod backup_preparation;
 mod budgets;
+mod cache;
 mod compose;
 mod core_lock;
 mod identity_enablement;

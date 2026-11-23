@@ -281,6 +281,13 @@ PRAGMA user_version={next};"
     drop(store);
     // Applied, after a snapshot of the store as it was.
     let store = Store::open_migrating(&path, &extended).unwrap();
+    // The upgrade ran on its own connection with SQLite's default cache; the
+    // normal connection opened after it has the writer's (`cache`).
+    let cache: i64 = store
+        .conn
+        .pragma_query_value(None, "cache_size", |r| r.get(0))
+        .unwrap();
+    assert_eq!(cache, -i64::from(crate::cache::WRITER_KIB));
     let note: String = store
         .conn
         .query_row("SELECT note FROM probe", [], |r| r.get(0))
