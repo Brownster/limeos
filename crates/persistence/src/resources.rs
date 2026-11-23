@@ -2,116 +2,15 @@ use super::*;
 
 /// Missing claims are corruption, not permission to reacquire or forget work.
 /// Run before startup recovery changes generation or writes audit events.
+#[cfg(test)]
 pub(super) fn check(conn: &Connection) -> Result<()> {
-    // A version number and healthy pages do not prove that dispatch/release
-    // guards survived. Compare the compiled migration's triggers before use.
-    let reference = Connection::open_in_memory().map_err(durable)?;
-    reference
-        .execute_batch(concat!(
-            include_str!("schema.sql"),
-            include_str!("migration-v2.sql"),
-            include_str!("migration-v3.sql"),
-            include_str!("migration-v4.sql"),
-            include_str!("migration-v5.sql"),
-            include_str!("migration-v6.sql"),
-            include_str!("migration-v7.sql"),
-            include_str!("migration-v8.sql"),
-            include_str!("migration-v9.sql"),
-            include_str!("migration-v10.sql"),
-            include_str!("migration-v11.sql"),
-            include_str!("migration-v12.sql"),
-            include_str!("migration-v13.sql"),
-            include_str!("migration-v14.sql"),
-            include_str!("migration-v15.sql"),
-            include_str!("migration-v16.sql"),
-            include_str!("migration-v17.sql"),
-            include_str!("migration-v18.sql"),
-            include_str!("migration-v19.sql")
-        ))
-        .map_err(durable)?;
-    let mut stmt = reference
-        .prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger'")
-        .map_err(durable)?;
-    let triggers = stmt
-        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
-        .map_err(durable)?;
-    for trigger in triggers {
-        let (name, expected) = trigger.map_err(durable)?;
-        let actual: Option<String> = conn
-            .query_row(
-                "SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?",
-                [name],
-                |r| r.get(0),
-            )
-            .optional()
-            .map_err(durable)?;
-        if actual.as_ref() != Some(&expected) {
-            return Err(Error(ErrorCode::StateNotDurable));
-        }
-    }
-    for name in [
-        "storage_target_plans",
-        "storage_target_results",
-        "backup_preparation_plans",
-        "storage_mount_plans",
-        "storage_mount_results",
-        "automation_schedules",
-        "automation_occurrences",
-        "automation_streams",
-        "automation_observation_results",
-        "automation_alerts",
-        "automation_notifications",
-        "automation_health_policies",
-        "automation_poll_origins",
-        "stack_plans",
-        "stack_results",
-        "job_resolutions",
-    ] {
-        let expected: String = reference
-            .query_row(
-                "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
-                [name],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
-        let actual: Option<String> = conn
-            .query_row(
-                "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
-                [name],
-                |r| r.get(0),
-            )
-            .optional()
-            .map_err(durable)?;
-        if actual.as_ref() != Some(&expected) {
-            return Err(Error(ErrorCode::StateNotDurable));
-        }
-    }
-    // Startup and retention cost depend on these indexes, not only correctness.
-    for name in [
-        "events_job",
-        "events_kind",
-        "events_notification",
-        "jobs_retention",
-    ] {
-        let expected: String = reference
-            .query_row(
-                "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
-                [name],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
-        let actual: Option<String> = conn
-            .query_row(
-                "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
-                [name],
-                |r| r.get(0),
-            )
-            .optional()
-            .map_err(durable)?;
-        if actual.as_ref() != Some(&expected) {
-            return Err(Error(ErrorCode::StateNotDurable));
-        }
-    }
+    super::migrations::check_schema(conn, super::migrations::MIGRATIONS)?;
+    check_data(conn)
+}
+/// What `check` checks beyond the schema (which `Store::open` compares
+/// itself, to name a mismatch): job, resource and lock invariants and each
+/// owner's own checks.
+pub(super) fn check_data(conn: &Connection) -> Result<()> {
     let invalid: bool = conn
         .query_row(
             "SELECT EXISTS(

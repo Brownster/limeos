@@ -107,7 +107,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `limeos-package-reconcile.timer`, `pi-health` and `pihealth-helper`; installs
    that file alone with `DEBIAN_FRONTEND=noninteractive dpkg --force-confold -i`,
    so dpkg never prompts and keeps your edited `/etc/limeos/core.json` (a
-   conffile); starts the Rust services and the read-only stack reader
+   conffile); starts the Rust services (first clearing `limeos-core`'s start-limit count
+   with `systemctl reset-failed`, as the package's own configure step also does) and the read-only stack reader
    (`limeos-storage-reader`, started but never enabled); installs the Caddy site; then checks
    core health and the login page through the proxy, `limeosctl status`, `docker
    ps` IDs and StartedAt of the managed containers against the snapshot (naming
@@ -199,8 +200,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    - The `limeos` package footprint (the larger of dpkg `Installed-Size` and its
      installed files): under 154 MB.
    - Core readiness after a restart is skipped by default. `--measure-core-restart`
-     restarts `limeos-core` to time it, which is the only change the script can
-     make. Use it only with the household's agreement.
+     restarts `limeos-core` to time it (clearing its start-limit count first), which
+     is the only change the script can make. Use it only with the household's agreement.
 
    Exit 0 means every measured target passed; exit 2 means a target failed, a
    LimeOS process was missing or a row is unknown (the report is still written). A miss never runs
@@ -272,7 +273,8 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
 
    Otherwise: removes the Caddy
    site, returns the Rust services to their snapshot state (stopped and disabled
-   unless they were already running or enabled before the cutover), re-enables
+   unless they were already running or enabled before the cutover; before starting
+   `limeos-core` again it clears its start-limit count), re-enables
    and starts the frozen units (helper, app, timers), then verifies state hashes,
    the managed containers' IDs and StartedAt (other containers only warn), and
    that port 8002 answers over plain HTTP. It hashes the state files before the

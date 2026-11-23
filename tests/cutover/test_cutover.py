@@ -46,7 +46,7 @@ RUST = ["limeos-storaged.service", "limeos-containerd.service", "limeos-core.ser
 READER = "limeos-storage-reader.service"
 READER_SOCKET = "run/limeos-storage-reader/executor.sock"
 CATALOG = "etc/limeos/management-catalog.json"
-MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload", "kill",
+MUTATING_VERBS = {"stop", "start", "restart", "enable", "disable", "reload", "daemon-reload", "kill", "reset-failed",
                   "reload-or-restart", "try-reload-or-restart"}
 # Every mutating call of a successful activation, in order.
 ACTIVATE_STEPS = [
@@ -62,6 +62,7 @@ ACTIVATE_STEPS = [
     "systemctl enable limeos-storaged.service",
     "systemctl enable limeos-containerd.service",
     "systemctl enable limeos-core.service",
+    "systemctl reset-failed limeos-core.service",
     "systemctl start limeos-storaged.service",
     "systemctl start limeos-containerd.service",
     "systemctl start limeos-core.service",
@@ -2077,6 +2078,11 @@ class ReturnTests(Harness):
             self.assertNotIn(f"systemctl disable {name}", self.calls())
         # The reader was never enabled and is still stopped by return.
         self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
+        # Core is started again from a clear start-limit count (ten starts in six hours).
+        calls = self.calls()
+        reset = len(calls) - 1 - calls[::-1].index("systemctl reset-failed limeos-core.service")
+        start = len(calls) - 1 - calls[::-1].index("systemctl start limeos-core.service")
+        self.assertEqual(reset + 1, start)
 
     def test_rolls_back_an_older_snapshot_with_the_previous_rules(self):
         self.activated()
@@ -2584,10 +2590,15 @@ class MeasureTests(Harness):
     def test_core_restart_is_opt_in(self):
         self.measure("--window", "5")
         self.assertNotIn("systemctl restart limeos-core.service", self.calls())
+        self.assertNotIn("systemctl reset-failed limeos-core.service", self.calls())
         shutil.rmtree(self.root / "var/lib/limeos-cutover")
         result = self.measure("--window", "5", "--measure-core-restart")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("systemctl restart limeos-core.service", self.calls())
+        calls = self.calls()
+        self.assertIn("systemctl restart limeos-core.service", calls)
+        # Core's start limit counts every start: the measured restart begins from a clear count.
+        self.assertLess(calls.index("systemctl reset-failed limeos-core.service"),
+                        calls.index("systemctl restart limeos-core.service"))
         report = self.report()
         self.assertFalse(report["read_only"])
         row = self.rows()["core_restart_readiness"]

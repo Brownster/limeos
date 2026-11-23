@@ -154,6 +154,8 @@ fct_core_restart() {
     local start now deadline
     start="$(date +%s%N)"
     deadline=$(( start + 30000000000 ))
+    # Core's start limit (ten starts in six hours) counts every start: begin from a clear count.
+    fct_run systemctl reset-failed "${CORE_UNIT}" >&2 || true
     if ! fct_run systemctl restart "${CORE_UNIT}" >&2; then printf 'restart NA systemctl restart failed\n'; return 0; fi
     while :; do
         if "${LIMEOSCTL}" --socket "${CORE_SOCKET}" status >/dev/null 2>&1; then
