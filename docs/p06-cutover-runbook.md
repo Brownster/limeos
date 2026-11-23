@@ -39,12 +39,20 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    design), then `install -o root -g root -m 0644 /root/management-catalog.proposed.json
    /etc/limeos/management-catalog.json` (or rerun with `--install`).
    Build the state list (the frozen app's files that must not change) from the
-   scan report, then read it and drop anything that is not the frozen app's:
+   scan report. The package installs `limeosctl` under `/usr/lib/limeos`, not on
+   `PATH`. The frozen app and LimeOS share `/etc/limeos` and `/var/lib/limeos`, so
+   the second command leaves out what the package itself owns and changes while
+   the cutover runs (`core.json`, `system-policy/`, `management-catalog.json`,
+   and `core/`, `executors/`, `assistant/` under `/var/lib/limeos`; the core's
+   database there changes on every login), and the Compose files:
 
    ```sh
-   limeosctl migrate scan --json --checkout /home/holly/pi-health/config >/root/migrate-scan.json
-   python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); loc={l["label"]: l["path"].rstrip("/") for l in r["locations"]}; print("\n".join(loc[f["location"]] + "/" + f["path"] for f in r["files"] if f["kind"] == "file" and f["location"] != "stacks"))' /root/migrate-scan.json >/root/cutover-state-paths.txt
+   /usr/lib/limeos/limeosctl migrate scan --json --checkout /home/holly/pi-health/config >/root/migrate-scan.json
+   python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); loc={l["label"]: l["path"].rstrip("/") for l in r["locations"]}; own={"etc": ("core.json", "management-catalog.json", "system-policy/"), "state": ("core/", "executors/", "assistant/")}; print("\n".join(loc[f["location"]] + "/" + f["path"] for f in r["files"] if f["kind"] == "file" and f["location"] != "stacks" and not f["path"].startswith(own.get(f["location"], ()))))' /root/migrate-scan.json >/root/cutover-state-paths.txt
    ```
+
+   Read the list before preflight: every line must be a file of the frozen app,
+   and the two edited `pi-health/config` files must be in it.
 
    Create a Jellyfin API key (Dashboard > API Keys) and store it root-only:
    `install -o root -g root -m 0600 /dev/null /root/jellyfin.key`, then write the
