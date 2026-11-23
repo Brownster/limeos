@@ -14,6 +14,34 @@ BASE_UNITS = ("limeos-core", "limeos-containerd", "limeos-storaged")
 OPTIONAL_UNITS = ("limeos-storage-reader", "limeos-storage-targets")
 
 
+def source_schema(source_root):
+    """The schema a source tree declares: the last entry of its migration
+    table (`MIGRATIONS` in crates/persistence/src/migrations.rs), or an older
+    tree's `pub const SCHEMA_VERSION: u32 = N;` in lib.rs. Self-contained: this
+    file runs in guests without the VM fixtures' reader
+    (`tests/privileged_vm/current_authority_schema.py`), which a test holds
+    to the same answer."""
+    root = Path(source_root)
+    table = root / "crates/persistence/src/migrations.rs"
+    if table.exists():
+        text = table.read_text()
+        start = re.search(r"(?m)^[ \t]*pub\(crate\)[ \t]+const[ \t]+MIGRATIONS:[ \t]*&\[Migration\][ \t]*=[ \t]*&\[[ \t]*$", text)
+        end = start and re.search(r"(?m)^\];[ \t]*$", text[start.end():])
+        if not start or not end:
+            raise ValueError(f"{table}: no `pub(crate) const MIGRATIONS: &[Migration] = &[` ... `];` table")
+        body = text[start.end(): start.end() + end.start()]
+        versions = [int(a or b) for a, b in re.findall(
+            r"\b(?:plain|checked)\(\s*([0-9]+)\s*,|\bMigration\s*\{\s*version:\s*([0-9]+)\s*,", body)]
+        if not versions or versions != list(range(1, len(versions) + 1)):
+            raise ValueError(f"{table}: MIGRATIONS versions are not 1, 2, 3 ... in order: {versions}")
+        return versions[-1]
+    lib = root / "crates/persistence/src/lib.rs"
+    found = re.search(r"(?m)^pub const SCHEMA_VERSION: u32 = ([1-9][0-9]*);$", lib.read_text())
+    if found is None:
+        raise ValueError(f"{lib}: no `pub const SCHEMA_VERSION: u32 = N;` line and no migration table")
+    return int(found[1])
+
+
 def sha(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -60,8 +88,7 @@ def verify_source(work, manifest):
     count = verify_files(work / "source", manifest["runtime_source_sha256"])
     verify_files(work / "source", manifest["frontend_dist_sha256"])
     verify_files(work / "fixtures", manifest["fixtures_sha256"])
-    source = (work / "source/crates/persistence/src/lib.rs").read_text()
-    schema = int(re.search(r"pub const SCHEMA_VERSION: u32 = (\d+);", source)[1])
+    schema = source_schema(work / "source")
     if schema != manifest["identity"]["authority_schema"]:
         raise ValueError(f"source schema {schema} differs from run identity")
     return count
