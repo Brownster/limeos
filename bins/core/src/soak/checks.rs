@@ -39,6 +39,7 @@ pub const LOGS: &str = "core logs only the warnings it is expected to";
 pub const HELD_OPEN: &str = "a job's history stays while its resolution request is open";
 pub const EPOCHS: &str =
     "no job dispatched before a receipt-store change is released on a closure alone";
+pub const CLOCK: &str = "every time core stores is on the simulated clock";
 
 /// A warning or error core may log while the soak drives it: its message,
 /// exactly as core writes it, whether it is an error, the codes it may carry
@@ -295,6 +296,18 @@ fn receipt_budget(table: &str) -> Option<Budget> {
 pub struct StoreStat {
     /// Rows and bytes (tables with their indexes, from `dbstat`) per table.
     pub tables: BTreeMap<String, (i64, i64)>,
+    /// Bytes of each b-tree (a table's own or one of its indexes, from
+    /// `dbstat`), with the table it belongs to.
+    pub btrees: BTreeMap<String, (String, i64)>,
+    /// Core's events table (left empty for the receipt store): the newest
+    /// cursor, the bytes of the leaf cells each of its b-trees was given for
+    /// the rows appended since the first checkpoint (`appended_cells`,
+    /// counted at the checkpoint after their append, of the rows still
+    /// there), and the rows the events and authority rules had removed by
+    /// this checkpoint (the writer's passes, as absorbed).
+    pub cursor: i64,
+    pub appended: BTreeMap<String, i64>,
+    pub pruned: i64,
     pub file: u64,
     pub wal: u64,
 }
@@ -338,6 +351,13 @@ fn stat(path: &Path) -> StoreStat {
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap();
+    let btrees: BTreeMap<String, (String, i64)> = conn
+        .prepare("SELECT d.name,m.tbl_name,sum(d.pgsize) FROM dbstat d JOIN sqlite_master m ON m.name=d.name GROUP BY d.name")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
     let tables = names
         .into_iter()
         .map(|name| {
@@ -355,9 +375,111 @@ fn stat(path: &Path) -> StoreStat {
     wal.push("-wal");
     StoreStat {
         tables,
+        btrees,
         file: len(path),
         wal: len(Path::new(&wal)),
+        ..StoreStat::default()
     }
+}
+
+/// The events b-trees `appended_cells` knows: the table, keyed by `cursor`,
+/// and each index with its key columns (`schema.sql`, `migration-v17.sql`).
+/// An events index added later fails the flatness check until it is given
+/// its key here.
+const EVENT_BTREES: [&str; 5] = [
+    "events",
+    "events_scope",
+    "events_job",
+    "events_kind",
+    "events_notification",
+];
+
+/// Bytes of a SQLite varint holding `v`.
+fn varint_len(v: i64) -> i64 {
+    let mut v = v as u64;
+    let mut n = 1;
+    while v >= 0x80 && n < 9 {
+        v >>= 7;
+        n += 1;
+    }
+    n
+}
+
+/// Bytes of the record SQLite writes for `values` (file format 4): its
+/// header (its own length and one serial type per value) and its body.
+fn record_len(values: &[&rusqlite::types::Value]) -> i64 {
+    use rusqlite::types::Value;
+    let (mut types, mut body) = (0, 0);
+    for value in values {
+        let (serial, bytes) = match value {
+            Value::Null => (0, 0),
+            Value::Integer(0 | 1) => (8, 0),
+            Value::Integer(i) => {
+                // Serial types 1 to 6: 1, 2, 3, 4, 6 and 8 bytes.
+                match i.unsigned_abs() {
+                    0..0x80 => (1, 1),
+                    0x80..0x8000 => (2, 2),
+                    0x8000..0x80_0000 => (3, 3),
+                    0x80_0000..0x8000_0000 => (4, 4),
+                    0x8000_0000..0x8000_0000_0000 => (5, 6),
+                    _ => (6, 8),
+                }
+            }
+            Value::Real(_) => (7, 8),
+            Value::Text(t) => (13 + 2 * t.len() as i64, t.len() as i64),
+            Value::Blob(b) => (12 + 2 * b.len() as i64, b.len() as i64),
+        };
+        types += varint_len(serial);
+        body += bytes;
+    }
+    let header = types + 1;
+    header + varint_len(header) - 1 + body
+}
+
+/// The bytes of leaf cells (with their cell pointers) each events b-tree
+/// holds for the rows after `cursor` through `through`: a table cell is the payload's length,
+/// the rowid and the record (`cursor` is the rowid, so the record holds
+/// NULL for it); an index cell the payload's length and the record of its
+/// key columns and the rowid. The partial notification index has a cell
+/// only for notification events.
+fn appended_cells(conn: &Connection, cursor: i64, through: i64) -> BTreeMap<String, i64> {
+    use rusqlite::types::Value;
+    let mut cells: BTreeMap<String, i64> =
+        EVENT_BTREES.iter().map(|b| ((*b).to_owned(), 0)).collect();
+    let mut stmt = conn
+        .prepare(
+            "SELECT cursor,principal,job,kind,created,json_extract(kind,'$.kind'),json_extract(kind,'$.notification') FROM events WHERE cursor>? AND cursor<=? ORDER BY cursor",
+        )
+        .unwrap();
+    let mut rows = stmt.query([cursor, through]).unwrap();
+    while let Some(row) = rows.next().unwrap() {
+        let value = |i: usize| row.get::<_, Value>(i).unwrap();
+        let (rowid, principal, job, kind, created, by_kind, notification) = (
+            value(0),
+            value(1),
+            value(2),
+            value(3),
+            value(4),
+            value(5),
+            value(6),
+        );
+        let Value::Integer(id) = rowid else {
+            unreachable!("cursor is the rowid")
+        };
+        let table = record_len(&[&Value::Null, &principal, &job, &kind, &created]);
+        *cells.get_mut("events").unwrap() += varint_len(table) + varint_len(id) + table + 2;
+        let mut index = |name: &str, key: &Value| {
+            let record = record_len(&[key, &rowid]);
+            *cells.get_mut(name).unwrap() += varint_len(record) + record + 2;
+        };
+        index("events_scope", &principal);
+        index("events_job", &job);
+        index("events_kind", &by_kind);
+        if notification != Value::Null {
+            index("events_notification", &notification);
+        }
+    }
+    cells
 }
 
 fn receipts_path(sim: &Sim) -> std::path::PathBuf {
@@ -368,9 +490,32 @@ fn receipts_path(sim: &Sim) -> std::path::PathBuf {
 /// budgets, and the invariants. Both daemons then restart, measured.
 pub fn checkpoint(sim: &mut Sim) {
     let at = sim.now();
+    sim.absorb_passes();
+    let mut core = stat(&sim.core_path);
+    {
+        let conn = reader(&sim.core_path).unwrap();
+        let since = sim
+            .samples
+            .last()
+            .map(|s| (s.core.cursor, s.core.appended.clone()));
+        let (after, mut appended) = since.unwrap_or_default();
+        core.cursor = conn
+            .query_row("SELECT coalesce(max(cursor),0) FROM events", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        for (btree, bytes) in appended_cells(&conn, after, core.cursor) {
+            *appended.entry(btree).or_default() += bytes;
+        }
+        core.appended = appended;
+        core.pruned = ["events", "authority events"]
+            .iter()
+            .map(|rule| sim.stats.retention_removed.get(rule).copied().unwrap_or(0))
+            .sum();
+    }
     let sample = Sample {
         at,
-        core: stat(&sim.core_path),
+        core,
         receipts: stat(&receipts_path(sim)),
         removable: overdue_jobs(&reader(&sim.core_path).unwrap(), at, 0),
     };
@@ -446,6 +591,63 @@ pub fn checkpoint(sim: &mut Sim) {
             |r| r.get(0),
         )
         .unwrap();
+    // Every time core stores is the simulated clock's (its writer's, by
+    // which job-row retention ages jobs): none after now. Startup recovery's
+    // events once took the system clock, months ahead, which kept every job
+    // they name past retention for the whole run.
+    let future: Vec<(String, i64)> = reader(&sim.core_path)
+        .unwrap()
+        .prepare(
+            "SELECT 'events.created',count(*) FROM events WHERE created>?1 \
+             UNION ALL SELECT 'jobs.settled',count(*) FROM jobs WHERE settled>?1 \
+             UNION ALL SELECT 'container_results.recorded',count(*) FROM container_results WHERE recorded>?1 \
+             UNION ALL SELECT 'stack_results.recorded',count(*) FROM stack_results WHERE recorded>?1 \
+             UNION ALL SELECT 'job_resolutions.completed',count(*) FROM job_resolutions WHERE completed>?1",
+        )
+        .unwrap()
+        .query_map([at], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    for (column, count) in future {
+        if count > 0 {
+            let detail: String = if column == "events.created" {
+                reader(&sim.core_path)
+                    .unwrap()
+                    .prepare("SELECT json_extract(kind,'$.kind'),count(*),max(created)-?1 FROM events WHERE created>?1 GROUP BY 1")
+                    .unwrap()
+                    .query_map([at], |r| {
+                        Ok(format!(
+                            " {}: {} (up to {} s ahead)",
+                            r.get::<_, String>(0)?,
+                            r.get::<_, i64>(1)?,
+                            r.get::<_, i64>(2)?
+                        ))
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap()
+                    .join(",")
+            } else {
+                String::new()
+            };
+            problems.push((
+                CLOCK,
+                format!("core: {count} rows with {column} after the simulated now{detail}"),
+            ));
+        }
+    }
+    // The jobs startup recovery marked, to report what job-row retention
+    // did with them.
+    let recovered: Vec<String> = reader(&sim.core_path)
+        .unwrap()
+        .prepare("SELECT DISTINCT job FROM events WHERE json_extract(kind,'$.kind')='job_recovery_required' AND job IS NOT NULL")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    sim.recovered.extend(recovered);
     if unqueued > 200 {
         problems.push((
             BUDGETS,
@@ -1152,11 +1354,24 @@ fn trends(sim: &mut Sim) {
         let span = day(last.last().unwrap()) - day(&last[0]);
         let tables: Vec<String> = pick(last.last().unwrap()).tables.keys().cloned().collect();
         let points: Vec<(f64, &StoreStat)> = last.iter().map(|s| (day(s), pick(s))).collect();
-        let flat = flatness(store, &points, budget, file_bound);
-        if let Some(refill) = flat.refill {
+        let flat = flatness(store, &points, file_bound);
+        for tree in &flat.events {
+            sim.flat_lines.push(format!(
+                "{store}: {} grew {:.0} KiB over the last third; the rows appended to it explain at most {:.0} KiB",
+                tree.name,
+                tree.grown / 1024.0,
+                tree.ceiling / 1024.0
+            ));
+        }
+        if let Some(refill) = &flat.refill {
             sim.measures.insert(EVENTS_PER_ROW, refill.per_row);
             sim.measures
                 .insert(EVENTS_AT_BUDGET, refill.at_budget / 1048576.0);
+        }
+        if let Some(why) = &flat.unprojected {
+            sim.flat_lines.push(format!(
+                "{store}: the events table's end is not projected: {why}"
+            ));
         }
         problems.extend(flat.problems.into_iter().map(|p| (FLAT, p)));
         // Every bounded table by name: rows flat within 10% of its budget.
@@ -1345,119 +1560,226 @@ fn trends(sim: &mut Sim) {
 /// The events table regaining rows toward its budget over the last third.
 #[derive(Debug)]
 struct Refill {
-    /// Bytes its pages gained per row it kept: its fitted growth in bytes
-    /// over its fitted growth in rows.
+    /// Bytes its b-trees gained per row it kept: their fitted growth over
+    /// the fitted growth of its rows.
     per_row: f64,
-    /// Every other table's bytes at the end, with the events table at its
-    /// row budget at `per_row` bytes a row.
+    /// Every other b-tree's bytes at the end, with the events table at its
+    /// row budget at `per_row` bytes a row (or its average a row now, if
+    /// that is more).
     at_budget: f64,
+}
+
+/// One events b-tree over the last third: its fitted growth, and the most
+/// the rows appended to it explain.
+#[derive(Debug)]
+struct EventsTree {
+    name: String,
+    grown: f64,
+    ceiling: f64,
 }
 
 /// What the flatness check found in one store over the last third.
 #[derive(Debug)]
 struct Flat {
     problems: Vec<String>,
+    events: Vec<EventsTree>,
     refill: Option<Refill>,
+    /// Why the events table's end was not projected, if it was not.
+    unprojected: Option<String>,
 }
 
-/// Rows the events table must regain over the last third for its bytes a
-/// row kept to be measured (the run regains about 1,200).
-const REFILL_MIN_ROWS: i64 = 256;
+/// Rows the events table must regain over the last third (fitted) for its
+/// bytes a row kept to be measured (the runs regain about 1,200).
+const REFILL_MIN_ROWS: f64 = 256.0;
+/// The fitted growth a b-tree outside the events table may have over the
+/// last third beyond 2% of its size. The per-job tables' b-trees grow while
+/// their families refill toward job-row retention's floor (`stack_results`
+/// 142 KiB in both traced runs of 23 November, its rows from 87 to 131 of
+/// the 128 newest stack jobs and those kept besides; every other per-job
+/// b-tree under 20 KiB): 192 KiB. Every other core b-tree measured under
+/// 3 KiB: 32 KiB, eight pages. The receipt store's tables are still filling
+/// toward their row budgets (0.21 MiB over the third in all): 256 KiB.
+const PER_JOB_BTREE_FLOOR: f64 = 192.0 * 1024.0;
+const BTREE_FLOOR: f64 = 32.0 * 1024.0;
+const RECEIPT_BTREE_FLOOR: f64 = 256.0 * 1024.0;
+/// The least fill of the pages an appended events row's cells go to: the
+/// table appends at its right edge, where SQLite packs pages full
+/// (measured 97 to 99%); an index within its key ranges (`events_scope`
+/// measured 86%, the others lower than their cells because they reuse
+/// holes). Beside them, interior pages: `APPEND_SLACK`.
+const TABLE_FILL: f64 = 0.90;
+const INDEX_FILL: f64 = 0.75;
+const APPEND_SLACK: f64 = 16.0 * 1024.0;
+/// How much larger the cells of a row appended in the second half of the
+/// third may be than of one appended in the first (measured 0.2% apart).
+const ROW_SIZE_DRIFT: f64 = 1.20;
+
+/// The least fitted growth a b-tree of `table` in `store` may have, beyond
+/// 2% of its size.
+fn btree_floor(store: &str, table: &str) -> f64 {
+    if store == "receipts" {
+        RECEIPT_BTREE_FLOOR
+    } else if matches!(core_budget(table), Some(Budget::Retained(_))) {
+        PER_JOB_BTREE_FLOOR
+    } else {
+        BTREE_FLOOR
+    }
+}
 
 /// Sizes flat over the last third (`points`: day and the store's stat at
-/// each checkpoint), every table bounded.
+/// each checkpoint), every b-tree on its own, so that one table or index
+/// growing cannot hide behind another shrinking.
 ///
-/// The events table is judged apart while it regains rows toward its budget
-/// (after job-row retention removed settled jobs' events with them, below
-/// its budget at every checkpoint of the third, so the events rule removed
-/// nothing). Its pages then grow by every row appended, not only by the
-/// rows it regains: a job's events stay where they were written, between
-/// the job-less events of their days (logins, plans), and when job-row
-/// retention removes them 30 days later their pages keep those neighbours,
-/// so the space is not reused (rows are appended at the end of the table and
-/// of its scope and kind indexes) until the events rule reaches those rows.
-/// Measured on the restart scenario: rows of days 30 to 59 at 15 a page and
-/// 57% full, of days 60 to 89 (their jobs' events still there) at 24 and
-/// 97%, the login burst's at 54 and 98%; 78 rows appended a day for 42 kept,
-/// 469 bytes of pages a row kept against 179 on average, most of which are
-/// the burst's small session rows. That growth is bounded: the row budget
-/// caps the rows, and a page keeps at least a third of its space in use
-/// (SQLite rebalances one emptier than that). It goes on, though, until the
-/// burst's rows have all been replaced, years at household rates, so what
-/// is asserted is where it ends: every other table as it is at the end, with
-/// the events table at its row budget at the bytes a row it kept, within the
-/// file bound. Every other table, and the events table while it is not
-/// regaining rows, must be flat: fitted growth under 2% of their size (or
-/// 256 KiB).
-fn flatness(
-    store: &str,
-    points: &[(f64, &StoreStat)],
-    budget: fn(&str) -> Option<Budget>,
-    file_bound: u64,
-) -> Flat {
+/// Every b-tree outside the events table: fitted growth under 2% of its size
+/// or its floor (`btree_floor`).
+///
+/// The events table's b-trees, each against what the rows appended to it
+/// explain: at most the leaf cells it was given for them (`appended_cells`,
+/// exact from the rows), at `TABLE_FILL` or `INDEX_FILL`, plus
+/// `APPEND_SLACK`. Nothing else is credited: the holes job-row retention
+/// leaves when it removes a job's events are taken as never reused (a job's
+/// events lie between the job-less events of their days, logins and plans,
+/// whose pages stay; rows are appended at the end of the table and of each
+/// key range, and only `events_job`, keyed by random job IDs, refills its
+/// holes). Measured on the restart scenario over days 60 to 89: the table's
+/// rows of days 30 to 59 at 15 a page and 57% full, of days 60 to 89 (their
+/// jobs' events still there) at 24 and 97%, the login burst's at 54 and
+/// 98%; 2,247 rows appended for 1,213 kept; the table grew 364 KiB for 369
+/// KiB of cells, `events_scope` 182 for 157, `events_kind` 39 for 49 and
+/// `events_job` -11 to -22 for 96. The ceiling is absolute, so a page leak
+/// is caught whatever the table's size; it ignores what pruning frees, so
+/// while the events rule prunes it is loose by that much.
+///
+/// The cells of a row appended in the second half of the third at most
+/// `ROW_SIZE_DRIFT` times those of one appended in the first: rows that
+/// grow are a leak the cell ceiling would credit.
+///
+/// While the table regains rows (the events and authority rules removed
+/// nothing over the third, by the writer's passes, and its fitted rows rose
+/// by at least `REFILL_MIN_ROWS`), where its growth ends: every other b-tree
+/// as it is at the end, with the events table at its row budget at the
+/// bytes it gained per row kept (or its average now, if more), within the
+/// file bound. That growth is bounded (the row budget caps the rows, and
+/// SQLite rebalances a page that deletes leave less than about a third
+/// full, roots and the newest pages aside) but goes on until the burst's
+/// rows have all been replaced, years at household rates.
+fn flatness(store: &str, points: &[(f64, &StoreStat)], file_bound: u64) -> Flat {
     let mut problems = Vec::new();
     let (first, last) = (points[0], points[points.len() - 1]);
     let span = last.0 - first.0;
-    let events_bytes = |s: &StoreStat| s.tables.get("events").map_or(0, |t| t.1) as f64;
-    let refilling = match budget("events") {
-        Some(Budget::Rows(limit)) => {
-            last.1.rows("events") - first.1.rows("events") >= REFILL_MIN_ROWS
-                && points.iter().all(|(_, s)| s.rows("events") <= limit)
+    let mut names: Vec<(String, String)> = Vec::new();
+    for (_, s) in points {
+        for (name, (table, _)) in &s.btrees {
+            if !names.iter().any(|(n, _)| n == name) {
+                names.push((name.clone(), table.clone()));
+            }
         }
-        _ => false,
-    };
-    let bounded: Vec<(f64, f64)> = points
-        .iter()
-        .map(|(day, s)| {
-            let bytes: f64 = s.tables.values().map(|(_, b)| *b as f64).sum();
-            (*day, bytes - if refilling { events_bytes(s) } else { 0.0 })
-        })
-        .collect();
-    let grown = slope(&bounded) * span;
-    if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) {
-        problems.push(format!(
-            "{store}: bounded tables{} grew {:.2} MiB over the last third",
-            if refilling {
-                " but the events table, which regained rows,"
-            } else {
-                ""
-            },
-            grown / 1048576.0
-        ));
     }
-    let mut refill = None;
-    if refilling && let Some(Budget::Rows(limit)) = budget("events") {
-        let rows: Vec<(f64, f64)> = points
-            .iter()
-            .map(|(day, s)| (*day, s.rows("events") as f64))
-            .collect();
-        let bytes: Vec<(f64, f64)> = points
-            .iter()
-            .map(|(day, s)| (*day, events_bytes(s)))
-            .collect();
-        let regained = last.1.rows("events") - first.1.rows("events");
-        let per_row = slope(&bytes) / slope(&rows).max(f64::MIN_POSITIVE);
-        let others = bounded[bounded.len() - 1].1;
-        let at_budget = others + limit as f64 * per_row.max(0.0);
-        if at_budget > file_bound as f64 {
+    names.sort();
+    let series = |pick: &dyn Fn(&StoreStat) -> f64| -> Vec<(f64, f64)> {
+        points.iter().map(|(day, s)| (*day, pick(s))).collect()
+    };
+    let bytes_of = |s: &StoreStat, name: &str| s.btrees.get(name).map_or(0, |b| b.1) as f64;
+    let mut events = Vec::new();
+    let mut ceilings = 0.0;
+    for (name, table) in &names {
+        let bytes = series(&|s| bytes_of(s, name));
+        let grown = slope(&bytes) * span;
+        if table != "events" {
+            let allowed = (mean(&bytes) * 0.02).max(btree_floor(store, table));
+            if grown > allowed {
+                problems.push(format!(
+                    "{store}: {name} (of {table}) grew {:.0} KiB over the last third, more than {:.0} KiB",
+                    grown / 1024.0,
+                    allowed / 1024.0
+                ));
+            }
+            continue;
+        }
+        if !EVENT_BTREES.contains(&name.as_str()) {
             problems.push(format!(
-                "{store}: the events table took {per_row:.0} bytes of pages a row it kept over the last third ({regained} rows regained): at its budget of {limit} rows, with every other table as it is, the tables hold {:.1} MiB, past the {:.0} MiB file bound",
-                at_budget / 1048576.0,
-                mib(file_bound)
+                "{store}: events b-tree {name} has no model of its cells: give it its key in `appended_cells`"
+            ));
+            continue;
+        }
+        let appended = series(&|s| s.appended.get(name).copied().unwrap_or(0) as f64);
+        let fill = if name == "events" {
+            TABLE_FILL
+        } else {
+            INDEX_FILL
+        };
+        let ceiling = (slope(&appended) * span).max(0.0) / fill + APPEND_SLACK;
+        ceilings += ceiling;
+        if grown > ceiling {
+            problems.push(format!(
+                "{store}: {name} grew {:.0} KiB over the last third, more than the {:.0} KiB the rows appended to it explain",
+                grown / 1024.0,
+                ceiling / 1024.0
             ));
         }
-        refill = Some(Refill { per_row, at_budget });
+        events.push(EventsTree {
+            name: name.clone(),
+            grown,
+            ceiling,
+        });
+    }
+    if !events.is_empty() {
+        let cells = |s: &StoreStat| s.appended.values().sum::<i64>() as f64;
+        let mid = points[points.len() / 2].1;
+        let per_row = |from: &StoreStat, to: &StoreStat| {
+            let rows = (to.cursor - from.cursor) as f64;
+            (rows >= 64.0).then(|| (cells(to) - cells(from)) / rows)
+        };
+        if let (Some(early), Some(late)) = (per_row(first.1, mid), per_row(mid, last.1))
+            && late > early * ROW_SIZE_DRIFT
+        {
+            problems.push(format!(
+                "{store}: rows appended to the events table in the second half of the last third take {late:.0} bytes of cells each, {early:.0} in the first"
+            ));
+        }
+    }
+    let mut refill = None;
+    let mut unprojected = None;
+    if let Some(Budget::Rows(limit)) = (!events.is_empty())
+        .then(|| core_budget("events"))
+        .flatten()
+    {
+        let rows = series(&|s| s.rows("events") as f64);
+        let gain = slope(&rows) * span;
+        let total = |s: &StoreStat| events.iter().map(|t| bytes_of(s, &t.name)).sum::<f64>();
+        if last.1.pruned != first.1.pruned {
+            unprojected = Some(format!(
+                "the events and authority rules removed {} rows over the third",
+                last.1.pruned - first.1.pruned
+            ));
+        } else if gain < REFILL_MIN_ROWS {
+            unprojected = Some(format!(
+                "its fitted rows rose by {gain:.0} over the third, fewer than {REFILL_MIN_ROWS:.0}"
+            ));
+        } else {
+            let per_row = slope(&series(&total)) / slope(&rows);
+            let average = total(last.1) / (last.1.rows("events") as f64).max(1.0);
+            let others: f64 = names
+                .iter()
+                .filter(|(_, table)| table != "events")
+                .map(|(name, _)| bytes_of(last.1, name))
+                .sum();
+            let at_budget = others + limit as f64 * per_row.max(average);
+            if at_budget > file_bound as f64 {
+                problems.push(format!(
+                    "{store}: the events table took {per_row:.0} bytes of pages a row it kept over the last third ({gain:.0} rows regained): at its budget of {limit} rows, with every other table as it is, the tables hold {:.1} MiB, past the {:.0} MiB file bound",
+                    at_budget / 1048576.0,
+                    mib(file_bound)
+                ));
+            }
+            refill = Some(Refill { per_row, at_budget });
+        }
     }
     // The file may grow by at most 1 MiB over the last third beyond what the
-    // events table gained while it regained rows (both taken between the
-    // third's ends): every table is bounded.
+    // events b-trees' cell ceilings allow (between the third's ends): every
+    // table is bounded.
     let file_grown = last.1.file as f64 - first.1.file as f64;
-    let allowed = 1024.0 * 1024.0
-        + if refill.is_some() {
-            (events_bytes(last.1) - events_bytes(first.1)).max(0.0)
-        } else {
-            0.0
-        };
+    let allowed = 1024.0 * 1024.0 + ceilings;
     if file_grown > allowed {
         problems.push(format!(
             "{store}: file grew {:.2} MiB over the last third, more than {:.2} MiB",
@@ -1465,7 +1787,12 @@ fn flatness(
             allowed / 1048576.0
         ));
     }
-    Flat { problems, refill }
+    Flat {
+        problems,
+        events,
+        refill,
+        unprojected,
+    }
 }
 
 /// Bytes of core's events table (with its indexes) in a sample.
@@ -2213,6 +2540,36 @@ fn report(sim: &Sim, profile: &Profile) {
             }
         }
     }
+    if !sim.recovered.is_empty() {
+        let core = reader(&sim.core_path).unwrap();
+        let now = sim.now();
+        let (mut removed, mut authority, mut recent, mut open) = (0, 0, 0, 0);
+        for job in &sim.recovered {
+            if sim.pruned.contains(job) {
+                removed += 1;
+                continue;
+            }
+            let (settled, resolution): (Option<i64>, bool) = core
+                .query_row(
+                    "SELECT settled,EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND json_extract(e.kind,'$.kind') GLOB 'job_resolution_*') FROM jobs j WHERE id=?",
+                    [job],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap_or((None, false));
+            match (settled, resolution) {
+                (_, true) => authority += 1,
+                (Some(at), false) if at >= now - limeos_persistence::test_support::JOB_HORIZON => {
+                    recent += 1
+                }
+                _ => open += 1,
+            }
+        }
+        let _ = writeln!(
+            p,
+            "jobs startup recovery marked: {}; removed by job-row retention {removed}; kept: {authority} for an authority event, {recent} settled within the horizon, {open} otherwise (a family's floor, or unsettled)",
+            sim.recovered.len()
+        );
+    }
     for (store, per_day, years) in &sim.startup_projection {
         let _ = writeln!(
             p,
@@ -2244,6 +2601,9 @@ fn report(sim: &Sim, profile: &Profile) {
         proofs.iter().min(),
         proofs.iter().max()
     );
+    for line in &sim.flat_lines {
+        let _ = writeln!(p, "{line}");
+    }
     let _ = writeln!(p, "measures: {:#?}", sim.measures);
     if let Some((per_day, years)) = sim.projection {
         let _ = writeln!(
@@ -2280,6 +2640,7 @@ fn verdict(sim: &Sim, profile: &Profile) {
         LOST_ANSWERS,
         LOGS,
         EPOCHS,
+        CLOCK,
     ];
     if profile.held_open.is_some() {
         checks.push(HELD_OPEN);
@@ -2350,112 +2711,323 @@ fn verdict(sim: &Sim, profile: &Profile) {
 }
 
 /// The flatness model on the restart scenario's last third as measured
-/// (days 60 to 89 of `soak_ninety_days_restarts`, 23 November: the events
-/// table regaining 41.8 rows a day while its pages gain 4.8, about 20 KiB,
-/// the per-job tables 0.12 MiB in all), and with a steady leak of the size
-/// that run's old check failed on (0.51 MiB over the third) added to one
-/// table at a time: each leak fails, the run as measured passes.
+/// (days 60 to 89 of `soak_ninety_days_restarts`, the two traced runs of 23
+/// November: every b-tree's bytes and the cells appended to the events
+/// b-trees), and the same third with a leak or a boundary case put in.
 #[cfg(test)]
 mod flatness_model {
     use super::*;
 
-    const LEAK: f64 = 0.5 * 1048576.0;
-    /// Pages the events table gained over the measured third.
-    const MEASURED: f64 = 139.0;
+    const KIB: f64 = 1024.0;
+    const LEAK: f64 = 512.0 * KIB;
 
-    /// The measured third, the events table's pages gaining `events_pages`,
-    /// with `leak` bytes added steadily to `table`.
-    fn third(
-        events_rows: impl Fn(f64) -> i64,
-        events_pages: f64,
-        table: &str,
-        leak: f64,
-    ) -> Vec<StoreStat> {
-        (60..=89)
-            .map(|day| {
-                let t = (day - 60) as f64;
-                let added = |name: &str| if name == table { leak * t / 29.0 } else { 0.0 };
-                let mut tables = BTreeMap::new();
-                let events = (5623.0 + events_pages * t / 29.0) * PAGE as f64;
-                tables.insert(
-                    "events".to_owned(),
-                    (events_rows(t), (events + added("events")) as i64),
-                );
-                let per_job = 2.6 * 1048576.0 + 0.119 * 1048576.0 * t / 29.0;
-                tables.insert("jobs".to_owned(), (415, (per_job + added("jobs")) as i64));
-                tables.insert(
-                    "sessions".to_owned(),
-                    (3, (8192.0 + added("sessions")) as i64),
-                );
-                StoreStat {
-                    tables,
-                    file: 30_183_424,
-                    wal: 0,
-                }
-            })
-            .collect()
+    /// One b-tree: its table, its bytes on day 60 and its growth over the
+    /// third, and for an events b-tree the cells appended to it.
+    struct Tree {
+        name: &'static str,
+        table: &'static str,
+        start: f64,
+        grown: f64,
+        appended: f64,
+    }
+    const fn tree(name: &'static str, table: &'static str, start: f64, grown: f64) -> Tree {
+        Tree {
+            name,
+            table,
+            start: start * KIB,
+            grown: grown * KIB,
+            appended: 0.0,
+        }
+    }
+    const fn events(name: &'static str, start: f64, grown: f64, appended: f64) -> Tree {
+        Tree {
+            appended: appended * KIB,
+            ..tree(name, "events", start, grown)
+        }
+    }
+    /// The measured third (trace 1; trace 2 differs only in `events_job`
+    /// and the random-keyed autoindexes, by a few KiB).
+    fn measured() -> Vec<Tree> {
+        vec![
+            events("events", 10_268.0, 364.1, 369.1),
+            events("events_scope", 6_316.0, 182.5, 157.4),
+            events("events_kind", 3_868.0, 39.1, 48.8),
+            events("events_job", 2_036.0, -10.7, 96.0),
+            tree("stack_results", "stack_results", 276.0, 141.7),
+            tree("jobs", "jobs", 568.0, 15.4),
+            tree("job_resources", "job_resources", 152.0, 18.5),
+            tree(
+                "sqlite_autoindex_job_resources_1",
+                "job_resources",
+                220.0,
+                -46.9,
+            ),
+            tree("container_plans", "container_plans", 280.0, 13.1),
+            tree("sqlite_autoindex_jobs_1", "jobs", 64.0, -4.2),
+            tree("sessions", "sessions", 8.0, 0.0),
+            tree("users", "users", 8.0, 0.0),
+        ]
     }
 
-    fn judge(stats: &[StoreStat]) -> Flat {
-        let points: Vec<(f64, &StoreStat)> = stats
-            .iter()
-            .enumerate()
-            .map(|(i, s)| (60.0 + i as f64, s))
-            .collect();
-        flatness("core", &points, core_budget, CORE_FILE_BOUND)
+    /// A third: `trees` growing linearly (with `shape(t)`, t from 0 to 1, of
+    /// their growth by day t), the events table's rows by `rows(t)`, 77.5
+    /// rows appended a day, and the rules' removals by `pruned(t)`.
+    struct Third {
+        trees: Vec<Tree>,
+        rows: fn(f64) -> i64,
+        pruned: fn(f64) -> i64,
+        shape: fn(f64) -> f64,
+        /// The cells a row appended takes, by t (1 = as measured).
+        row_size: fn(f64) -> f64,
     }
-
     fn refilling(t: f64) -> i64 {
-        128_568 + (41.8 * t) as i64
+        128_568 + (1_213.0 * t) as i64
+    }
+    fn none(_: f64) -> i64 {
+        0
+    }
+    fn linear(t: f64) -> f64 {
+        t
+    }
+    fn same(_: f64) -> f64 {
+        1.0
+    }
+    impl Third {
+        fn measured() -> Self {
+            Third {
+                trees: measured(),
+                rows: refilling,
+                pruned: none,
+                shape: linear,
+                row_size: same,
+            }
+        }
+        fn with(mut self, name: &str, extra: f64) -> Self {
+            self.trees
+                .iter_mut()
+                .find(|t| t.name == name)
+                .unwrap()
+                .grown += extra;
+            self
+        }
+        fn stats(&self) -> Vec<StoreStat> {
+            (0..30)
+                .map(|day| {
+                    let t = day as f64 / 29.0;
+                    let mut stat = StoreStat {
+                        file: 30_183_424,
+                        cursor: 153_280 + (2_247.0 * t) as i64,
+                        pruned: (self.pruned)(t),
+                        ..StoreStat::default()
+                    };
+                    for tree in &self.trees {
+                        let bytes = tree.start + tree.grown * (self.shape)(t);
+                        stat.btrees
+                            .insert(tree.name.to_owned(), (tree.table.to_owned(), bytes as i64));
+                        let entry = stat.tables.entry(tree.table.to_owned()).or_default();
+                        entry.1 += bytes as i64;
+                        if tree.table == "events" {
+                            // Integral of the row size over the third so far.
+                            let steps = 64;
+                            let cells: f64 = (0..steps)
+                                .map(|i| (self.row_size)(t * (i as f64 + 0.5) / steps as f64))
+                                .sum::<f64>()
+                                * t
+                                / steps as f64;
+                            stat.appended.insert(
+                                tree.name.to_owned(),
+                                (5_000_000.0 + tree.appended * cells) as i64,
+                            );
+                        }
+                    }
+                    stat.tables.get_mut("events").unwrap().0 = (self.rows)(t);
+                    stat.tables.get_mut("sessions").unwrap().0 = 3;
+                    stat
+                })
+                .collect()
+        }
+        fn judge(&self) -> Flat {
+            let stats = self.stats();
+            let points: Vec<(f64, &StoreStat)> = stats
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (60.0 + i as f64, s))
+                .collect();
+            flatness("core", &points, CORE_FILE_BOUND)
+        }
+    }
+    fn fails(flat: &Flat, needle: &str) -> bool {
+        flat.problems.iter().any(|p| p.contains(needle))
     }
 
     #[test]
-    fn the_measured_refill_is_flat_and_its_end_within_the_bound() {
-        let flat = judge(&third(refilling, MEASURED, "", 0.0));
+    fn the_measured_third_is_flat_and_its_end_within_the_bound() {
+        let flat = Third::measured().judge();
         assert!(flat.problems.is_empty(), "{:?}", flat.problems);
         let refill = flat.refill.expect("the events table regained rows");
-        assert!((440.0..500.0).contains(&refill.per_row), "{refill:?}");
-        assert!(refill.at_budget < 64.0 * 1048576.0, "{refill:?}");
-    }
-
-    #[test]
-    fn a_leak_in_another_table_fails() {
-        for table in ["jobs", "sessions"] {
-            let flat = judge(&third(refilling, MEASURED, table, LEAK));
-            assert!(
-                flat.problems
-                    .iter()
-                    .any(|p| p.contains("bounded tables but the events table")),
-                "{table}: {:?}",
-                flat.problems
-            );
+        assert!((440.0..520.0).contains(&refill.per_row), "{refill:?}");
+        assert!(refill.at_budget < 66.0 * 1048576.0, "{refill:?}");
+        // The margins the events model leaves, b-tree by b-tree.
+        for tree in &flat.events {
+            assert!(tree.ceiling - tree.grown > 40.0 * KIB, "{tree:?}");
         }
     }
 
     #[test]
-    fn a_leak_in_the_events_table_while_it_refills_fails() {
-        let flat = judge(&third(refilling, MEASURED, "events", LEAK));
+    fn a_leak_in_a_table_fails_whatever_the_others_release() {
+        // One table growing while another shrinks: each is judged alone.
+        let flat = Third::measured()
+            .with("sessions", 300.0 * KIB)
+            .with("job_resources", -100.0 * KIB)
+            .judge();
         assert!(
+            fails(&flat, "core: sessions (of sessions) grew"),
+            "{:?}",
             flat.problems
-                .iter()
-                .any(|p| p.contains("past the 80 MiB file bound")),
+        );
+        let flat = Third::measured().with("stack_results", 120.0 * KIB).judge();
+        assert!(fails(&flat, "core: stack_results"), "{:?}", flat.problems);
+    }
+
+    #[test]
+    fn a_leak_in_an_index_fails_whatever_its_table_releases() {
+        let flat = Third::measured()
+            .with("sqlite_autoindex_jobs_1", 256.0 * KIB)
+            .with("jobs", -256.0 * KIB)
+            .judge();
+        assert!(
+            fails(&flat, "core: sqlite_autoindex_jobs_1 (of jobs) grew"),
             "{:?}",
             flat.problems
         );
     }
 
     #[test]
-    fn a_leak_in_the_events_table_at_its_budget_fails() {
-        // At its budget the events rule removes the oldest rows, whose
-        // pages are reused: flat.
-        let flat = judge(&third(|_| 131_072, 0.0, "", 0.0));
+    fn a_leak_in_each_events_btree_fails() {
+        for (name, leak) in [
+            ("events", 72.0 * KIB),
+            ("events_scope", 72.0 * KIB),
+            ("events_kind", 72.0 * KIB),
+            ("events_job", 192.0 * KIB),
+        ] {
+            let flat = Third::measured().with(name, leak).judge();
+            assert!(
+                fails(&flat, &format!("core: {name} grew")),
+                "{name}: {:?}",
+                flat.problems
+            );
+        }
+    }
+
+    #[test]
+    fn a_leak_fails_however_many_rows_the_table_regains() {
+        // A larger refill makes the projection forgiving; the cell ceiling
+        // does not depend on it.
+        let mut third = Third::measured().with("events", LEAK);
+        third.rows = |t| 128_568 + (3_000.0 * t) as i64;
+        let flat = third.judge();
+        assert!(fails(&flat, "core: events grew"), "{:?}", flat.problems);
+    }
+
+    #[test]
+    fn a_leak_at_the_steady_state_size_fails() {
+        // The events b-trees at about 60 MiB (the household's rows at their
+        // fill), refilling and at their budget with the events rule pruning.
+        let scaled = || {
+            let mut third = Third::measured();
+            for tree in third.trees.iter_mut().filter(|t| t.table == "events") {
+                tree.start *= 2.7;
+            }
+            third
+        };
+        let flat = scaled().judge();
         assert!(flat.problems.is_empty(), "{:?}", flat.problems);
-        let flat = judge(&third(|_| 131_072, 0.0, "events", LEAK));
-        assert!(flat.refill.is_none());
+        let flat = scaled().with("events", LEAK).judge();
+        assert!(fails(&flat, "core: events grew"), "{:?}", flat.problems);
+        let mut third = scaled();
+        third.rows = |_| 131_072;
+        third.pruned = |t| (1_218.0 * t) as i64;
+        for tree in third.trees.iter_mut().filter(|t| t.table == "events") {
+            tree.grown = 0.0;
+        }
+        let flat = third.judge();
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+        assert!(flat.refill.is_none() && flat.unprojected.is_some());
+        // At its budget the ceiling ignores what pruning frees: a leak
+        // beyond what the appended rows explain fails, a smaller one passes.
+        let flat = Third { ..third }.with("events", 2.0 * LEAK).judge();
+        assert!(fails(&flat, "core: events grew"), "{:?}", flat.problems);
+    }
+
+    #[test]
+    fn rows_that_grow_fail() {
+        let mut third = Third::measured();
+        third.row_size = |t| 1.0 + t;
+        let flat = third.judge();
+        assert!(fails(&flat, "in the second half"), "{:?}", flat.problems);
+    }
+
+    #[test]
+    fn a_plateau_then_a_gain_projects_a_finite_end() {
+        let mut third = Third::measured();
+        third.rows = |t| 128_568 + (2_426.0 * (t - 0.5).max(0.0)) as i64;
+        third.shape = |t| (2.0 * (t - 0.5)).max(0.0);
+        let flat = third.judge();
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+        let refill = flat.refill.expect("measured");
         assert!(
-            flat.problems
-                .iter()
-                .any(|p| p.contains("core: bounded tables grew")),
+            refill.at_budget.is_finite() && refill.per_row.is_finite(),
+            "{refill:?}"
+        );
+    }
+
+    #[test]
+    fn falling_rows_project_nothing() {
+        let mut third = Third::measured();
+        third.rows = |t| 128_568 - (1_213.0 * t) as i64;
+        let flat = third.judge();
+        assert!(flat.refill.is_none(), "{:?}", flat.refill);
+        assert!(flat.unprojected.unwrap().contains("fitted rows rose by -"));
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+    }
+
+    #[test]
+    fn falling_bytes_project_at_the_average_row() {
+        let mut third = Third::measured();
+        for tree in third.trees.iter_mut().filter(|t| t.table == "events") {
+            tree.grown = -tree.grown.abs();
+        }
+        let flat = third.judge();
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+        let refill = flat.refill.expect("measured");
+        assert!(refill.per_row < 0.0, "{refill:?}");
+        // 22 MiB of events over 129,781 rows, at the 132,096-row budget.
+        assert!(refill.at_budget > 20.0 * 1048576.0, "{refill:?}");
+    }
+
+    #[test]
+    fn a_refill_that_reaches_the_budget_is_projected_until_pruning_starts() {
+        let mut third = Third::measured();
+        third.rows = |t| (128_568 + (5_000.0 * t) as i64).min(131_072);
+        let flat = third.judge();
+        assert!(
+            flat.problems.is_empty() && flat.refill.is_some(),
+            "{flat:?}"
+        );
+        third.pruned = |t| if t > 0.9 { 64 } else { 0 };
+        let flat = third.judge();
+        assert!(flat.refill.is_none(), "{flat:?}");
+        assert!(flat.unprojected.unwrap().contains("removed 64 rows"));
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+    }
+
+    #[test]
+    fn an_events_index_without_a_model_fails() {
+        let mut third = Third::measured();
+        third.trees.push(events("events_new", 64.0, 0.0, 0.0));
+        let flat = third.judge();
+        assert!(
+            fails(&flat, "events b-tree events_new has no model"),
             "{:?}",
             flat.problems
         );
