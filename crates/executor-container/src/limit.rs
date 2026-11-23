@@ -52,8 +52,11 @@
 //! (`StateNotDurable`), like any store failure before prepare. A refusal is
 //! recorded best effort: the refusal stands whether or not its row is written.
 //!
-//! Bounds. Rows are kept newest first up to [`LOG_ROWS`], removed oldest
-//! first in the inserting transaction by sequence number, never by the clock.
+//! Bounds. The log holds at most [`LOG_ROWS`] rows, removed oldest first in
+//! the inserting transaction, but never a charge that can still count: one
+//! dated after `now - HOLD`, in the future included. If the log is full of
+//! those, every new effect is refused (fail closed) instead of evicting
+//! budget state, and a refusal row is not written.
 //! Refusal rows are coalesced: none for a container while one of its refusal
 //! rows is within [`REFUSAL_INTERVAL`] of `now` either way, carrying the
 //! number of refusals since the previous one this process saw. So, the clock
@@ -61,8 +64,13 @@
 //! 25 refusal rows in any day, and [`MANAGED`] containers fewer than
 //! `LOG_ROWS` together: no row a daily window counts is ever removed, and a
 //! flood of refused requests costs at most one write per container an hour.
-//! Every class of row the log can hold is in that bound. Each clock step can
-//! add at most one more window's worth. `effect_days` keeps per-day totals
+//! Every class of row the log can hold is in that bound, so with the clock
+//! steady the log never fills with charges that can count and never refuses
+//! for room. Clock steps are what can: each backward step of more than the
+//! window lets every container take one more window's worth while its
+//! earlier charges sit in the future (held, not counted), so after enough
+//! of them in a day the log fills and refuses every effect until the oldest
+//! held charge is a day old by the corrected clock. `effect_days` keeps per-day totals
 //! for [`DAYS_KEPT`] days, so the volume of past days survives after their
 //! rows were pushed out.
 use super::*;
@@ -175,9 +183,55 @@ pub(crate) fn outcome(state: ExecutionState) -> Option<&'static str> {
     }
 }
 
+/// The longest window: an effect row dated after `now - HOLD` (or in the
+/// future) can still count, now or later, so it is never pruned.
+pub const HOLD: i64 = DAILY.seconds;
+const _: () = assert!(BURST.seconds <= HOLD);
+/// The hold for a store's `windows`: the longest of them (`HOLD` for the
+/// shipped ones; nothing for a test store without a budget).
+pub(crate) fn hold(windows: &[Window]) -> i64 {
+    windows.iter().map(|w| w.seconds).max().unwrap_or(0)
+}
+
+/// Whether a container whose live charges are `rows` (times, in order) has
+/// room in every window at `t`: fewer than the limit in `(t - window, t +
+/// window]`.
+fn room(rows: &[i64], windows: &[Window], t: i64) -> bool {
+    windows.iter().all(|w| {
+        let (from, to) = (t.saturating_sub(w.seconds), t.saturating_add(w.seconds));
+        let used = rows.iter().filter(|&&at| at > from && at <= to).count();
+        used < w.effects as usize
+    })
+}
+
+/// The earliest time from `now` at which `rows` leave room in every window,
+/// counting every retained row that will count then, those dated in the
+/// future included (a clock stepped back can bring them into a window
+/// later): room changes only where a row leaves a window, so the candidates
+/// are `now` and each row's time plus each window.
+fn frees_at(rows: &[i64], windows: &[Window], now: i64) -> i64 {
+    let mut candidates: Vec<i64> = std::iter::once(now)
+        .chain(
+            rows.iter()
+                .flat_map(|at| windows.iter().map(move |w| at.saturating_add(w.seconds))),
+        )
+        .filter(|&t| t >= now)
+        .collect();
+    candidates.sort_unstable();
+    candidates
+        .into_iter()
+        .find(|&t| room(rows, windows, t))
+        // Every row has left every window by its time plus the longest.
+        .unwrap_or_else(|| {
+            rows.last()
+                .map_or(now, |at| at.saturating_add(HOLD))
+                .max(now)
+        })
+}
+
 /// The containers among `resources` with no room left in some window at
-/// `now`, each with when it has room again by this clock: when enough of the
-/// charges it counts have left every window it is spent in. Pure lookup.
+/// `now`, each with the earliest time it has room again by this clock
+/// (`frees_at`). Pure lookup.
 pub(crate) fn spent(
     conn: &Connection,
     windows: &[Window],
@@ -186,38 +240,52 @@ pub(crate) fn spent(
 ) -> Result<Vec<(String, i64)>> {
     let mut spent = Vec::new();
     for resource in resources {
-        let mut frees = None;
-        for window in windows {
-            let (from, to) = (
-                now.saturating_sub(window.seconds),
-                now.saturating_add(window.seconds),
-            );
-            let used: u32 = conn
-                .query_row(
-                    "SELECT count(*) FROM effect_log WHERE resource=?1 AND kind='effect' AND at>?2 AND at<=?3",
-                    params![resource, from, to],
-                    |r| r.get(0),
-                )
-                .map_err(durable)?;
-            if used >= window.effects {
-                // Room comes back when the charge that brings the count
-                // below the limit leaves the window.
-                let leaving: i64 = conn
-                    .query_row(
-                        "SELECT at FROM effect_log WHERE resource=?1 AND kind='effect' AND at>?2 AND at<=?3 ORDER BY at LIMIT 1 OFFSET ?4",
-                        params![resource, from, to, used - window.effects],
-                        |r| r.get(0),
-                    )
-                    .map_err(durable)?;
-                let at = leaving.saturating_add(window.seconds).max(now);
-                frees = Some(frees.map_or(at, |f: i64| f.max(at)));
-            }
-        }
-        if let Some(frees) = frees {
-            spent.push(((*resource).to_owned(), frees));
+        let rows = live(conn, resource, now)?;
+        if !room(&rows, windows, now) {
+            spent.push(((*resource).to_owned(), frees_at(&rows, windows, now)));
         }
     }
     Ok(spent)
+}
+
+/// A container's charges that can still count (`HOLD`), oldest first.
+fn live(conn: &Connection, resource: &str, now: i64) -> Result<Vec<i64>> {
+    let mut statement = conn
+        .prepare_cached(
+            "SELECT at FROM effect_log WHERE resource=?1 AND kind='effect' AND at>?2 ORDER BY at",
+        )
+        .map_err(durable)?;
+    statement
+        .query_map(params![resource, now.saturating_sub(HOLD)], |r| r.get(0))
+        .map_err(durable)?
+        .collect::<rusqlite::Result<Vec<i64>>>()
+        .map_err(durable)
+}
+
+/// When the log, full of charges that can still count, has room for
+/// `needed` more: `None` when it has room now. Pure lookup.
+fn log_full(conn: &Connection, needed: usize, now: i64) -> Result<Option<i64>> {
+    let since = now.saturating_sub(HOLD);
+    let held: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM effect_log WHERE kind='effect' AND at>?1",
+            [since],
+            |r| r.get(0),
+        )
+        .map_err(durable)?;
+    let over = held + needed as i64 - LOG_ROWS;
+    if over <= 0 {
+        return Ok(None);
+    }
+    // Room comes when the `over`-th oldest of them stops being able to count.
+    let at: i64 = conn
+        .query_row(
+            "SELECT at FROM effect_log WHERE kind='effect' AND at>?1 ORDER BY at LIMIT 1 OFFSET ?2",
+            params![since, over - 1],
+            |r| r.get(0),
+        )
+        .map_err(durable)?;
+    Ok(Some(at.saturating_add(HOLD).max(now)))
 }
 
 /// Charge one effect per resource, in the transaction that prepares the
@@ -227,6 +295,7 @@ pub(crate) fn charge(
     entry: &Entry<'_>,
     resources: &[&str],
     now: i64,
+    hold: i64,
 ) -> Result<Vec<i64>> {
     let mut seqs = Vec::with_capacity(resources.len());
     for resource in resources {
@@ -246,7 +315,11 @@ pub(crate) fn charge(
         seqs.push(tx.last_insert_rowid());
     }
     tally(tx, now, resources.len() as i64, 0)?;
-    trim(tx)?;
+    // `within_budget` made sure there is room; a log still over its rows
+    // here is a fault, and the effect is refused before it runs.
+    if !trim(tx, now, hold)? {
+        return Err(Error(ErrorCode::StateNotDurable));
+    }
     Ok(seqs)
 }
 
@@ -282,15 +355,24 @@ fn tally(tx: &Transaction<'_>, now: i64, charges: i64, refusals: i64) -> Result<
     Ok(())
 }
 
-/// Keep the newest `LOG_ROWS` rows. The newest row is never removed, so
-/// sequence numbers only grow.
-fn trim(tx: &Transaction<'_>) -> Result<()> {
+/// Bring the log back to `LOG_ROWS` rows, oldest first, removing only rows
+/// that can no longer count: refusal rows, and charges dated at or before
+/// `now - HOLD`. A charge that can still count (in a window now, or dated in
+/// the future, where a clock stepped back can bring it into a window later)
+/// is never removed, whatever the clock has done, so budget state is never
+/// evicted. False when the log is still over its rows: full of charges that
+/// can still count. The newest row is a charge that can count or is removed
+/// only on that failure, so sequence numbers only grow.
+fn trim(tx: &Transaction<'_>, now: i64, hold: i64) -> Result<bool> {
     tx.execute(
-        "DELETE FROM effect_log WHERE seq<=(SELECT max(seq) FROM effect_log)-?1",
-        [LOG_ROWS],
+        "DELETE FROM effect_log WHERE seq IN (SELECT seq FROM effect_log WHERE NOT (kind='effect' AND at>?2) ORDER BY seq LIMIT max(0,(SELECT count(*) FROM effect_log)-?1))",
+        params![LOG_ROWS, now.saturating_sub(hold)],
     )
     .map_err(durable)?;
-    Ok(())
+    let rows: i64 = tx
+        .query_row("SELECT count(*) FROM effect_log", [], |r| r.get(0))
+        .map_err(durable)?;
+    Ok(rows <= LOG_ROWS)
 }
 
 impl ReceiptStore {
@@ -306,7 +388,16 @@ impl ReceiptStore {
         now: i64,
     ) -> Result<()> {
         self.frees_at = None;
-        let spent = spent(&self.conn, self.windows, resources, now)?;
+        let mut spent = spent(&self.conn, self.windows, resources, now)?;
+        // A log full of charges that can still count refuses every effect
+        // rather than evict one; with the clock steady this cannot happen
+        // (the bound above), only after a clock stepped back a long way.
+        if spent.is_empty()
+            && !self.windows.is_empty()
+            && let Some(frees) = log_full(&self.conn, resources.len(), now)?
+        {
+            spent = resources.iter().map(|r| ((*r).to_owned(), frees)).collect();
+        }
         if spent.is_empty() {
             return Ok(());
         }
@@ -387,7 +478,11 @@ impl ReceiptStore {
         .map_err(durable)?;
         let seq = tx.last_insert_rowid();
         tally(&tx, now, 0, i64::from(refusals))?;
-        trim(&tx)?;
+        if !trim(&tx, now, hold(self.windows))? {
+            // No room without evicting a charge that can still count: the
+            // refusal is counted in memory instead.
+            return Ok(None);
+        }
         tx.commit().map_err(durable)?;
         let mut record = ActionRecord::new(entry, seq, now, resource);
         record.kind = "refused";

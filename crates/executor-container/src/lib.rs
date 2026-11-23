@@ -476,7 +476,13 @@ impl ReceiptStore {
             _ => durable(e),
         })?;
         let seqs = match charge {
-            Some(entry) => limit::charge(&tx, entry, &[receipt.before.resource.as_str()], now)?,
+            Some(entry) => limit::charge(
+                &tx,
+                entry,
+                &[receipt.before.resource.as_str()],
+                now,
+                limit::hold(self.windows),
+            )?,
             None => Vec::new(),
         };
         tx.commit().map_err(durable)?;

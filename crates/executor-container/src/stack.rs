@@ -284,7 +284,13 @@ impl ReceiptStore {
                     .iter()
                     .map(|m| m.resource.as_str())
                     .collect();
-                crate::limit::charge(&tx, entry, &targets, insert.now)?
+                crate::limit::charge(
+                    &tx,
+                    entry,
+                    &targets,
+                    insert.now,
+                    crate::limit::hold(self.windows),
+                )?
             }
             _ => Vec::new(),
         };

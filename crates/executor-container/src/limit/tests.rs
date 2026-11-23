@@ -536,6 +536,126 @@ async fn charges_never_sent_cannot_flood_the_log_or_evict_another_containers_cha
     );
 }
 
+/// Inserts `count` charges for `resource` at `at` straight into the log, as
+/// earlier executes would have left them.
+fn charges(f: &mut Fixture, resource: &str, at: i64, count: i64) {
+    f.store()
+        .conn
+        .execute_batch(&format!(
+            "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{count}) \
+             INSERT INTO effect_log(at,kind,resource,operation,action,peer,principal,outcome) \
+             SELECT {at},'effect','{resource}','restart',printf('%064x',i),1001,'alice','effect_accepted' FROM n"
+        ))
+        .unwrap();
+}
+
+/// The reviewers' clock scenario: 64 containers take a day's budget; the
+/// clock steps back 30 hours, so those charges sit in the future, beyond the
+/// window, and each container takes another day's budget; then refusal rows
+/// for nine hours. No charge that can still count is pruned to make room:
+/// once the clock is corrected, the first day's charges are all there and
+/// every container is refused, as its 60 charges say.
+#[tokio::test]
+async fn charges_that_can_still_count_survive_a_clock_stepped_back_and_corrected() {
+    let mut f = Fixture::new();
+    let containers: Vec<String> = std::iter::once(resource('a'))
+        .chain((1..MANAGED).map(|i| format!("container:{i:064x}")))
+        .collect();
+    let back = T - 30 * 3600;
+    for r in &containers {
+        charges(&mut f, r, T, i64::from(DAILY.effects));
+        if *r == resource('a') {
+            // An hour earlier, out of the burst window of the charge below.
+            charges(&mut f, r, back - 3600, i64::from(DAILY.effects) - 1);
+        } else {
+            charges(&mut f, r, back, i64::from(DAILY.effects));
+        }
+    }
+    for hour in 0..9 {
+        f.store()
+            .conn
+            .execute_batch(&format!(
+                "INSERT INTO effect_log(at,kind,resource,operation,action,peer,principal,outcome,refusals) \
+                 SELECT {at},'refused',resource,'restart','{x}',1001,'alice','rate_limited',1 FROM (SELECT DISTINCT resource FROM effect_log)",
+                at = back + hour * 3600,
+                x = "f".repeat(64)
+            ))
+            .unwrap();
+    }
+    let before = f.rows("SELECT count(*) FROM effect_log");
+    assert!(before > LOG_ROWS, "{before}");
+    // a's last charge of the stepped-back day: admitted (59 of 60 count; the
+    // first day's are more than a day ahead), and the insert prunes refusal
+    // rows only.
+    f.restart('a', back).await.unwrap();
+    assert_eq!(f.rows("SELECT count(*) FROM effect_log"), LOG_ROWS);
+    assert_eq!(
+        f.rows(&format!(
+            "SELECT count(*) FROM effect_log WHERE kind='effect' AND at={T}"
+        )),
+        MANAGED * i64::from(DAILY.effects)
+    );
+    // Corrected: the first day's charges count again, and a is refused.
+    assert_eq!(
+        refused(f.restart('a', T + 3600).await),
+        ErrorCode::RateLimited
+    );
+}
+
+/// A log full of charges that can still count refuses every effect rather
+/// than evict one, says when room comes back, and writes no refusal row.
+#[tokio::test]
+async fn a_log_full_of_charges_that_can_count_refuses_instead_of_evicting() {
+    let mut f = Fixture::new();
+    // 8,192 charges for containers the ceiling no longer lists, the oldest
+    // a little under a day old.
+    for i in 0..LOG_ROWS / 64 {
+        charges(
+            &mut f,
+            &format!("container:{i:064x}"),
+            T - HOLD + 10 + i,
+            64,
+        );
+    }
+    let rows = f.rows("SELECT count(*) FROM effect_log");
+    assert_eq!(rows, LOG_ROWS);
+    let effects = f.world.effects();
+    assert_eq!(refused(f.restart('e', T).await), ErrorCode::RateLimited);
+    // Room comes when the oldest of them can no longer count.
+    assert_eq!(f.store().take_frees_at(), Some(T + 10));
+    assert_eq!(f.world.effects(), effects);
+    assert_eq!(f.rows("SELECT count(*) FROM effect_log"), rows);
+    assert_eq!(
+        f.rows("SELECT count(*) FROM effect_log WHERE kind='refused'"),
+        0
+    );
+    // Once it is a day old, the effect is admitted and that charge pruned.
+    f.restart('e', T + 10).await.unwrap();
+    assert_eq!(f.rows("SELECT count(*) FROM effect_log"), LOG_ROWS);
+}
+
+/// The free time counts charges dated in the future that will be in the
+/// window by then: ten charges at each of T, T + 600 and T + 1,200, and the
+/// clock corrected back to T + 599. The burst frees when the third ten have
+/// left it too, at T + 1,800, not at T + 1,200 when the first ten leave.
+#[tokio::test]
+async fn the_free_time_counts_future_charges_that_will_enter_the_window() {
+    let mut f = Fixture::new();
+    for at in [T, T + 600, T + 1200] {
+        charges(&mut f, &resource('a'), at, i64::from(BURST.effects));
+    }
+    assert_eq!(
+        refused(f.restart('a', T + 599).await),
+        ErrorCode::RateLimited
+    );
+    assert_eq!(f.store().take_frees_at(), Some(T + 1800));
+    assert_eq!(
+        refused(f.restart('a', T + 1799).await),
+        ErrorCode::RateLimited
+    );
+    f.restart('a', T + 1800).await.unwrap();
+}
+
 #[tokio::test]
 async fn a_refusal_says_when_every_container_it_names_has_room_again() {
     let mut f = Fixture::new();
