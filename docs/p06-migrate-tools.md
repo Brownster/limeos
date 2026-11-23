@@ -38,7 +38,12 @@ are administrators.
 and the stacks directory. It writes a container ceiling with every `allow_*`
 false and `managed_containers` set to the listed IDs, refuses to overwrite, and
 prints ID/name and stack lists. Review it, install it root-owned, then set only
-the flags you intend; `limeosctl check-ceiling` must accept it.
+the flags you intend; `limeosctl check-ceiling FILE CORE_UID container` must accept it.
+It runs the container executor's own checks, including the walk: every directory
+on the path root-owned and not group- or world-writable, no symlink, the file a
+single link of at most 64 KiB. So check the proposal where it will live, or in a
+root-owned directory such as `/root`; a copy under `/tmp` is refused, as the
+executor would refuse it.
 `managed_stacks` lists the stack directories that hold a Compose file (valid
 Compose project names only, at most 16) and `allow_stack` is false.
 
