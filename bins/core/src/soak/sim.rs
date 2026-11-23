@@ -883,7 +883,6 @@ impl Sim {
         }
         self.receipts_reached = (false, false);
         self.last_watermark = i64::MIN;
-        self.exec.faults().replaced_at = Some(self.now());
     }
     fn older_receipts(&self) -> PathBuf {
         self._dir.path().join("receipts-older.sqlite")

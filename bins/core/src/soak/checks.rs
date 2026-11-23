@@ -92,15 +92,6 @@ pub const EXPECTED_LOGS: &[ExpectedLog] = &[
               the harness releases it (`release_held`)",
     },
     ExpectedLog {
-        message: BEYOND_HISTORY,
-        error: false,
-        codes: &[],
-        why: "only within a plan's lifetime after the executor's receipt store was replaced \
-              (`JobFault::ReceiptStoreLost`): the new store cannot prove an action of an older \
-              plan never ran, so it refuses it before any row (counted exactly, `lost_answers`; \
-              any other `BeyondReceiptHistory` is a lifetime refusal)",
-    },
-    ExpectedLog {
         message: "the container executor could not be reached; the execute request was never sent, and the job is released without effect",
         error: false,
         codes: &[],

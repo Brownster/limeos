@@ -126,12 +126,6 @@ pub struct Faults {
     pub deaths: u64,
     /// Jobs whose recovery lookup the executor answered with a closure.
     pub closed_jobs: std::collections::HashSet<String>,
-    /// When its receipt store was last replaced: for a plan expiring within
-    /// `PLAN_TTL_SECONDS` of it, `BeyondReceiptHistory` is the store's right
-    /// answer (it cannot prove an action of so old a plan never ran).
-    pub replaced_at: Option<i64>,
-    /// Such refusals.
-    pub beyond_after_replacement: u64,
     /// Jobs whose recovery lookups it refuses (`Conflict`), and whose
     /// resolution it refuses (`Unavailable`), while held open.
     pub held_lookups: std::collections::HashSet<String>,
@@ -495,12 +489,9 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
                 .refused
                 .entry((what, format!("{code:?}")))
                 .or_default() += 1;
-            let replaced = faults
-                .replaced_at
-                .is_some_and(|at| now <= at + limeos_domain::PLAN_TTL_SECONDS);
-            if code == limeos_domain::ErrorCode::BeyondReceiptHistory && replaced {
-                faults.beyond_after_replacement += 1;
-            } else if LIFETIME.contains(&code) {
+            // `BeyondReceiptHistory` included: the soak never steps the clock
+            // back, and a replaced store has pruned nothing it could refuse by.
+            if LIFETIME.contains(&code) {
                 faults
                     .violations
                     .push(format!("executor: lifetime refusal {code:?}"));
