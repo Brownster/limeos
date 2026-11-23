@@ -1,6 +1,9 @@
 //! The target-preparation connection handler over a socket pair, with the
 //! ceiling walked beneath a test-owned directory: these fail if
 //! authorization moves back to start-up or to the read made at accept.
+//!
+//! Each test skips itself when run as root, since a root test user cannot
+//! be core (`core_uid` 0 is refused); CI runs them unprivileged.
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -112,6 +115,9 @@ async fn a_revocation_between_two_requests_refuses_the_second() {
     let root = Root::new();
     root.write(&ceiling_json(me(), true));
     let ceilings = Arc::new(root.ceilings());
+    // The ceiling reads cleanly, so this `Unavailable` is the root check
+    // past authorization, not a refused ceiling.
+    assert!(ceilings.load().is_ok());
     assert_eq!(
         exchange(&ceilings, &inspect()).await.error,
         Some(ErrorCode::Unavailable)

@@ -1,5 +1,8 @@
 //! The connection handler itself, over a socket pair: these fail if
 //! authorization moves back to start-up or to the read made at accept.
+//!
+//! Each test skips itself when run as root, since a root test user cannot
+//! be core (`core_uid` 0 is refused); CI runs them unprivileged.
 use super::*;
 use crate::test_root::{FILE, Root, container_ceiling_json, id};
 use limeos_contracts::VERSION;
@@ -22,9 +25,8 @@ fn role(root: &Root, ceiling: CeilingRole) -> SharedRole {
         observations: limeos_observations::Cache::new(vec![source]),
         collecting: false,
         containers: Arc::new(ContainerRole {
-            // Nothing listens here: a request that reaches the Engine fails
-            // there, after authorization, never with `Forbidden`.
-            engine: Docker::new(root.path("no-docker.sock")),
+            // `fake_engine` answers here when a test needs the Engine.
+            engine: Docker::new(root.path("docker.sock")),
             receipts: None,
             epoch: None,
             docker: source == Source::Docker,
@@ -35,6 +37,40 @@ fn role(root: &Root, ceiling: CeilingRole) -> SharedRole {
         stack_scan: false,
         inventory_reads: Arc::new(BlockingReads::new(1)),
     }
+}
+
+/// A stand-in Engine on `root`'s Docker socket: it answers `/version`, and
+/// answers every container inspection with another container's ID, which
+/// the log path refuses as `Conflict`. A log request that gets `Conflict`
+/// therefore passed the ceiling and reached the Engine.
+fn fake_engine(root: &Root) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::UnixListener::bind(root.path("docker.sock")).unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut request = Vec::new();
+                let mut buffer = [0; 1024];
+                while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match stream.read(&mut buffer).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => request.extend_from_slice(&buffer[..n]),
+                    }
+                }
+                let line = String::from_utf8_lossy(&request);
+                let body = if line.starts_with("GET /version ") {
+                    r#"{"ApiVersion":"1.43","MinAPIVersion":"1.24"}"#.to_owned()
+                } else {
+                    format!(r#"{{"Id":"{}","Config":{{"Tty":false}}}}"#, "9".repeat(64))
+                };
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
 }
 
 /// Opens a connection to `role`'s handler and returns the client end once
@@ -86,22 +122,22 @@ async fn a_revocation_between_two_requests_refuses_the_second() {
     let (a, b) = (id('a'), id('b'));
     root.write(&FILE[1..], &container_ceiling_json(me(), &[&a, &b]));
     let role = Arc::new(role(&root, CeilingRole::Container));
+    fake_engine(&root);
 
     assert!(exchange(&role, &HEALTH).await.ready);
-    let listed = exchange(&role, &logs(&a)).await;
-    assert_ne!(
-        listed.error,
-        Some(ErrorCode::Forbidden),
-        "authorized, then failed at the absent Engine"
+    // Authorized, dispatched, and refused by the stand-in Engine.
+    assert_eq!(
+        exchange(&role, &logs(&a)).await.error,
+        Some(ErrorCode::Conflict)
     );
 
     root.write(&FILE[1..], &container_ceiling_json(me(), &[&b]));
     let revoked = exchange(&role, &logs(&a)).await;
     assert_eq!(revoked.error, Some(ErrorCode::Forbidden));
     assert!(!revoked.ready);
-    assert_ne!(
+    assert_eq!(
         exchange(&role, &logs(&b)).await.error,
-        Some(ErrorCode::Forbidden)
+        Some(ErrorCode::Conflict)
     );
 
     // Health withdrawn as well: refused on the next request.
@@ -123,7 +159,14 @@ async fn a_revocation_after_accept_and_before_the_frame_refuses_the_request() {
     let a = id('a');
     root.write(&FILE[1..], &container_ceiling_json(me(), &[&a]));
     let role = Arc::new(role(&root, CeilingRole::Container));
+    fake_engine(&root);
 
+    // Unchanged between accept and frame: dispatched to the Engine.
+    let (client, task) = connect(role.clone()).await;
+    assert_eq!(
+        send(client, task, &logs(&a)).await.error,
+        Some(ErrorCode::Conflict)
+    );
     // Accepted, peer checked against a ceiling that lists `a`...
     let (client, task) = connect(role.clone()).await;
     assert!(!task.is_finished(), "the handler waits for the frame");
