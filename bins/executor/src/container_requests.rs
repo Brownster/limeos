@@ -1,7 +1,7 @@
 //! The container executor's receipt-store and Engine requests, request to
 //! response: inspection, the receipt epoch, execute, lookup (and closure),
 //! verify and resolve, for single containers and Compose stacks. The daemon's
-//! accept loop (`main.rs`) keeps the peer check, framing, deadlines and the
+//! connection handler (`shared_role.rs`) keeps the peer check, framing, deadlines and the
 //! ceiling's `validate`, answers its own reads (observations, logs, storage
 //! inventories, health), and hands every other request to [`answer`]; the
 //! long-uptime soak (`bins/core/src/soak`) calls the same function with a
@@ -43,7 +43,10 @@ where
     E: Engine + Sync,
     C: Fn() -> i64 + Sync,
 {
-    let store = || role.receipts.as_ref().ok_or(Error(ErrorCode::Forbidden));
+    // The ceiling grants writes (`validate` checked) but the store did not
+    // open at start, because the ceiling then granted none: `Unavailable`
+    // until a restart opens it.
+    let store = || role.receipts.as_ref().ok_or(Error(ErrorCode::Unavailable));
     match request {
         Request::Inspect { resource, .. } if role.docker => {
             receipt.inspection = Some(
@@ -211,7 +214,9 @@ where
             receipt.epoch = Some(
                 role.epoch
                     .as_deref()
-                    .ok_or(Error(ErrorCode::Forbidden))?
+                    // As for `store`: granted after start, opened at the
+                    // next one.
+                    .ok_or(Error(ErrorCode::Unavailable))?
                     .to_owned(),
             );
         }

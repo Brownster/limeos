@@ -438,6 +438,71 @@ impl StorageTargetCeiling {
         Ok(())
     }
 }
+/// The executor role a shared ceiling is read by, fixed by argv at start.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CeilingRole {
+    /// `limeos-storaged`: host reads and health only.
+    Host,
+    /// `limeos-containerd`.
+    Container,
+    /// The shadow package's container executor (`read-only` in argv).
+    ContainerReadOnly,
+    /// `limeos-storage-reader`: storage, stack and container-health reads.
+    StorageReader,
+}
+impl CeilingRole {
+    /// The names `limeosctl check-ceiling` takes.
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "host" => CeilingRole::Host,
+            "container" => CeilingRole::Container,
+            "container-read-only" => CeilingRole::ContainerReadOnly,
+            "storage" => CeilingRole::StorageReader,
+            _ => return None,
+        })
+    }
+}
+/// Why a well-parsed ceiling is refused for a role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CeilingRefusal {
+    /// `core_uid` is 0.
+    RootCore,
+    /// Fails [`Ceiling::configuration_valid`].
+    Invalid,
+    /// The storage reader's ceiling grants no storage, stack or
+    /// container-health read.
+    ReaderWithoutReads,
+    /// The storage reader's read flags, on another role.
+    ReaderFlagsElsewhere,
+    /// Writes or logs on a role that never performs them.
+    WritesOnReadOnlyRole,
+}
+impl CeilingRefusal {
+    pub fn message(self) -> &'static str {
+        match self {
+            CeilingRefusal::RootCore => {
+                "the ceiling names core_uid 0; core runs as its own unprivileged user, so root is never accepted"
+            }
+            CeilingRefusal::Invalid => {
+                "the ceiling fails validation (version, list sizes or IDs, or a flag that needs another)"
+            }
+            CeilingRefusal::ReaderWithoutReads => {
+                "the storage reader requires a dedicated read-only ceiling granting a storage read"
+            }
+            CeilingRefusal::ReaderFlagsElsewhere => {
+                "storage, stack and container-health reads belong only to the storage reader"
+            }
+            CeilingRefusal::WritesOnReadOnlyRole => {
+                "this executor role cannot mutate containers or read their logs"
+            }
+        }
+    }
+}
+impl std::fmt::Display for CeilingRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.message())
+    }
+}
 impl Ceiling {
     /// Whether the ceiling is well formed. A `core_uid` of 0 is refused, as
     /// the storage ceilings refuse it: core never runs as root, and a root
@@ -467,6 +532,37 @@ impl Ceiling {
     }
     pub fn can_write(&self) -> bool {
         self.allow_restart || self.allow_start || self.allow_stop || self.allow_stack
+    }
+    /// Whether this ceiling may be served by `role`: `core_uid` is not 0,
+    /// the ceiling is well formed, and its flags suit the role. The
+    /// executors run this on every read of their ceiling, and
+    /// `limeosctl check-ceiling` runs the same check.
+    pub fn admit(&self, role: CeilingRole) -> std::result::Result<(), CeilingRefusal> {
+        if self.core_uid == 0 {
+            return Err(CeilingRefusal::RootCore);
+        }
+        if !self.configuration_valid() {
+            return Err(CeilingRefusal::Invalid);
+        }
+        let reader_flags =
+            self.allow_storage_read || self.allow_stack_read || self.allow_container_health_read;
+        match role {
+            CeilingRole::StorageReader if !reader_flags => Err(CeilingRefusal::ReaderWithoutReads),
+            CeilingRole::Host | CeilingRole::Container | CeilingRole::ContainerReadOnly
+                if reader_flags =>
+            {
+                Err(CeilingRefusal::ReaderFlagsElsewhere)
+            }
+            CeilingRole::ContainerReadOnly if self.can_write() => {
+                Err(CeilingRefusal::WritesOnReadOnlyRole)
+            }
+            CeilingRole::Host | CeilingRole::StorageReader
+                if self.can_write() || self.allow_container_logs =>
+            {
+                Err(CeilingRefusal::WritesOnReadOnlyRole)
+            }
+            _ => Ok(()),
+        }
     }
     pub fn validate(&self, peer_uid: u32, request: &Request) -> Result<Receipt> {
         if !self.configuration_valid() || peer_uid != self.core_uid {
@@ -958,6 +1054,62 @@ mod tests {
             core.validate(1001, &Request::Health { version: VERSION })
                 .is_ok()
         );
+    }
+    #[test]
+    fn each_role_admits_only_a_ceiling_meant_for_it() {
+        use CeilingRole::*;
+        let parse = |json: &str| serde_json::from_str::<Ceiling>(json).unwrap();
+        let writer = parse(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_container_read":true,"allow_container_logs":true,"allow_restart":true,"managed_containers":[]}"#,
+        );
+        assert_eq!(writer.admit(Container), Ok(()));
+        assert_eq!(
+            writer.admit(ContainerReadOnly),
+            Err(CeilingRefusal::WritesOnReadOnlyRole)
+        );
+        assert_eq!(
+            writer.admit(Host),
+            Err(CeilingRefusal::WritesOnReadOnlyRole)
+        );
+        let logs = parse(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_container_read":true,"allow_container_logs":true}"#,
+        );
+        assert_eq!(logs.admit(ContainerReadOnly), Ok(()));
+        assert_eq!(logs.admit(Host), Err(CeilingRefusal::WritesOnReadOnlyRole));
+        let host =
+            parse(r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_host_read":true}"#);
+        assert_eq!(host.admit(Host), Ok(()));
+        assert_eq!(
+            host.admit(StorageReader),
+            Err(CeilingRefusal::ReaderWithoutReads)
+        );
+        let reader =
+            parse(r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_stack_read":true}"#);
+        assert_eq!(reader.admit(StorageReader), Ok(()));
+        for role in [Host, Container, ContainerReadOnly] {
+            assert_eq!(
+                reader.admit(role),
+                Err(CeilingRefusal::ReaderFlagsElsewhere)
+            );
+        }
+        let root = Ceiling {
+            core_uid: 0,
+            ..host.clone()
+        };
+        for role in [Host, Container, ContainerReadOnly, StorageReader] {
+            assert_eq!(root.admit(role), Err(CeilingRefusal::RootCore));
+        }
+        let invalid = Ceiling { version: 2, ..host };
+        assert_eq!(invalid.admit(Host), Err(CeilingRefusal::Invalid));
+        for (name, role) in [
+            ("host", Host),
+            ("container", Container),
+            ("container-read-only", ContainerReadOnly),
+            ("storage", StorageReader),
+        ] {
+            assert_eq!(CeilingRole::parse(name), Some(role));
+        }
+        assert_eq!(CeilingRole::parse("storage-reader"), None);
     }
     #[test]
     fn storage_reader_has_an_independent_read_only_ceiling_and_no_path_or_effect_input() {

@@ -30,12 +30,47 @@ pub(crate) fn open(path: &Path, directory: bool, protected_leaf: bool) -> Result
     open_beneath(Path::new("/"), path, 0, directory, protected_leaf)
 }
 
+/// Why a walk stopped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WalkError {
+    /// Not a plain absolute path of at most 512 bytes.
+    InvalidName,
+    /// A component does not exist.
+    Missing,
+    /// A component is a symlink or of the wrong type (ELOOP, ENOTDIR, ...),
+    /// or not owned by the expected owner, or group- or world-writable.
+    Unsafe,
+    /// The kernel refused access (EACCES, EPERM): this process may not
+    /// search or read the path, which says nothing about its safety.
+    Denied,
+    /// Anything else: resource exhaustion (EMFILE, ENFILE, ENOMEM),
+    /// interruption (EINTR), I/O errors, or a stat that failed.
+    Unavailable,
+}
+impl WalkError {
+    fn failure(self) -> Failure {
+        match self {
+            WalkError::InvalidName => Failure::InvalidPlan,
+            WalkError::Missing => Failure::NotReady,
+            WalkError::Unsafe => Failure::UnsafePath,
+            WalkError::Denied | WalkError::Unavailable => Failure::Unavailable,
+        }
+    }
+}
+fn classify(errno: rustix::io::Errno) -> WalkError {
+    use rustix::io::Errno;
+    match errno {
+        Errno::NOENT => WalkError::Missing,
+        Errno::LOOP | Errno::NOTDIR | Errno::NXIO | Errno::NODEV | Errno::ISDIR => {
+            WalkError::Unsafe
+        }
+        Errno::ACCESS | Errno::PERM => WalkError::Denied,
+        _ => WalkError::Unavailable,
+    }
+}
+
 /// The walk of [`open`], from `anchor` instead of `/` and with `owner` in
-/// place of root: `path` is still written as an absolute path, but is
-/// resolved beneath `anchor`. The anchor itself is opened by name (it is
-/// trusted) and must pass the same ownership and mode check as every
-/// component below it. Production callers walk from `/` as root; tests,
-/// which cannot create root-owned files, use their own directory and UID.
+/// place of root.
 pub(crate) fn open_beneath(
     anchor: &Path,
     path: &Path,
@@ -43,21 +78,42 @@ pub(crate) fn open_beneath(
     directory: bool,
     protected_leaf: bool,
 ) -> Result<OwnedFd> {
-    let text = path.to_str().ok_or(Failure::InvalidPlan)?;
+    walk_beneath(anchor, path, owner, directory, protected_leaf).map_err(WalkError::failure)
+}
+
+/// [`open`] with the reason it stopped. `path` is written as an absolute
+/// path but resolved beneath `anchor`. The anchor itself is opened by name
+/// (it is trusted) and must pass the same ownership and mode check as every
+/// component below it. Production callers walk from `/` with owner 0;
+/// tests, which cannot create root-owned files, use their own directory and
+/// UID.
+pub(crate) fn walk_beneath(
+    anchor: &Path,
+    path: &Path,
+    owner: u32,
+    directory: bool,
+    protected_leaf: bool,
+) -> std::result::Result<OwnedFd, WalkError> {
+    let text = path.to_str().ok_or(WalkError::InvalidName)?;
     if !text.starts_with('/')
         || text.len() > 512
         || text.chars().any(char::is_control)
         || (text != "/" && text[1..].split('/').any(|s| matches!(s, "" | "." | "..")))
     {
-        return Err(Failure::InvalidPlan);
+        return Err(WalkError::InvalidName);
     }
     let mut fd = rustix::fs::open(
         anchor,
         OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
         Mode::empty(),
     )
-    .map_err(|_| Failure::Unavailable)?;
-    protected(&stat(&fd)?, owner)?;
+    .map_err(|_| WalkError::Unavailable)?;
+    let checked = |fd: &OwnedFd| -> std::result::Result<Statx, WalkError> {
+        stat(fd).map_err(|_| WalkError::Unavailable)
+    };
+    if !protected(&checked(&fd)?, owner) {
+        return Err(WalkError::Unsafe);
+    }
     let parts: Vec<_> = path
         .components()
         .filter_map(|c| match c {
@@ -78,27 +134,17 @@ pub(crate) fn open_beneath(
             flags | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         )
-        .map_err(|e| {
-            if e == rustix::io::Errno::NOENT {
-                Failure::NotReady
-            } else {
-                Failure::UnsafePath
-            }
-        })?;
-        let s = stat(&fd)?;
-        if !leaf || protected_leaf {
-            protected(&s, owner)?;
+        .map_err(classify)?;
+        let s = checked(&fd)?;
+        if (!leaf || protected_leaf) && !protected(&s, owner) {
+            return Err(WalkError::Unsafe);
         }
     }
     Ok(fd)
 }
 
-fn protected(s: &Statx, owner: u32) -> Result<()> {
-    if s.stx_uid != owner || s.stx_mode & 0o022 != 0 {
-        Err(Failure::UnsafePath)
-    } else {
-        Ok(())
-    }
+fn protected(s: &Statx, owner: u32) -> bool {
+    s.stx_uid == owner && s.stx_mode & 0o022 == 0
 }
 
 pub(crate) fn plan(path: &Path) -> Result<limeos_domain::StorageMountWaitPlan> {

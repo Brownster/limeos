@@ -8,6 +8,7 @@ use limeos_domain::{
     Error, ErrorCode, MountExecutionState, Result, StorageMountEffectPlan, StorageMountReceipt,
     StorageMountSelection, verify_storage_mount,
 };
+use limeos_executor::ceiling::Transitions;
 use limeos_executor_protocol::{Receipt, Request, StorageMountCeiling};
 use limeos_executor_storage::effects::MountJournal;
 use sha2::{Digest, Sha256};
@@ -37,19 +38,7 @@ pub(super) async fn run(args: &[String]) -> std::io::Result<()> {
     }
     // `policy()` rereads the ceiling on every connection and between the
     // stages of an execute; this first read refuses to start, saying why.
-    let first: StorageMountCeiling =
-        limeos_executor_storage::read_protected_json(Path::new(POLICY)).map_err(|failure| {
-            std::io::Error::other(format!(
-                "unsafe or unreadable mount ceiling: {}",
-                failure.message()
-            ))
-        })?;
-    if first.core_uid == 0 {
-        return Err(std::io::Error::other(
-            "mount ceiling names core_uid 0; core runs as its own unprivileged user, so root is never accepted",
-        ));
-    }
-    policy().map_err(|_| std::io::Error::other("invalid mount ceiling"))?;
+    read_policy().map_err(|refusal| std::io::Error::other(format!("mount ceiling: {refusal}")))?;
     for directory in ["/run", "/run/limeos-storage-mounts"] {
         let meta = std::fs::symlink_metadata(directory)?;
         if !meta.is_dir() || meta.uid() != 0 || meta.mode() & 0o022 != 0 {
@@ -382,11 +371,48 @@ fn effect_digest(plan: &StorageMountEffectPlan) -> Result<String> {
     let bytes = serde_json::to_vec(plan).map_err(|_| Error(ErrorCode::InvalidInput))?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
+/// The mount ceiling as the file says now. `Unavailable` while it is
+/// refused, which core must not take for the ceiling's "no"; each change of
+/// refusal kind, and the recovery, is logged.
 fn policy() -> Result<StorageMountCeiling> {
+    static LOG: Transitions<PolicyRefusal> = Transitions::new("storage-mounts");
+    let result = read_policy();
+    LOG.note(&result);
+    result.map_err(|_| Error(ErrorCode::Unavailable))
+}
+/// Why the mount ceiling was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PolicyRefusal {
+    NotRoot,
+    Read(limeos_executor_storage::ProtectedRead),
+    RootCore,
+    Invalid,
+}
+impl std::fmt::Display for PolicyRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PolicyRefusal::NotRoot => f.write_str("the mount service is not running as root"),
+            PolicyRefusal::Read(read) => f.write_str(read.message()),
+            PolicyRefusal::RootCore => f.write_str(
+                "names core_uid 0; core runs as its own unprivileged user, so root is never accepted",
+            ),
+            PolicyRefusal::Invalid => f.write_str("fails validation"),
+        }
+    }
+}
+/// The walk behind `read_protected_json`, with its reason kept.
+fn read_policy() -> std::result::Result<StorageMountCeiling, PolicyRefusal> {
+    if !rustix::process::geteuid().is_root() {
+        return Err(PolicyRefusal::NotRoot);
+    }
     let ceiling: StorageMountCeiling =
-        limeos_executor_storage::read_protected_json(Path::new(POLICY)).map_err(map_failure)?;
+        limeos_executor_storage::read_root_owned_json(Path::new(POLICY))
+            .map_err(PolicyRefusal::Read)?;
+    if ceiling.core_uid == 0 {
+        return Err(PolicyRefusal::RootCore);
+    }
     if !ceiling.configuration_valid() {
-        return Err(Error(ErrorCode::Forbidden));
+        return Err(PolicyRefusal::Invalid);
     }
     Ok(ceiling)
 }

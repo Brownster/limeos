@@ -45,41 +45,103 @@ fn root() -> Result<()> {
 /// refused unless this process runs as root.
 pub fn read_protected_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
     root()?;
-    read_root_owned_json(file)
+    read_root_owned_json(file).map_err(ProtectedRead::failure)
+}
+/// Why a protected JSON file was not read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProtectedRead {
+    /// The path is not a plain absolute path of at most 512 bytes.
+    InvalidPath,
+    /// A component does not exist.
+    Missing,
+    /// A component is a symlink or of the wrong type, not owned by the
+    /// expected owner (root), or group- or world-writable.
+    UnsafePath,
+    /// The kernel refused this process access to a component.
+    PermissionDenied,
+    /// Not a regular file with one link and at most 64 KiB, or not the
+    /// expected JSON.
+    Malformed,
+    /// Out of descriptors or memory, interrupted, or an I/O error.
+    Unavailable,
+}
+impl ProtectedRead {
+    pub fn message(self) -> &'static str {
+        match self {
+            ProtectedRead::InvalidPath => "the path is not a plain absolute path",
+            ProtectedRead::Missing => "the file does not exist",
+            ProtectedRead::UnsafePath => {
+                "a component of the path is a symlink or not a directory, not root-owned, or group- or world-writable"
+            }
+            ProtectedRead::PermissionDenied => {
+                "permission denied: this process may not search or read the path"
+            }
+            ProtectedRead::Malformed => {
+                "not a single-link regular file of at most 64 KiB holding the expected JSON"
+            }
+            ProtectedRead::Unavailable => {
+                "the file could not be read now (out of descriptors or memory, interrupted, or an I/O error)"
+            }
+        }
+    }
+}
+impl std::fmt::Display for ProtectedRead {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.message())
+    }
+}
+impl ProtectedRead {
+    /// The storage CLI's and root roles' coarser failure for this refusal.
+    pub fn failure(self) -> Failure {
+        match self {
+            ProtectedRead::InvalidPath | ProtectedRead::Malformed => Failure::InvalidPlan,
+            ProtectedRead::Missing => Failure::NotReady,
+            ProtectedRead::UnsafePath => Failure::UnsafePath,
+            ProtectedRead::PermissionDenied | ProtectedRead::Unavailable => Failure::Unavailable,
+        }
+    }
 }
 /// A root-owned JSON file, for any reader. Every component from `/` is
 /// opened without following symlinks and must be root-owned and not group-
 /// or world-writable; the file must be a regular file with one link and at
-/// most 64 KiB. Missing is `NotReady`, a symlink or unsafe owner or mode is
-/// `UnsafePath`, a wrong type, size, link count or parse is `InvalidPlan`.
-/// The unprivileged executors read their ceilings through this.
-pub fn read_root_owned_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
+/// most 64 KiB. The unprivileged executors and `limeosctl check-ceiling`
+/// read ceilings through this.
+pub fn read_root_owned_json<T: DeserializeOwned>(
+    file: &Path,
+) -> std::result::Result<T, ProtectedRead> {
     read_owned_json_beneath(Path::new("/"), file, 0)
 }
 /// [`read_root_owned_json`] walked from `anchor` with `owner` in place of
-/// root, `file` written as an absolute path beneath it. Production passes
-/// `/` and 0; tests, which cannot create root-owned files, pass their own
-/// directory and UID so the same walk and checks run.
+/// root, `file` written as an absolute path beneath it. Only tests pass
+/// anything but `/` and 0: they cannot create root-owned files, so they walk
+/// their own directory as their own UID through the same checks.
 #[doc(hidden)]
 pub fn read_owned_json_beneath<T: DeserializeOwned>(
     anchor: &Path,
     file: &Path,
     owner: u32,
-) -> Result<T> {
-    let fd = path::open_beneath(anchor, file, owner, false, true)?;
-    let s = path::stat(&fd)?;
+) -> std::result::Result<T, ProtectedRead> {
+    use path::WalkError;
+    let fd = path::walk_beneath(anchor, file, owner, false, true).map_err(|e| match e {
+        WalkError::InvalidName => ProtectedRead::InvalidPath,
+        WalkError::Missing => ProtectedRead::Missing,
+        WalkError::Unsafe => ProtectedRead::UnsafePath,
+        WalkError::Denied => ProtectedRead::PermissionDenied,
+        WalkError::Unavailable => ProtectedRead::Unavailable,
+    })?;
+    let s = path::stat(&fd).map_err(|_| ProtectedRead::Unavailable)?;
     if s.stx_mode & 0o170000 != 0o100000 || s.stx_nlink != 1 || s.stx_size > 65536 {
-        return Err(Failure::InvalidPlan);
+        return Err(ProtectedRead::Malformed);
     }
     let mut bytes = Vec::new();
     File::from(fd)
         .take(65537)
         .read_to_end(&mut bytes)
-        .map_err(|_| Failure::InvalidPlan)?;
+        .map_err(|_| ProtectedRead::Unavailable)?;
     if bytes.len() > 65536 {
-        return Err(Failure::InvalidPlan);
+        return Err(ProtectedRead::Malformed);
     }
-    serde_json::from_slice(&bytes).map_err(|_| Failure::InvalidPlan)
+    serde_json::from_slice(&bytes).map_err(|_| ProtectedRead::Malformed)
 }
 pub fn read_contract(file: &Path) -> Result<StorageContract> {
     read_protected_json(file)

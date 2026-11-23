@@ -1,100 +1,56 @@
 //! The shared ceiling of the host, container and storage-reader roles, read
 //! afresh for every request. Each read walks every path component without
 //! following symlinks and checks root ownership and mode
-//! (`limeos_executor_storage::read_root_owned_json`), then checks the
-//! ceiling's form, refuses `core_uid` 0, and checks that the ceiling suits
-//! this executor's role. A request whose read fails is refused: there is no
-//! earlier copy to fall back to, so a revocation takes effect on the next
-//! request and a broken file refuses everything until it is fixed.
+//! (`limeos_executor_storage::read_root_owned_json`), then runs
+//! `Ceiling::admit` for this executor's role: `core_uid` 0 refused, the
+//! ceiling well formed, its flags suited to the role. `limeosctl
+//! check-ceiling` runs the same two steps. A request whose read fails is
+//! refused with `Unavailable`: there is no earlier copy to fall back to, so a
+//! revocation takes effect on the next request and a broken file refuses
+//! everything until it is fixed. `Forbidden` is kept for a ceiling that was
+//! read and says no, so core never takes a broken or half-written file for a
+//! definite refusal.
+//!
+//! A connection reads the ceiling twice: once when it is accepted, to refuse
+//! a peer that is not core before any frame is read, and again once the
+//! request frame has arrived. Only the second read authorizes the request.
 //!
 //! What the process set up at start from its first read stays as it was
 //! until a restart: whether the receipt store is open, which observation
 //! collector runs, and whether the storage reader's stack scan exists (the
-//! scan itself rereads the ceiling before every pass). So a narrowed ceiling
-//! takes effect at once, while a capability added later that needs one of
-//! those (writes on an executor started without them, say) is refused until
-//! the executor restarts.
+//! scan itself rereads the ceiling before every pass). A request that a later
+//! ceiling grants but that needs one of those is answered `Unavailable`
+//! (`shared_role`), never with an empty answer.
 use limeos_domain::{Error, ErrorCode};
 use limeos_executor_container::ContainerCeiling;
-use limeos_executor_protocol::Ceiling;
-use limeos_executor_storage::Failure;
+use limeos_executor_protocol::{Ceiling, CeilingRefusal, CeilingRole};
+use limeos_executor_storage::ProtectedRead;
 use std::{
     path::{Path, PathBuf},
     sync::Mutex,
 };
 
-/// Which executor reads the ceiling.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
-    Host,
-    Container,
-    StorageReader,
-}
-
-/// The executor's role, fixed by argv at start.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Role {
-    pub kind: Kind,
-    /// The shadow's read-only mode: a writable ceiling is refused.
-    pub read_only: bool,
-}
-
 /// Why a ceiling read was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
-    /// The file does not exist.
-    Missing,
-    /// A path component is a symlink, or is not root-owned, or is group- or
-    /// world-writable.
-    UnsafePath,
-    /// Not a regular file with one link and at most 64 KiB, or not a ceiling.
-    Malformed,
-    /// The file could not be read.
-    Unavailable,
-    /// `core_uid` is 0.
-    RootCore,
-    /// Fails `Ceiling::configuration_valid`.
-    Invalid,
-    /// The storage reader's ceiling grants no storage read.
-    ReaderWithoutReads,
-    /// The storage reader's read flags on another role.
-    ReaderFlagsElsewhere,
-    /// Writes or logs on a role that never performs them.
-    WritesOnReadOnlyRole,
+    /// The file could not be read safely.
+    Read(ProtectedRead),
+    /// It was read, but is not a ceiling this role may serve.
+    Content(CeilingRefusal),
 }
 impl Refusal {
     pub fn message(self) -> &'static str {
         match self {
-            Refusal::Missing => "the ceiling file does not exist",
-            Refusal::UnsafePath => {
-                "a component of the ceiling path is a symlink, not root-owned, or group- or world-writable"
-            }
-            Refusal::Malformed => {
-                "the ceiling is not a single-link regular file of at most 64 KiB holding a valid ceiling"
-            }
-            Refusal::Unavailable => "the ceiling could not be read",
-            Refusal::RootCore => {
-                "the ceiling names core_uid 0; core runs as its own unprivileged user, so root is never accepted"
-            }
-            Refusal::Invalid => "the ceiling fails validation",
-            Refusal::ReaderWithoutReads => {
-                "the storage reader requires a dedicated read-only ceiling"
-            }
-            Refusal::ReaderFlagsElsewhere => {
-                "storage, stack and container-health reads belong only to the storage reader"
-            }
-            Refusal::WritesOnReadOnlyRole => {
-                "this executor cannot mutate containers or read their logs"
-            }
+            Refusal::Read(read) => read.message(),
+            Refusal::Content(content) => content.message(),
         }
     }
-    /// The error a refused request carries: `Unavailable` while the file
-    /// cannot be read at all, `Forbidden` when it is there but refused.
+    /// The error a refused request carries. Always `Unavailable`: the
+    /// executor has no ceiling to answer from, which core must not take for
+    /// the ceiling's "no" (core withdraws an operator's resolve request on
+    /// `Forbidden`, but keeps it pending on `Unavailable`).
     pub fn error(self) -> Error {
-        Error(match self {
-            Refusal::Missing | Refusal::Unavailable => ErrorCode::Unavailable,
-            _ => ErrorCode::Forbidden,
-        })
+        Error(ErrorCode::Unavailable)
     }
 }
 impl std::fmt::Display for Refusal {
@@ -103,25 +59,34 @@ impl std::fmt::Display for Refusal {
     }
 }
 
-/// Whether `ceiling` suits `role`; the checks the daemon made once at start.
-pub fn admit(role: Role, ceiling: &Ceiling) -> Result<(), Refusal> {
-    let reader_flags = ceiling.allow_storage_read
-        || ceiling.allow_stack_read
-        || ceiling.allow_container_health_read;
-    if role.read_only && ceiling.can_write() {
-        return Err(Refusal::WritesOnReadOnlyRole);
-    }
-    match role.kind {
-        Kind::StorageReader if !reader_flags => return Err(Refusal::ReaderWithoutReads),
-        Kind::Host | Kind::Container if reader_flags => {
-            return Err(Refusal::ReaderFlagsElsewhere);
+/// Logs a refusal when its kind changes, and the recovery, so a broken file
+/// writes one line per change, not one per request.
+pub struct Transitions<R> {
+    what: &'static str,
+    last: Mutex<Option<R>>,
+}
+impl<R: Copy + Eq + std::fmt::Display> Transitions<R> {
+    pub const fn new(what: &'static str) -> Self {
+        Self {
+            what,
+            last: Mutex::new(None),
         }
-        _ => {}
     }
-    if role.kind != Kind::Container && (ceiling.can_write() || ceiling.allow_container_logs) {
-        return Err(Refusal::WritesOnReadOnlyRole);
+    pub fn note<T>(&self, result: &Result<T, R>) {
+        let now = result.as_ref().err().copied();
+        let mut last = self.last.lock().unwrap_or_else(|e| e.into_inner());
+        if *last != now {
+            match now {
+                Some(refusal) => tracing::warn!(
+                    ceiling = self.what,
+                    reason = %refusal,
+                    "executor ceiling refused; every request is refused until it is fixed"
+                ),
+                None => tracing::info!(ceiling = self.what, "executor ceiling accepted again"),
+            }
+            *last = now;
+        }
     }
-    Ok(())
 }
 
 /// The container ceiling the receipt store authorizes against, as the
@@ -144,48 +109,40 @@ pub struct CeilingFile {
     anchor: PathBuf,
     path: PathBuf,
     owner: u32,
-    role: Role,
-    /// The last refusal logged, so a broken file logs once, not per request.
-    last: Mutex<Option<Refusal>>,
+    role: CeilingRole,
+    log: Transitions<Refusal>,
 }
 impl CeilingFile {
     /// The installed file at `path`: walked from `/`, every component
     /// root-owned.
-    pub fn installed(path: &Path, role: Role) -> Self {
-        Self::beneath(Path::new("/"), path, 0, role)
+    pub fn installed(path: &Path, role: CeilingRole) -> Self {
+        Self::at(Path::new("/"), path, 0, role)
     }
     /// `path` walked from `anchor`, every component owned by `owner`; for
     /// tests, which cannot create root-owned files. The checks are the same.
-    pub fn beneath(anchor: &Path, path: &Path, owner: u32, role: Role) -> Self {
+    #[cfg(test)]
+    pub(crate) fn beneath(anchor: &Path, path: &Path, owner: u32, role: CeilingRole) -> Self {
+        Self::at(anchor, path, owner, role)
+    }
+    fn at(anchor: &Path, path: &Path, owner: u32, role: CeilingRole) -> Self {
         Self {
             anchor: anchor.to_path_buf(),
             path: path.to_path_buf(),
             owner,
             role,
-            last: Mutex::new(None),
+            log: Transitions::new("shared"),
         }
     }
     /// The ceiling as the file says now. Each call rereads the file; a
-    /// refusal is logged when it first appears and when it clears.
+    /// change of refusal kind, and the recovery, is logged.
     pub fn load(&self) -> Result<Ceiling, Refusal> {
         let result = self.read();
-        let mut last = self.last.lock().unwrap_or_else(|e| e.into_inner());
-        let now = result.as_ref().err().copied();
-        if *last != now {
-            match now {
-                Some(refusal) => tracing::warn!(
-                    reason = refusal.message(),
-                    "executor ceiling refused; every request is refused until it is fixed"
-                ),
-                None => tracing::info!("executor ceiling accepted again"),
-            }
-            *last = now;
-        }
+        self.log.note(&result);
         result
     }
-    /// The ceiling for one request from `peer_uid`, read now. Refused when
-    /// the file is refused or names another UID as core; called before the
-    /// request frame is read, so an unauthenticated peer costs no frame.
+    /// The ceiling for a request from `peer_uid`, read now: `Unavailable`
+    /// when the file is refused, `Forbidden` when it names another UID as
+    /// core.
     pub fn for_peer(&self, peer_uid: u32) -> Result<Ceiling, Error> {
         let ceiling = self.load().map_err(Refusal::error)?;
         if peer_uid != ceiling.core_uid {
@@ -196,19 +153,8 @@ impl CeilingFile {
     fn read(&self) -> Result<Ceiling, Refusal> {
         let ceiling: Ceiling =
             limeos_executor_storage::read_owned_json_beneath(&self.anchor, &self.path, self.owner)
-                .map_err(|failure| match failure {
-                    Failure::NotReady => Refusal::Missing,
-                    Failure::UnsafePath => Refusal::UnsafePath,
-                    Failure::InvalidPlan => Refusal::Malformed,
-                    _ => Refusal::Unavailable,
-                })?;
-        if ceiling.core_uid == 0 {
-            return Err(Refusal::RootCore);
-        }
-        if !ceiling.configuration_valid() {
-            return Err(Refusal::Invalid);
-        }
-        admit(self.role, &ceiling)?;
+                .map_err(Refusal::Read)?;
+        ceiling.admit(self.role).map_err(Refusal::Content)?;
         Ok(ceiling)
     }
 }
