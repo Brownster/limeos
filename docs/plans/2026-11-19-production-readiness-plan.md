@@ -77,20 +77,24 @@ batches, at most once a minute, and writes nothing when there is nothing to prun
 | PR-24 | `postrm`/`prerm`: tolerate already-removed or never-enabled units; restart optional units that were running before an upgrade. | VM: remove twice, upgrade with the reader running. |
 
 **PR-23 as built.** `crates/persistence/src/migrations.rs` holds `MIGRATIONS`, one entry per
-version (its SQL, a description, the tables and indexes the startup check compares, and the
-tables it rewrites as text). `Store::open` applies the entries above the store's version and
-confirms each set its version; `resources::check` builds its reference from the same entries
-and compares every trigger plus the objects they name. `SCHEMA_VERSION` is the last entry.
+version (its SQL, a description, and the tables and indexes the startup check compares).
+`Store::open` applies the entries above the store's version and confirms each set its version;
+the startup check builds its reference from the same entries and compares every trigger plus
+the objects they name, and a mismatch is logged by name. `SCHEMA_VERSION` is the last entry.
+The version-17 space check and the version-19 estimate stay keyed by version in `lib.rs`.
 `a_migration_added_to_the_table_alone_is_applied_and_checked` adds a test-only entry and
-nothing else. Before migrating an existing store, open writes `core.sqlite.v<from>.snapshot`
-beside it with `VACUUM INTO` (WAL included), synced, checked, mode 0600, and keeps only the
-newest; a failed or unaffordable snapshot refuses the start with the store unchanged, and
-`upgrade_space` counts the snapshot. Open fails unless `journal_mode` answers `wal`. The
-v16 hazard: its `replace` on the `jobs` text does nothing, silently, when the text is not
-exactly as expected, and the startup check never compared `jobs`; the store then reached
-v19 without the `resolved` state. The table is now compared right after v16 and at every
-start. Not verified: an upgrade of a real pre-upgrade store (no such fixture exists; tests
-build older stores from the same SQL files). Operator steps: `docs/p03-operations.md`.
+nothing else. Before migrating an existing store, open keeps `core.sqlite.v<from>.snapshot`
+beside it (`VACUUM INTO`, WAL included, synced, checked, mode 0600) with a record of the
+store and snapshot digests; a repeated attempt on an unchanged store keeps it and writes
+nothing, so a failing upgrade under `Restart=on-failure` no longer writes a copy every few
+seconds. Leftovers go before space is measured, other snapshots count as free and are removed
+first, and the estimate covers the snapshot plus the v17 and v19 writes; `upgrade_space`
+reports the same figures. Open fails unless `journal_mode` answers `wal`. The v16 hazard: its
+`replace` on the `jobs` text does nothing, silently, when the text is not exactly as expected,
+and the startup check never compared `jobs`; the store then reached v19 without the `resolved`
+state. `jobs` is now compared on every start. Not verified: an upgrade of a real pre-upgrade
+store (no such fixture exists; tests build older stores from the same SQL files), and the
+snapshot's time and reads at full size on the Pi. Operator steps: `docs/p03-operations.md`.
 
 ## Phase 2 — Security
 
