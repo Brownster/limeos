@@ -439,8 +439,12 @@ impl StorageTargetCeiling {
     }
 }
 impl Ceiling {
+    /// Whether the ceiling is well formed. A `core_uid` of 0 is refused, as
+    /// the storage ceilings refuse it: core never runs as root, and a root
+    /// peer must not pass the executors' peer check.
     pub fn configuration_valid(&self) -> bool {
         self.version == VERSION
+            && self.core_uid != 0
             && self.managed_containers.len() <= 64
             && self
                 .managed_containers
@@ -663,6 +667,7 @@ impl Ceiling {
     ) -> Result<()> {
         let id = resource.strip_prefix("container:").unwrap_or_default();
         if self.version != VERSION
+            || self.core_uid == 0
             || peer_uid != self.core_uid
             || !match operation {
                 limeos_domain::ContainerAction::Restart => self.allow_restart,
@@ -932,6 +937,26 @@ mod tests {
                     }
                 )
                 .is_err()
+        );
+    }
+    #[test]
+    fn a_ceiling_naming_root_as_core_is_invalid_and_answers_nothing() {
+        let root: Ceiling =
+            serde_json::from_str(r#"{"version":1,"core_uid":0,"allow_health":true}"#).unwrap();
+        assert!(!root.configuration_valid());
+        assert_eq!(
+            root.validate(0, &Request::Health { version: VERSION })
+                .err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
+        let core = Ceiling {
+            core_uid: 1001,
+            ..root
+        };
+        assert!(core.configuration_valid());
+        assert!(
+            core.validate(1001, &Request::Health { version: VERSION })
+                .is_ok()
         );
     }
     #[test]
