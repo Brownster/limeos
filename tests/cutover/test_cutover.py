@@ -1107,6 +1107,27 @@ class ActivateTests(Harness):
         for name in RUST:
             self.assertEqual(self.unit_state(name), ("active", "enabled"))
 
+    # Found in the Debian 12 VM rehearsal: the follower passed the run's status on with `return`,
+    # which the ERR trap took for a failure, so every refused, failed or rolled-back detached
+    # activation ended with a spurious "activate.sh stopped unexpectedly ... 'return "${rc}"'".
+    def test_a_refused_detached_run_is_not_reported_as_an_unexpected_stop(self):
+        self.passing_snapshot()
+        result = self.approved("--host", "other.lan", attached=False)
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("core.json origin must be https://other.lan:8002", output)
+        self.assertNotIn("stopped unexpectedly", output)
+
+    def test_a_rolled_back_detached_run_is_not_reported_as_an_unexpected_stop(self):
+        self.passing_snapshot()
+        (self.stub / "units" / f"{READER}.restarts").write_text("2\n")
+        result = self.approved(attached=False)
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("health check failed: stack reader ready: was false", output)
+        self.assertIn("ROLLBACK: running return.sh", output)
+        self.assertNotIn("stopped unexpectedly", output)
+
     def test_detached_run_survives_the_terminal_hanging_up(self):
         self.passing_snapshot()
         reached, go = self.block_at_core_start()
