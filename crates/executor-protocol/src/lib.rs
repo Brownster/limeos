@@ -533,6 +533,48 @@ impl Ceiling {
     pub fn can_write(&self) -> bool {
         self.allow_restart || self.allow_start || self.allow_stop || self.allow_stack
     }
+    /// Whether this ceiling's flags permit a current-version `request` of
+    /// its kind, before any check of its fields; `None` for another
+    /// version, for kinds whose arm in `validate` answers `Forbidden`
+    /// itself (executes and logs, which also check the target), and for
+    /// requests this ceiling never serves.
+    fn grants(&self, request: &Request) -> Option<bool> {
+        use limeos_contracts::Source;
+        let (version, granted) = match request {
+            Request::ContainerHealth { version, .. } => (version, self.allow_container_health_read),
+            Request::StackInventory { version } => (version, self.allow_stack_read),
+            Request::ContainerStorageInventory { version }
+            | Request::Inspect { version, .. }
+            | Request::InspectStack { version, .. } => (version, self.allow_container_read),
+            Request::StorageInventory { version } => (version, self.allow_storage_read),
+            Request::Health { version } => (version, self.allow_health),
+            Request::ReceiptEpoch { version }
+            | Request::RestartReceipt { version, .. }
+            | Request::VerifyRestart { version, .. } => (version, self.can_write()),
+            Request::Observe {
+                version, source, ..
+            } => (
+                version,
+                match source {
+                    Source::Host => self.allow_host_read,
+                    Source::Docker => self.allow_container_read,
+                    _ => return None,
+                },
+            ),
+            Request::StackReceipt { version, .. } | Request::VerifyStack { version, .. } => {
+                (version, self.allow_stack)
+            }
+            Request::ResolveAction { version, kind, .. } => (
+                version,
+                match kind {
+                    limeos_domain::ResolveKind::Container => self.can_write(),
+                    limeos_domain::ResolveKind::Stack => self.allow_stack,
+                },
+            ),
+            _ => return None,
+        };
+        (*version == VERSION).then_some(granted)
+    }
     /// Whether this ceiling may be served by `role`: `core_uid` is not 0,
     /// the ceiling is well formed, and its flags suit the role. The
     /// executors run this on every read of their ceiling, and
@@ -566,6 +608,14 @@ impl Ceiling {
     }
     pub fn validate(&self, peer_uid: u32, request: &Request) -> Result<Receipt> {
         if !self.configuration_valid() || peer_uid != self.core_uid {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        // A current request this ceiling does not permit is the ceiling's
+        // "no" (`Forbidden`), which core treats as final, not a malformed
+        // request (`InvalidInput`, the fall-through below). With writes
+        // revoked, an operator's resolve request gets a definite refusal
+        // instead of being retried.
+        if self.grants(request) == Some(false) {
             return Err(Error(ErrorCode::Forbidden));
         }
         match request {
@@ -1056,6 +1106,75 @@ mod tests {
         );
     }
     #[test]
+    fn a_request_kind_the_ceiling_does_not_grant_is_forbidden_not_invalid() {
+        let none: Ceiling =
+            serde_json::from_str(r#"{"version":1,"core_uid":1001,"allow_health":false}"#).unwrap();
+        let id = || "d".repeat(64);
+        let forbidden = Some(Error(ErrorCode::Forbidden));
+        for request in [
+            Request::Health { version: VERSION },
+            Request::ReceiptEpoch { version: VERSION },
+            Request::StackInventory { version: VERSION },
+            Request::StorageInventory { version: VERSION },
+            Request::ContainerStorageInventory { version: VERSION },
+            Request::Observe {
+                version: VERSION,
+                source: limeos_contracts::Source::Host,
+                active: false,
+            },
+            Request::Observe {
+                version: VERSION,
+                source: limeos_contracts::Source::Docker,
+                active: false,
+            },
+            Request::Inspect {
+                version: VERSION,
+                resource: format!("container:{}", id()),
+            },
+            Request::InspectStack {
+                version: VERSION,
+                project: "media".into(),
+            },
+            Request::ContainerHealth {
+                version: VERSION,
+                nonce: id(),
+            },
+            Request::VerifyRestart {
+                version: VERSION,
+                action: id(),
+                digest: id(),
+                after: container_plan().expected,
+            },
+        ] {
+            assert_eq!(
+                none.validate(1001, &request).err(),
+                forbidden,
+                "{}",
+                serde_json::to_string(&request).unwrap()
+            );
+        }
+        // Another protocol version is still malformed, granted or not.
+        assert_eq!(
+            none.validate(1001, &Request::Health { version: 99 }).err(),
+            Some(Error(ErrorCode::InvalidInput))
+        );
+        let health = Ceiling {
+            allow_health: true,
+            ..none
+        };
+        assert!(
+            health
+                .validate(1001, &Request::Health { version: VERSION })
+                .is_ok()
+        );
+        assert_eq!(
+            health
+                .validate(1001, &Request::Health { version: 99 })
+                .err(),
+            Some(Error(ErrorCode::InvalidInput))
+        );
+    }
+    #[test]
     fn each_role_admits_only_a_ceiling_meant_for_it() {
         use CeilingRole::*;
         let parse = |json: &str| serde_json::from_str::<Ceiling>(json).unwrap();
@@ -1461,14 +1580,22 @@ mod tests {
         assert!(ceiling.validate(1002, &resolve(Stack)).is_err());
         let mut no_stack = stack_ceiling();
         no_stack.allow_stack = false;
-        assert!(no_stack.validate(1001, &resolve(Stack)).is_err());
+        // Not permitted by the ceiling as read: a final "no", not a
+        // malformed request, so core withdraws the resolve request.
+        assert_eq!(
+            no_stack.validate(1001, &resolve(Stack)).err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
         assert!(no_stack.validate(1001, &resolve(Container)).is_ok());
         let mut read_only = stack_ceiling();
         read_only.allow_restart = false;
         read_only.allow_stop = false;
         read_only.allow_start = false;
         read_only.allow_stack = false;
-        assert!(read_only.validate(1001, &resolve(Container)).is_err());
+        assert_eq!(
+            read_only.validate(1001, &resolve(Container)).err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
         let mut wire = serde_json::to_value(resolve(Stack)).unwrap();
         assert_eq!(wire["operation"], "resolve_action");
         wire["force"] = serde_json::json!(true);
@@ -1503,7 +1630,10 @@ mod tests {
             plan: plan_of(Stack),
             disputed: false,
         };
-        assert!(ceiling.validate(1001, &bad).is_err());
+        assert_eq!(
+            ceiling.validate(1001, &bad).err(),
+            Some(Error(ErrorCode::InvalidInput))
+        );
         // The carried plan must be of the named kind and well formed.
         assert!(
             ceiling
