@@ -2,6 +2,7 @@ use args::{Usage, is_help};
 use limeos_contracts::{CoreRequest, CoreResponse, Enrollment, VERSION};
 use std::io::Read;
 mod args;
+mod ceiling_check;
 mod job;
 mod migrate;
 #[tokio::main(flavor = "current_thread")]
@@ -20,7 +21,7 @@ async fn main() {
 enum Route<'a> {
     Version,
     Help,
-    CheckCeiling(&'a str, &'a str),
+    CheckCeiling(&'a str, &'a str, Option<&'a str>),
     CheckConfig(&'a str),
     Migrate(&'a str, &'a [String]),
     Job(&'a str, &'a [String]),
@@ -35,7 +36,12 @@ fn route(args: &[String]) -> Result<Route<'_>, Usage> {
         [] => return Ok(Route::Help),
         [first, ..] if first == "--version" => return Ok(Route::Version),
         [first, ..] if is_help(first) => return Ok(Route::Help),
-        [cmd, file, uid] if cmd == "check-ceiling" => return Ok(Route::CheckCeiling(file, uid)),
+        [cmd, file, uid] if cmd == "check-ceiling" => {
+            return Ok(Route::CheckCeiling(file, uid, None));
+        }
+        [cmd, file, uid, role] if cmd == "check-ceiling" => {
+            return Ok(Route::CheckCeiling(file, uid, Some(role.as_str())));
+        }
         [cmd, file] if cmd == "check-config" => return Ok(Route::CheckConfig(file)),
         [cmd, ..] if cmd == "check-ceiling" || cmd == "check-config" => return Err(invalid()),
         _ => {}
@@ -70,22 +76,18 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Route::Help => {
             println!(
-                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}",
+                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}",
+                ceiling_check::USAGE,
                 migrate::USAGE,
                 job::USAGE
             );
             return Ok(());
         }
-        Route::CheckCeiling(file, uid) => {
-            use std::os::unix::fs::MetadataExt;
-            let meta = std::fs::symlink_metadata(file)?;
-            if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 || meta.len() > 65536
-            {
-                return Err(
-                    "Unsafe executor ceiling; preserve and repair the original file.".into(),
-                );
-            }
-            return check_ceiling(&std::fs::read(file)?, uid.parse::<u32>()?).map_err(Into::into);
+        Route::CheckCeiling(file, uid, role) => {
+            let role = ceiling_check::role(file, role)?;
+            let uid = uid.parse::<u32>()?;
+            return ceiling_check::check_file(std::path::Path::new(file), uid, role)
+                .map_err(Into::into);
         }
         Route::CheckConfig(file) => {
             match limeos_persistence::config::read(std::path::Path::new(file))? {limeos_persistence::config::ConfigRead::Valid(_)=>return Ok(()),_=>return Err("Invalid or missing configuration. Repair /etc/limeos/core.json, then run dpkg --configure limeos. Original preserved.".into())}
@@ -116,18 +118,17 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 const DEFAULT_SOCKET: &str = "/run/limeos-core/core.sock";
-/// The ceiling bytes parse, are valid, and name the expected core uid.
-fn check_ceiling(bytes: &[u8], core_uid: u32) -> Result<(), &'static str> {
-    let ceiling: limeos_executor_protocol::Ceiling = serde_json::from_slice(bytes)
-        .map_err(|_| "Invalid executor ceiling; preserve and repair the original file.")?;
-    if !ceiling.configuration_valid() || ceiling.core_uid != core_uid {
-        return Err("Executor ceiling identity/version mismatch; repair the original file.");
-    }
-    Ok(())
-}
+/// The ceiling bytes parse and suit the container role and `core_uid`.
 #[cfg(test)]
 fn ceiling_acceptable(bytes: &[u8], core_uid: u32) -> bool {
-    check_ceiling(bytes, core_uid).is_ok()
+    serde_json::from_slice(bytes).is_ok_and(|ceiling| {
+        ceiling_check::check(
+            &ceiling,
+            core_uid,
+            limeos_executor_protocol::CeilingRole::Container,
+        )
+        .is_ok()
+    })
 }
 async fn rpc(
     socket: &str,

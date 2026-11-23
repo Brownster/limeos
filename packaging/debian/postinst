@@ -140,10 +140,13 @@ fct_execute_this() {
     fct_directory /var/lib/limeos/executors/container limeos-containerd 0700
     fct_directory /etc/limeos/system-policy root 0755
     core_uid="$(id -u limeos-core)"
-    local target temporary
+    local target temporary role
     for target in host container storage; do
         if [[ -e "/etc/limeos/system-policy/${target}.json" || -L "/etc/limeos/system-policy/${target}.json" ]]; then
-            /usr/lib/limeos/limeosctl check-ceiling "/etc/limeos/system-policy/${target}.json" "${core_uid}"
+            # The executor role that reads the file; the shadow package's
+            # container executor runs read-only (packaging/build.py).
+            role="${target}"
+            /usr/lib/limeos/limeosctl check-ceiling "/etc/limeos/system-policy/${target}.json" "${core_uid}" "${role}"
             continue
         fi
         temporary="$(mktemp "/etc/limeos/system-policy/.${target}.XXXXXX")"

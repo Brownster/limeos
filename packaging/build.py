@@ -193,9 +193,18 @@ Description: Secure host observations and approved container operations
 """)
         (control / "conffiles").write_text(f"/etc/{package}/core.json\n")
         for name in ["postinst", "prerm", "postrm"]:
-            (control / name).write_text(
-                profile_text((ROOT / "packaging/debian" / name).read_text(), shadow)
-            )
+            script = profile_text((ROOT / "packaging/debian" / name).read_text(), shadow)
+            if shadow and name == "postinst":
+                # Its container executor runs read-only, so its ceiling is
+                # checked for that role.
+                script = script.replace(
+                    'role="${target}"\n',
+                    'role="${target}"; [[ "${target}" != container ]] || role=container-read-only\n',
+                    1,
+                )
+                if "role=container-read-only" not in script:
+                    raise SystemExit("Shadow postinst lost its read-only ceiling role")
+            (control / name).write_text(script)
             (control / name).chmod(0o755)
         for path in stage.rglob("*"):
             if path.is_symlink():
