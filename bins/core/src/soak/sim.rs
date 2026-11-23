@@ -146,6 +146,8 @@ pub struct JobRecord {
     pub declared: Option<DeclaredOutcome>,
     /// The user who queued it (its progress is polled with their session).
     pub user: usize,
+    /// Queued by the storm's script.
+    pub scripted: bool,
 }
 
 pub struct Session {
@@ -221,6 +223,9 @@ pub fn sizes(path: &std::path::Path) -> (u64, u64) {
 
 #[derive(Default)]
 pub struct Stats {
+    /// The storm's jobs whose progress poll showed them settled as refused
+    /// by the effect budget (`executor_budget_spent`), with when.
+    pub budget_refused_seen: Vec<i64>,
     /// Successful operations by name.
     pub ops: BTreeMap<String, u64>,
     /// Legitimate refusals by operation and code.

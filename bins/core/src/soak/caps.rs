@@ -407,6 +407,7 @@ async fn run_job(sim: &mut Sim, n: usize) -> String {
             fault: None,
             declared: None,
             user: 0,
+            scripted: false,
         },
     );
     super::workload::tick(sim).await;

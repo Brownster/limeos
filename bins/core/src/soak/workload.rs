@@ -706,7 +706,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
         planned,
         approval: Some(approval),
         key,
-        ..
+        fate,
     }) = sim.flows.remove(&flow)
     else {
         return;
@@ -796,6 +796,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
             fault,
             declared: None,
             user,
+            scripted: fate == Fate::Scripted,
         },
     );
     sim.next_pass = sim.next_pass.min(sim.now() + 1);
@@ -872,25 +873,38 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             let Some(record) = sim.ledger.get(&job) else {
                 return;
             };
-            let (kind, user) = (record.kind, record.user);
+            let (kind, user, scripted) = (record.kind, record.user, record.scripted);
             let Some(token) = sim.users[user].session.as_ref().map(|s| s.token.clone()) else {
                 return;
             };
             let core = sim.core();
+            // The job's state, and whether its history shows it refused by
+            // the effect budget: what the script's client can see.
+            let budget = |events: &[limeos_domain::Event]| {
+                events.iter().any(|e| {
+                    matches!(
+                        e.event,
+                        limeos_domain::EventKind::ExecutorBudgetSpent { .. }
+                    )
+                })
+            };
             let state = match kind {
                 Kind::Container => core
                     .restart_progress(token, job.clone(), 0)
                     .await
-                    .map(|p| p.job.state),
+                    .map(|p| (p.job.state, budget(&p.events))),
                 Kind::Stack => core
                     .stack_progress(token, job.clone(), 0)
                     .await
-                    .map(|p| p.job.state),
+                    .map(|p| (p.job.state, budget(&p.events))),
             };
             sim.stats.reads += 1;
-            if let Some(state) =
+            if let Some((state, refused)) =
                 sim.judge("job progress poll", state, &[ErrorCode::Unauthenticated])
             {
+                if scripted && refused && state == JobState::PreconditionChanged {
+                    sim.stats.budget_refused_seen.push(now);
+                }
                 let terminal = !matches!(
                     state,
                     JobState::Queued
