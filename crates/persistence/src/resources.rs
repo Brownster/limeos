@@ -4,17 +4,13 @@ use super::*;
 /// Run before startup recovery changes generation or writes audit events.
 #[cfg(test)]
 pub(super) fn check(conn: &Connection) -> Result<()> {
-    check_migrated(conn, super::migrations::MIGRATIONS)
+    super::migrations::check_schema(conn, super::migrations::MIGRATIONS)?;
+    check_data(conn)
 }
-/// `check`, against the schema `migrations` build.
-pub(super) fn check_migrated(
-    conn: &Connection,
-    migrations: &[super::migrations::Migration],
-) -> Result<()> {
-    // A version number and healthy pages do not prove that dispatch/release
-    // guards survived. Compare the compiled migrations' triggers, and the
-    // tables and indexes they name, before use.
-    super::migrations::check_schema(conn, migrations)?;
+/// What `check` checks beyond the schema (which `Store::open` compares
+/// itself, to name a mismatch): job, resource and lock invariants and each
+/// owner's own checks.
+pub(super) fn check_data(conn: &Connection) -> Result<()> {
     let invalid: bool = conn
         .query_row(
             "SELECT EXISTS(

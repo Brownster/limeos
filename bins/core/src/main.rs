@@ -1270,7 +1270,16 @@ async fn run() -> Result<()> {
                 to = limeos_persistence::SCHEMA_VERSION,
                 needed = space.needed,
                 available = space.available,
-                "the database schema upgrade needs more free space in the state directory; free space there and restart"
+                "the database schema upgrade needs more free space on the filesystem holding the state directory; the store was not changed. Free space there (old logs, the apt cache, unused container images) and restart. The store's own pre-upgrade snapshots (core.sqlite.v*.snapshot) are removed automatically and already counted as free"
+            );
+        }
+        if let Some(mismatch) = limeos_persistence::schema_mismatch(&store) {
+            tracing::error!(
+                kind = mismatch.kind,
+                name = %mismatch.name,
+                "the store's {} `{}` does not match this build's schema, so core refuses to use it and changed nothing; it was changed outside LimeOS or written by another build. Install the build that wrote it, or restore core.sqlite from a backup or a pre-upgrade snapshot (docs/p03-operations.md)",
+                mismatch.kind,
+                mismatch.name
             );
         }
     })?;

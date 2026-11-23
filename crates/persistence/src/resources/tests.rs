@@ -721,7 +721,7 @@ fn on_disk(path: &std::path::Path) -> u64 {
     [
         path.to_path_buf(),
         path.with_extension("sqlite-wal"),
-        crate::migrations::snapshot_path(path, 16).unwrap(),
+        crate::migrations::snapshot::snapshot_path(path, 16).unwrap(),
     ]
     .iter()
     .map(|file| std::fs::metadata(file).map_or(0, |m| m.len()))
