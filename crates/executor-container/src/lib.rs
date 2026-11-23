@@ -31,11 +31,14 @@ const MAX_PAGES: u32 = 4096;
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 /// The connection's page cache, not SQLite's 2000 KiB default: the open-time
 /// `quick_check` reads every page and the executor runs for months, so the
-/// default would keep up to 2000 KiB of a grown store for good. Steady use writes
-/// one receipt or one `PRUNE_BATCH`, which fits with room to spare (the test
-/// `a_full_prune_batch_writes_no_more_with_the_small_cache`); migrations run
-/// before it is set, with the default.
-const CACHE_KIB: u32 = 256;
+/// default would keep up to 2000 KiB of a grown store for good. It is set (and
+/// what migrations filled freed) after any migration and before the check. Its
+/// largest transaction, a stack's first write (a full `PRUNE_BATCH` with
+/// tombstones for legacy rows, then the stack row and sixteen members, random
+/// ids, real receipt sizes), dirties 109 pages and does not spill at 768 KiB
+/// (192 pages); it spilled at 512 KiB (the test
+/// `the_largest_receipt_transaction_does_not_spill`).
+const CACHE_KIB: u32 = 768;
 /// The store's limits, for the long-uptime soak to assert against rather
 /// than copies of them.
 #[doc(hidden)]
