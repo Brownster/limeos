@@ -197,10 +197,31 @@ jobs:
       - name: Long-uptime soak (90 simulated days)
         run: cargo test -p limeos-core --bin limeos-core --locked -- --ignored soak_ --nocapture
 
+  # Production runs Debian 12, whose bash 5.2 behaved differently from the
+  # runner's bash 5.3 and hid a return.sh defect. The suites whose code runs on
+  # the host (cutover and maintainer scripts, the guest and reference-host
+  # scripts) run again on Debian 12 in a container, as an unprivileged user;
+  # scripts/debian12_suites.sh lists them, and the plan's Phase 4 section says
+  # which suites are left out and why. About ten minutes, nearly all of it
+  # the cutover suite; it runs beside the check job, so publishing waits no
+  # longer for it.
+  debian12-suites:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # The multi-arch index of debian:12 (bookworm); change it deliberately.
+      DEBIAN_12_IMAGE: debian:12@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Cutover, maintainer-script and reference suites on Debian 12
+        run: docker run --rm -v "$PWD:/src" -w /src -e TEST_UID="$(id -u)" "$DEBIAN_12_IMAGE" bash scripts/debian12_suites.sh
+
   # Packages and the probe are published only once every gate passed: the
-  # check job's and the soak's.
+  # check job's, the soak's and the Debian 12 suites'.
   publish:
-    needs: [check, soak]
+    needs: [check, soak, debian12-suites]
     strategy:
       fail-fast: false
       matrix:
