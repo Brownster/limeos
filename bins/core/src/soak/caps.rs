@@ -553,7 +553,7 @@ async fn soak_receipt_store_at_its_caps() {
         }
         // It still opens.
         sim.exec.stop().await;
-        if let Err(error) = sim.exec.start(sim.now()) {
+        if let Err(error) = sim.exec.start() {
             problems.push(format!(
                 "file cap, {name}: the store no longer opens: {error:?}"
             ));
@@ -566,7 +566,7 @@ async fn soak_receipt_store_at_its_caps() {
         .mode(0o700)
         .create(&store_dir)
         .unwrap();
-    drop(limeos_executor_container::ReceiptStore::open_at(&store_dir, START).unwrap());
+    drop(limeos_executor_container::ReceiptStore::open(&store_dir).unwrap());
     fill_receipts(&store_dir, 5_800, START - 2 * DAY, 2_900);
     if std::fs::metadata(store_dir.join("receipts.sqlite"))
         .unwrap()
@@ -575,7 +575,7 @@ async fn soak_receipt_store_at_its_caps() {
     {
         problems.push("file cap: the oversized fixture is not past 16 MiB".into());
     }
-    match limeos_executor_container::ReceiptStore::open_at(&store_dir, START) {
+    match limeos_executor_container::ReceiptStore::open(&store_dir) {
         Err(Error(ErrorCode::StateNotDurable)) => {}
         other => problems.push(format!(
             "past the file cap: the open answered {:?}, not the documented StateNotDurable",

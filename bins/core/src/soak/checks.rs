@@ -558,8 +558,8 @@ pub fn core_accounting(sim: &mut Sim, when: &str) {
 /// checkpoint and before every executor restart: standalone and stack
 /// receipts never fall below what retention keeps once reached; the prune
 /// watermark never decreases, and never passes the oldest expiry the rule
-/// may prune (`now - RECEIPT_RETAIN_AFTER_EXPIRY`) unless it is the store's
-/// creation floor.
+/// may prune (`now - RECEIPT_RETAIN_AFTER_EXPIRY`): it is only ever an
+/// expiry that was really pruned, never a clock reading.
 pub fn receipt_accounting(sim: &mut Sim, when: &str) {
     let Ok(conn) = reader(&receipts_path(sim)) else {
         return;
@@ -594,7 +594,6 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
             ));
         }
     }
-    let creation = sim.receipt_creation;
     let cutoff = sim.now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY;
     if watermark < sim.last_watermark {
         problems.push(format!(
@@ -603,7 +602,7 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
             (watermark - START) as f64 / DAY as f64
         ));
     }
-    if watermark > cutoff && watermark != creation {
+    if watermark > cutoff {
         problems.push(format!(
             "{when}: the prune watermark (day {:.3}) is past the youngest expiry retention may prune (day {:.3}): a receipt was pruned too early",
             (watermark - START) as f64 / DAY as f64,

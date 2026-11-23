@@ -50,9 +50,10 @@
 //! nothing is over budget. The row and file caps stay as last-resort stops.
 //!
 //! Absence. The same transaction raises the prune watermark, the greatest
-//! `expires_at` among every row ever pruned (or, for a store created since
-//! schema 7, its creation floor if greater: `initial_watermark`); it never
-//! decreases. A row stores
+//! `expires_at` among every row ever pruned; it starts below every expiry
+//! (`initial_watermark`) and never decreases. It is never a clock reading: a
+//! watermark taken from a clock would refuse plans no pruned receipt could
+//! share an expiry with, for as long as that clock had been ahead. A row stores
 //! its plan's `expires_at`, and a stack's member rows store the stack's, so a
 //! pruned receipt always has `expires_at <= watermark`. A lookup that finds no
 //! row for a plan expiring strictly after the watermark therefore proves that
@@ -103,25 +104,26 @@ pub(crate) fn legacy_expiry_sql() -> String {
 }
 
 /// The watermark a store starts with when it gains one (schema 7); `version`
-/// is the schema it was opened at and `now` the executor clock.
+/// is the schema it was opened at.
 ///
-/// A store created now (version 0) knows nothing of what ran before it
-/// existed, perhaps in a store since lost, so it must not answer
-/// `NeverRecorded` for any plan that could predate it. Plans carry absolute
-/// expiries from core's clock, on the same host, and are valid only while
-/// `expires_at <= created_at + PLAN_TTL_SECONDS`; a plan created no later
-/// than this store therefore expires no later than `now + PLAN_TTL_SECONDS`.
-/// That is the creation floor, and the tight bound: any margin above it
-/// would answer `NoLongerHeld` (and refuse at execute) plans approved after
-/// the store existed. A clock that stepped back before the creation defeats
-/// it, as does a store restored from an older copy; core's check of the
-/// store epoch covers both (`ReceiptStore::epoch`).
+/// Before schema 6 nothing was ever pruned, and a store created now has
+/// pruned nothing either, so neither holds any expiry yet. A schema 6 store
+/// may have pruned rows whose expiry nobody recorded, so it never claims
+/// `NeverRecorded`.
 ///
-/// Before schema 6 nothing was ever pruned. A schema 6 store may have pruned
-/// rows whose expiry nobody recorded, so it never claims `NeverRecorded`.
-pub(crate) fn initial_watermark(version: u32, now: i64) -> i64 {
+/// A store created now does not know what an earlier store, since lost,
+/// recorded, and it does not pretend to: the watermark covers this store's
+/// own pruning only. What tells core that the store it talks to is not the
+/// one it dispatched under (lost and recreated, or restored from an older
+/// copy) is the epoch every open draws (`ReceiptStore::epoch`); core never
+/// releases a job it held across an epoch change on a `never_recorded`
+/// closure. A creation floor (the creation clock plus the plan TTL) was
+/// tried and refused legitimate plans: every plan approved in the same
+/// second as the store or shortly before it, such as the first action after
+/// container control is enabled, and every plan for as long as the creation
+/// clock had been ahead of the corrected one.
+pub(crate) fn initial_watermark(version: u32) -> i64 {
     match version {
-        0 => now.saturating_add(PLAN_TTL_SECONDS),
         6 => i64::MAX,
         _ => i64::MIN,
     }

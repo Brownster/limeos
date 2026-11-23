@@ -4,7 +4,7 @@ use limeos_domain::RestartPlan;
 #[tokio::test]
 async fn accepted_result_retains_lock_until_fresh_independent_verification() {
     let directory = private_dir();
-    let mut store = ReceiptStore::open_at(directory.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(directory.path()).unwrap();
     let mut engine = FakeEngine::new(Mode::Accept);
     let request = request();
     store
@@ -147,7 +147,7 @@ impl Engine for FakeEngine {
 async fn each_lifecycle_action_requires_its_own_ceiling_and_verified_result() {
     for operation in [ContainerAction::Start, ContainerAction::Stop] {
         let directory = private_dir();
-        let mut store = ReceiptStore::open_at(directory.path(), crate::TEST_STORE_CREATED).unwrap();
+        let mut store = ReceiptStore::open(directory.path()).unwrap();
         let mut engine = FakeEngine::new(Mode::Accept);
         engine.snapshot.running = operation != ContainerAction::Start;
         let mut req = request();
@@ -217,7 +217,7 @@ async fn each_lifecycle_action_requires_its_own_ceiling_and_verified_result() {
 #[tokio::test]
 async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
     let directory = private_dir();
-    let mut store = ReceiptStore::open_at(directory.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(directory.path()).unwrap();
     let req = request();
     store
         .prepare(
@@ -238,7 +238,7 @@ async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
         .execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_digest; ALTER TABLE actions DROP COLUMN expires_at; DROP TABLE stack_actions; ALTER TABLE actions DROP COLUMN operation; PRAGMA user_version=2;")
         .unwrap();
     drop(store);
-    let mut store = ReceiptStore::open_at(directory.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(directory.path()).unwrap();
     let engine = FakeEngine::new(Mode::Accept);
     assert_eq!(
         store
@@ -254,7 +254,7 @@ async fn v2_receipt_migration_retains_the_prepared_barrier_without_replay() {
 #[tokio::test]
 async fn peer_ceiling_plan_and_fresh_precondition_reject_before_any_effect() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = FakeEngine::new(Mode::Accept);
     let req = request();
     assert_eq!(
@@ -339,7 +339,7 @@ async fn peer_ceiling_plan_and_fresh_precondition_reject_before_any_effect() {
 #[tokio::test]
 async fn accepted_effect_is_not_claimed_verified_and_repeat_action_returns_original_receipt() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = FakeEngine::new(Mode::Accept);
     let req = request();
     let receipt = store
@@ -372,7 +372,7 @@ async fn accepted_effect_is_not_claimed_verified_and_repeat_action_returns_origi
 async fn uncertain_or_timed_out_effect_keeps_a_resource_barrier_after_executor_restart() {
     for mode in [Mode::Fail, Mode::Hang] {
         let dir = private_dir();
-        let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+        let mut store = ReceiptStore::open(dir.path()).unwrap();
         let engine = FakeEngine::new(mode);
         let req = request();
         assert_eq!(
@@ -384,7 +384,7 @@ async fn uncertain_or_timed_out_effect_keeps_a_resource_barrier_after_executor_r
             ExecutionState::OutcomeUnknown
         );
         drop(store);
-        let mut recovered = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+        let mut recovered = ReceiptStore::open(dir.path()).unwrap();
         assert_eq!(
             recovered
                 .execute(&engine, &ceiling(), 1001, &req, || 202)
@@ -410,7 +410,7 @@ async fn uncertain_or_timed_out_effect_keeps_a_resource_barrier_after_executor_r
 #[tokio::test]
 async fn storage_failure_before_prepare_has_no_effect_and_failure_after_effect_stays_unknown() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = FakeEngine::new(Mode::Accept);
     let req = request();
     store.conn.execute_batch("CREATE TRIGGER prevent_prepare BEFORE INSERT ON actions BEGIN SELECT RAISE(FAIL,'fixture disk full'); END;").unwrap();
@@ -452,7 +452,7 @@ async fn storage_failure_before_prepare_has_no_effect_and_failure_after_effect_s
 #[tokio::test]
 async fn expiry_during_receipt_sync_prevents_dispatch() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = FakeEngine::new(Mode::Accept);
     let reads = AtomicUsize::new(0);
     let clock = || {
@@ -474,8 +474,8 @@ async fn expiry_during_receipt_sync_prevents_dispatch() {
 #[test]
 fn receipt_paths_are_private_single_owner_and_fail_closed_on_links_or_future_schema() {
     let dir = private_dir();
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
-    assert!(ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).is_err());
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    assert!(ReceiptStore::open(dir.path()).is_err());
     assert_eq!(
         std::fs::metadata(dir.path().join("receipts.sqlite"))
             .unwrap()
@@ -496,17 +496,17 @@ fn receipt_paths_are_private_single_owner_and_fail_closed_on_links_or_future_sch
         ))
         .unwrap();
     drop(store);
-    assert!(ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).is_err());
+    assert!(ReceiptStore::open(dir.path()).is_err());
     let unsafe_dir = private_dir();
     std::fs::set_permissions(unsafe_dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert!(ReceiptStore::open_at(unsafe_dir.path(), crate::TEST_STORE_CREATED).is_err());
+    assert!(ReceiptStore::open(unsafe_dir.path()).is_err());
     let linked = private_dir();
     std::os::unix::fs::symlink(
         dir.path().join("receipts.sqlite"),
         linked.path().join("receipts.sqlite"),
     )
     .unwrap();
-    assert!(ReceiptStore::open_at(linked.path(), crate::TEST_STORE_CREATED).is_err());
+    assert!(ReceiptStore::open(linked.path()).is_err());
 }
 
 struct CrashEngine {
@@ -537,7 +537,7 @@ fn crash_helper() {
         .build()
         .unwrap();
     runtime.block_on(async {
-        let mut store = ReceiptStore::open_at(&directory, crate::TEST_STORE_CREATED).unwrap();
+        let mut store = ReceiptStore::open(&directory).unwrap();
         let _ = store
             .execute(
                 &CrashEngine { directory },
@@ -563,7 +563,7 @@ async fn process_death_after_effect_before_result_persistence_never_replays_the_
         std::fs::read(dir.path().join("effect-count")).unwrap(),
         b"1"
     );
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = FakeEngine::new(Mode::Accept);
     let receipt = store
         .execute(&engine, &ceiling(), 1001, &request(), || 202)
@@ -582,7 +582,7 @@ fn symlinked_receipt_lock_is_refused_on_every_architecture() {
     let directory = private_dir();
     let elsewhere = directory.path().join("elsewhere.lock");
     std::os::unix::fs::symlink(&elsewhere, directory.path().join("receipts.lock")).unwrap();
-    assert!(ReceiptStore::open_at(directory.path(), crate::TEST_STORE_CREATED).is_err());
+    assert!(ReceiptStore::open(directory.path()).is_err());
     assert!(!elsewhere.exists());
 }
 #[test]
@@ -609,7 +609,7 @@ fn a_child_sharing_the_receipt_lock_description_does_not_block_a_reopen_after_dr
     };
     let dir = private_dir();
     let lock = dir.path().join("receipts.lock");
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     // The child keeps the shared description as stdin for its whole life, like a
     // child that has not exec'd yet, so no timing is involved.
     let mut command = std::process::Command::new(std::env::current_exe().unwrap());
@@ -624,6 +624,6 @@ fn a_child_sharing_the_receipt_lock_description_does_not_block_a_reopen_after_dr
     drop(store);
     let stdin = PathBuf::from(format!("/proc/{}/fd/0", child.0.id()));
     assert_eq!(identity(&stdin), identity(&lock));
-    assert!(ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).is_ok());
+    assert!(ReceiptStore::open(dir.path()).is_ok());
     assert_eq!(identity(&stdin), identity(&lock));
 }

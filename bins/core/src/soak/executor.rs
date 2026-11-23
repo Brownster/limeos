@@ -1,5 +1,5 @@
 //! The container executor as a process. The real `ReceiptStore`, opened as
-//! the daemon opens it (`open_at`, with the simulated clock), answers every
+//! the daemon opens it (`open`, which reads no clock), answers every
 //! request through the daemon's own request handling: the ceiling's
 //! `validate`, then `limeos_executor::container_requests::answer` (the store
 //! behind its `try_lock`, the Engine behind the `Engine` trait) and its
@@ -655,10 +655,10 @@ impl Executor {
     /// Starts the process: opens (or creates) the receipt store, as the
     /// daemon does at startup, measured, and listens. A new open draws a new
     /// epoch.
-    pub fn start(&mut self, now: i64) -> Result<Opened> {
+    pub fn start(&mut self) -> Result<Opened> {
         assert!(self.running.is_none(), "one executor at a time");
         let (io, at) = (Io::now(), Instant::now());
-        let store = ReceiptStore::open_at(&self.dir, now)?;
+        let store = ReceiptStore::open(&self.dir)?;
         let opened = Opened {
             io: Io::now().since(io),
             elapsed: at.elapsed(),
