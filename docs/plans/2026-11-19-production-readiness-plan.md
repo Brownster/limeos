@@ -109,17 +109,88 @@ the installed VM in CI, with the Pi night as confirmation.
 
 | Measure | Budget | Last recorded | Action |
 |---|---|---|---|
-| Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct) | Gate at 15 MiB so growth is noticed early. |
-| Idle CPU | 0.1% of a core | 0.051% | Gate; re-measure with the 1 Hz automation pass enabled. |
-| Resident disk writes | 20 MB/day | 4.72 MB/day | Gate at 10 MB/day; assert an unchanged poll writes zero bytes. |
-| Cold readiness | 1 s | 457 ms | Gate, and repeat at the PR-13 database size. |
-| Cached overview p95 | 20 ms | 0.83 ms (AMD64) | Gate on the Pi figure. |
-| Storage inventory p95 | 20 ms | 61.4 ms — fails | Profile; cache topology between udev events, or set a separate reasoned budget. |
-| Mount admission | 4 s window | 3.0–4.6 s — fails | Deferred with the feature; do not widen the window without a profile. |
+| Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct); 13.2–13.5 MiB (amd64 guest, 23 Nov) | **Gated at 15 MiB** (below). |
+| Idle CPU | 0.1% of a core | 0.051% earlier; 0.203–0.205% (amd64 guest with the stack reader, 23 Nov) — **budget not met** | **Gated at a 0.4% regression ceiling**, not the budget (below). Re-measure with the 1 Hz automation pass enabled. |
+| Resident disk writes | 20 MB/day | 4.72 MB/day; 4.72 (amd64 guest, 23 Nov) | **Gated at 10 MB/day** (below). |
+| Cold readiness | 1 s | 457 ms; 111–167 ms (amd64 guest, 23 Nov) | **Gated at 1 s** (below); repeat at the PR-13 database size. |
+| Cached overview p95 | 20 ms | 0.83 ms (AMD64) | Not gated in CI: gate on the Pi figure. |
+| Storage inventory p95 | 20 ms | 61.4 ms — fails | Not gated. Profile; cache topology between udev events, or set a separate reasoned budget. |
+| Mount admission | 4 s window | 3.0–4.6 s — fails | Not gated; deferred with the feature; do not widen the window without a profile. |
 
 Add: per-request round trips to the store reduced from 2–4 to 1 (session check
 and authorisation in one call), and a matched Python measurement on wybie so the
 improvement claim has a baseline.
+
+### What CI gates (23 November)
+
+`tests/privileged_vm/ci_footprint_guest.py` runs last in the gating `debian-vm`
+job. The guest is left as the basic cutover leaves a host: Docker with a Compose
+project (four running members, one created) and two standalone containers, the
+candidate installed from the signed test repository with one enrolled account,
+the management catalog from `limeosctl migrate propose-catalog --install`, and
+the stack reader started, not enabled. After 90 s to settle, the unchanged
+`scripts/cutover/measure.sh` runs three consecutive 200 s idle windows, then three
+`--measure-core-restart` runs. The gates read measure.sh's report rows:
+
+| Gate | Threshold | Statistic | Local guest runs 1 / 2 / 3 |
+|---|---|---|---|
+| Core plus base executors, idle PSS | ≤ 15 MiB | every window | 13.48 / 13.24 / 13.48 MiB |
+| Resident disk writes | < 10 MB/day | all 600 s together | 4.716 / 4.716 / 4.715 MB/day |
+| Idle CPU | < 0.4% of a core | all 600 s together | 0.2032 / 0.2032 / 0.2049 % |
+| Core ready after a restart | < 1000 ms | median of three (includes the stop) | 122 / 124 / 133 ms |
+
+Figures over the whole 600 s, not per window: core's metrics store flushes every
+five minutes, so a 200 s window holds zero or one flush (the windows read 0.0,
+7.07 and 7.07 MB/day each run) while 600 s holds two. The local runs were on a
+2-vCPU, 1 GiB KVM guest on an i5-10310U laptop; the suite adds about 13 minutes to
+the job (fixture 30 s, settle 90 s, windows 600 s, restarts 50 s, plus boot), so
+its limit went from 30 to 45 minutes.
+
+- **The idle CPU budget is not met.** 0.203 to 0.205% of a core against 0.1%, in every run
+  and every window (0.18 to 0.225%). The stack reader takes 0.12% of it, which
+  confirms the attribution, core 0.07%, storaged 0.01%, containerd 0.003%.
+  The gate is a regression ceiling at twice today's figure, which leaves room for
+  a slower or busier runner and still fails if idle CPU doubles; it is not a
+  widened budget. Once CI has recorded a few runner figures, tighten it towards
+  1.5 times theirs. The suite's result says `budget_met: false`.
+- **PSS has 1.5 MiB of headroom here,** not the 4.5 MiB the Pi figure suggests:
+  core alone is 10.2 MiB in this guest and each executor 1.6 MiB, steady to
+  within 0.05 MiB across windows. Growth past 15 MiB fails the job, as intended.
+- **An unchanged poll writes zero bytes** is not expressible in measure.sh, which
+  measures windows, not polls. The check job gates it with
+  `stable_real_runtime_passes_leave_process_write_bytes_unchanged`. In the guest,
+  only core wrote anything (32 KiB per 600 s); the executors and the reader wrote
+  nothing.
+- **Not gated in CI:** idle swap (recorded; the guest has no swap), all-resident
+  PSS and the installed footprint (recorded in the window reports, not Phase 4
+  rows), the two HTTPS p95 rows (no proxy in the guest; cached overview p95 stays
+  a Pi gate), storage inventory p95 and mount admission (failing or deferred, and
+  not measured by measure.sh).
+
+### Shell and Python suites on Debian 12
+
+The `debian12-suites` job runs `scripts/debian12_suites.sh` in a `debian:12`
+container pinned by digest, and publishing needs it. It runs shellcheck over
+`scripts/cutover/*.sh` and the maintainer scripts, then, as an unprivileged user,
+`tests/cutover` (169 tests), `tests/repository/test_maintainer_scripts.py` (63)
+and `tests/reference` (136) under Debian's bash 5.2, mawk, coreutils, procps and
+Python 3.11, with en_GB.UTF-8 generated so the collation case runs. All passed,
+none skipped, on the second laptop's Docker (about nine and a half minutes).
+None needs root, systemd or git history; git is installed only for a test that
+runs `git init` in a temporary directory.
+
+Left out, and why:
+
+- `tests/repository/test_unit_exposure.py` and `scripts/check_unit_exposure.py`:
+  `systemd-analyze security` scores differ between systemd versions (the ceilings
+  are recorded under the runner's 255, Debian 12 has 252), and the gate compares
+  with the merge base from git history.
+- `tests/repository/test_check_repository.py`, `test_leaf_runner.py`,
+  `tests/evidence`, `tests/qualification`: tooling that runs only on the CI runner
+  or a developer machine, never on a Debian 12 host.
+- `tests/frontend`: needs Playwright and a browser, and rewrites tracked evidence.
+- `tests/privileged_vm` and `tests/arm64`: need KVM or real arm64 binaries; the VM
+  suites already run on Debian 12 inside the guest.
 
 ## Order and exit
 
