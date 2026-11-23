@@ -50,10 +50,19 @@ import time
 from pathlib import Path
 
 MIB = 1024 * 1024
-# Gates. The architecture budgets are 30 MiB, 20 MB/day, 0.1 % of a core and 1 s; the plan gates
-# PSS and disk writes tighter so growth is noticed early.
+# Gates. The architecture budgets are 30 MiB, 20 MB/day, 0.1 % of a core and 1 s.
+# PSS: core plus base executors settled on a month-old, used store read 13.94 to 14.09 MiB in three
+# runs of the suite (14.22 MiB in a trace run), core 10.74 to 10.81 MiB; 15 MiB is 0.78 MiB above
+# the highest, about three times the largest run-to-run swing (0.28 MiB, mostly the executors'
+# shared code pages), so a regression of a MiB fails.
 PSS_GATE_BYTES = 15 * MIB
-DISK_GATE_MB_DAY = 10.0
+# Disk writes: a steady metrics flush on a month-old store writes 24 KiB (two WAL frames, one for
+# the inserted rows and one for the deleted oldest rows, and the WAL index), every five minutes:
+# 7.07 MB/day, the figure all three runs read. The 600 s normally holds two flushes; when one lands
+# at each end it holds three (10.6 MB/day), and a WAL checkpoint, every 64 flushes, adds about
+# 12 KiB (12.4 MB/day if both coincide). 13 MB/day passes those alignments, fails a flush that
+# grows by a third, and stays under the 20 MB/day budget.
+DISK_GATE_MB_DAY = 13.0
 READY_GATE_MS = 1000.0
 CPU_BUDGET_PERCENT = 0.1
 # Not the budget, which neither guest meets: a regression ceiling over both measured figures.
@@ -69,13 +78,16 @@ DISK_AGREEMENT = 0.002
 WINDOWS = 3
 WINDOW_S = 200
 RESTARTS = 3
-# Startup work (first passes, catalog load, Docker inventory) is over well before this.
-SETTLE_S = 90
+# From the end of the use pass, which follows core's restart on the seeded store. Core's first
+# metrics flush after a start comes 4 to 5 minutes in (five one-minute samples) and writes twice
+# what a steady flush does (the WAL and its index are created again: 48 KiB against 24 KiB in the
+# VM trace), so the windows start after it; startup's other work is over long before.
+SETTLE_S = 360
 # Between readiness runs: core finishes its own startup before it is restarted again.
 RESTART_SETTLE_S = 15
 # Every call is bounded, and the whole suite too, so that a hang ends here with the result
-# written rather than when the CI job is cancelled. A normal run takes about 800 s.
-SUITE_BUDGET_S = 1200
+# written rather than when the CI job is cancelled. A normal run takes about 1100 s.
+SUITE_BUDGET_S = 1500
 WINDOW_BOUND_S = WINDOW_S + 180
 RESTART_BOUND_S = 120
 

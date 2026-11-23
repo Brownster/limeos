@@ -238,7 +238,7 @@ class FailureTests(unittest.TestCase):
     def test_disk_writes_over_the_gate(self):
         units = copy.deepcopy(HEALTHY)
         pid, pss, ticks, _written = units["limeos-core.service"]
-        units["limeos-core.service"] = (pid, pss, ticks, 30000)  # about 13 MB/day
+        units["limeos-core.service"] = (pid, pss, ticks, 32000)  # about 13.8 MB/day
         self.assert_fails(run([figures(Window(units)) for _ in range(3)]), "resident_disk_writes")
 
     def test_cpu_over_the_ceiling(self):
