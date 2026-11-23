@@ -343,6 +343,8 @@ pub struct Sim {
     /// What the trend and startup checks measured, by name: what the pins of
     /// `checks::EXPECTED_FAILURES` are compared with.
     pub measures: BTreeMap<&'static str, f64>,
+    /// The flatness check's events model, b-tree by b-tree, for the report.
+    pub flat_lines: Vec<String>,
     /// Idle windows measured: (simulated start, the store files written).
     pub idle: Vec<(i64, Vec<String>)>,
     /// Idle windows scheduled, and those skipped with the reason.
@@ -360,6 +362,9 @@ pub struct Sim {
     pub authority_seen: i64,
     /// Jobs the writer thread's job-row retention reported removing.
     pub pruned: std::collections::BTreeSet<String>,
+    /// Jobs startup recovery marked (`job_recovery_required`), as seen at
+    /// the checkpoints.
+    pub recovered: std::collections::BTreeSet<String>,
     /// Each job's state when the invariants last read it: what a job that
     /// retention removed since is judged by.
     pub last_state: BTreeMap<String, String>,
@@ -466,6 +471,7 @@ impl Sim {
             projection: None,
             startup_projection: Vec::new(),
             measures: BTreeMap::new(),
+            flat_lines: Vec::new(),
             idle: Vec::new(),
             idle_scheduled: 0,
             idle_skipped: Vec::new(),
@@ -475,6 +481,7 @@ impl Sim {
             last_watermark: i64::MIN,
             authority_seen: 0,
             pruned: Default::default(),
+            recovered: Default::default(),
             last_state: Default::default(),
             exposed: Default::default(),
             replacements: Vec::new(),
