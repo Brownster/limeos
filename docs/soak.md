@@ -38,7 +38,7 @@ for tests or the same code with the system clock passed in.
 |---|---|---|
 | `bins/core/src/main.rs` | `now()` and a new `monotonic()` read a clock a unit test installed on the calling thread (`test_clock`) | `cfg(test)` only; otherwise the system clocks as before |
 | `bins/core/src/operations.rs` | `Rotation::advance`/`due` take the time; the dispatcher loop's body is `dispatcher_pass(&mut Dispatcher)` | Callers pass `monotonic()` where `Instant::now()`/`elapsed()` was read; the loop ticks and calls the same body |
-| `crates/persistence/src/writer_clock.rs`, `lib.rs` | The writer thread reads its clock through `WriterTime`; `test_support::open` gives it a `SimClock`; `test_support::on_open` hands `Store::open`'s connection to a hook before startup runs | In a build without `test-support` only `Clock::System` exists: `Instant::now()` and the real `retention::INTERVAL` wait |
+| `crates/persistence/src/writer_clock.rs`, `lib.rs` | The writer thread reads its clock through `WriterTime`; `test_support::open` gives it a `SimClock`; `test_support::on_open` hands `Store::open`'s connection to a hook before startup runs; `Database::open` opens the store at its clock's time (`Clock::wall`), which dates startup recovery's events and any batch startup runs to make room | In a build without `test-support` only `Clock::System` exists: `Instant::now()`, the real `retention::INTERVAL` wait, and the system clock's time at open, as `Store::open` takes it |
 | `bins/executor/src/container_requests.rs`, `main.rs` | The container role's receipt-store and Engine arms extracted from the accept loop's closure into `answer`, with `refusal` | Same arms, guards, `try_lock` and `Forbidden` default; the closure keeps the peer check, framing, deadlines and its own reads |
 | `crates/executor-container/src/lib.rs` | The row, page and file caps named, and every limit re-exported as `limits` | Same values where the literals were |
 | `crates/observations/src/stacks.rs` | The inventory cache reads its freshness clock through `Cache::with_clock`; `Cache::new` passes the system clock | `Cache::new` and `start_proxy` read the system clocks as before |
@@ -285,7 +285,7 @@ and 1,697).
 
 | Over 90 days | `soak_ninety_days` | `soak_ninety_days_restarts` |
 |---|---|---|
-| Jobs | 2,058; 1,612 removed by job-row retention, 446 kept at the end | 1,697; 1,284 removed, 413 kept |
+| Jobs | 2,058; 1,632 removed by job-row retention, 424 kept at the end (1,612 and 446 before startup recovery's events took the simulated clock, 23 November) | 1,697; 1,296 removed, 402 kept (1,284 and 413) |
 | Events pruned by the writer thread, peak | 23,849 by the events rule, peak 131,319 against the 131,072 budget, largest batch 247; besides, the job events removed with their jobs | 21,646; largest batch 244 |
 | Jobs removed | at most 5 a batch, from day 55 (the storm's jobs, 30 days on); every one settled when last read, none seen again | at most 6 a batch |
 | Executor | 1,483 container and 473 stack executes; 1,782 action and 256 stack rows kept; 24,276 receipt lookups, 5,791 answered with a closure | 1,172 and 417; 1,815 and 256 kept; 23,183 lookups, 8,779 closures |
@@ -421,9 +421,12 @@ logged once with `Unavailable`, and no `InvalidInput` anywhere.
 `soak_ninety_days_restarts` failed once in CI (x86, commit `63ae4ea5`, a
 workflow-only change from a commit that passed): "core: bounded tables
 grew 0.51 MiB over the last third, beyond 0.21 MiB the events table
-regained toward its budget". Nothing leaked; the check's model of the
-refill was wrong, and it sat within a few percent of its threshold on
-every run, so the run-to-run spread of page counts decided it.
+regained toward its budget". The check's model of the refill was wrong,
+and it sat within a few percent of its threshold on every run, so the
+run-to-run spread of page counts decided it. That nothing leaked rests on
+two traced reproductions of the same code and seed: the failed run's
+database was not available, only its log, whose per-day rows and counts
+match the traces'.
 
 The check took the events table's refill as the rows it regained (net)
 at the table's average bytes a row. Two traced runs (every b-tree's
@@ -433,36 +436,91 @@ received 2,247 rows (77.5 a day) and kept 1,213 (41.8 a day): job-row
 retention removed the rest, the events of jobs settled 30 days before.
 Those events sit between the job-less events of their days (logins,
 plans), so their pages keep the neighbours and the space is not reused:
-rows are appended at the end of the table and of its scope and kind
-indexes (`events_job`, keyed by random job IDs, reuses its holes and
-shrank). On day 89 the table's rows of days 30 to 59 stood 15 to a page
-at 57% full, those of days 60 to 89 (their jobs' events still there) 24
-to a page at 97%, the login burst's 54 to a page at 98%. The events
-b-trees gained 0.55 to 0.56 MiB over the third (4.8 to 5.0 pages a
+rows are appended at the end of the table and of each key range of its
+scope and kind indexes (`events_job`, keyed by random job IDs, reuses its
+holes and shrank). On day 89 the table's rows of days 30 to 59 stood 15 to
+a page at 57% full, those of days 60 to 89 (their jobs' events still
+there) 24 to a page at 97%, the login burst's 54 to a page at 98%. The
+events b-trees gained 0.55 to 0.56 MiB over the third (4.8 to 5.0 pages a
 night), 463 to 469 bytes a row kept, against an average of 178 bytes a
-row, most of the table being the burst's 26-byte session rows; the
-check credited 0.21 MiB. With the per-job tables' 0.12 to 0.13 MiB, the
-fitted growth beyond that credit was 0.47 MiB against a threshold of 0.49
-to 0.50 MiB (2% of the tables) in both traced runs, and 0.51 in the run
-that failed.
+row, most of the table being the burst's 26-byte session rows; the check
+credited 0.21 MiB. With the per-job tables' 0.12 to 0.13 MiB, the fitted
+growth beyond that credit was 0.47 MiB against a threshold of 0.49 to 0.50
+MiB (2% of the tables) in both traced runs, and 0.51 in the run that
+failed.
 
-The growth is bounded: the row budget caps the rows, and SQLite
-rebalances a page less than a third full. It does go on until the burst's
-rows are gone, about eight years at these rates, so the check now
-asserts where it ends instead of excusing it: while the events table
-regains rows (at least 256, below its budget throughout), every other
-table must be flat on its own (fitted growth under 2%, or 256 KiB) and
-every other table as it is at the end, with the events table at its row
-budget at the bytes it gained per row kept, must fit the 80 MiB file
-bound: 62.6 MiB measured (475 bytes a row). That is well above the 40 MiB
-this document's bound once assumed for the events table at its budget:
-about 59 MiB of the household's rows against 22 MiB of the burst's. A mix
-with far more job events than job-less ones would leave pages emptier
-(down to a third), which the projection would show. Its unit tests
-(`soak::checks::flatness_model`) hold the measured third flat and fail a
-steady 0.5 MiB leak over the third in a per-job table, in `sessions`, in
-the events table while it refills (past the bound at its budget) and in the
-events table at its budget.
+The growth is bounded: the row budget caps the rows, and SQLite rebalances
+a page that deletes leave less than about a third full (roots and the
+newest pages aside). It does go on until the burst's rows are gone, about
+eight years at these rates, at about 59 MiB of the household's rows
+against 22 MiB of the burst's: well above the 40 MiB this document once
+assumed for the events table at its budget, and within the 80 MiB bound.
+
+The check now judges every b-tree on its own, so no table or index can
+hide behind another shrinking:
+
+- Every b-tree outside the events table (a table's own or an index):
+  fitted growth under 2% of its size or a floor chosen from the traces:
+  192 KiB for the per-job tables' (`stack_results` grew 142 KiB in both
+  runs while the stack family refilled toward job-row retention's floor of
+  128; every other per-job b-tree under 20 KiB), 32 KiB for every other
+  core b-tree (all measured under 3 KiB), 256 KiB for the receipt store's
+  (still filling toward their row budgets, 0.21 MiB in all).
+- Each events b-tree against the cells of the rows appended to it, counted
+  exactly from the rows at each checkpoint (`appended_cells`): its fitted
+  growth at most those cells at 90% fill for the table (it appends at its
+  right edge; measured 97 to 99%) or 75% for an index (`events_scope`
+  measured 86%), plus 16 KiB. Nothing else is credited, so the holes
+  job-row retention leaves count as never reused. Measured (restart
+  scenario, then the main run): the table 364 KiB against a ceiling of
+  424 (328 against 433), `events_scope` 167 against 225 (158, 230),
+  `events_kind` 42 against 81 (31, 83), `events_job` -15 against 143
+  (-37, 144).
+- The cells of a row appended in the second half of the third at most 1.2
+  times those of one appended in the first (measured 0.2% apart).
+- While the events table regains rows (the events and authority rules
+  removed nothing over the third, by the writer's passes, and its fitted
+  rows rose by at least 256), where its growth ends: every other b-tree as
+  it is at the end, with the events table at its row budget (132,096) at
+  the bytes it gained per row kept, or its average a row if more, within
+  the 80 MiB file bound: 62.3 MiB (473 bytes a row kept) with restarts,
+  54.2 MiB (408) in the main run.
+- The file's growth under 1 MiB beyond the events b-trees' ceilings.
+
+What it catches, as a steady leak over the last third (`soak::checks::
+flatness_model`, on the measured third): pages the rows do not explain,
+more than about 60 KiB in the events table (2 KiB a day), 40 to 60 KiB
+in `events_scope` or `events_kind`, 155 KiB in `events_job`, at any size of
+the table and however many rows it regains (0.5 MiB fails with 1,213
+rows regained or 3,000, and with the table at the steady state's 60 MiB);
+in any other core b-tree, more than its floor less what it grew anyway
+(about 50 KiB for `stack_results`, 32 KiB for a row-budgeted table), what
+another b-tree releases notwithstanding; rows that grow by more than a
+fifth within the third; and, while the table refills, a refill costing
+about 30% more bytes a row kept than the measured 475 (the end then passes
+the file bound). What it does not catch: while the events rule prunes, the
+cell ceiling ignores the pages pruning frees, so a page leak smaller than
+a b-tree's ceiling (426 KiB over a third for the table, 226 for
+`events_scope`, at household rates) passes, and nothing projects the end;
+rows made larger from the start of the third by less than about 30%; and
+a leak in a b-tree that stays under its floor. Neither profile's last third reaches the budget (both
+refill throughout), so the soak never runs where those gaps are.
+
+The traces also showed 13 `job_recovery_required` events on day 60 and
+18 on day 89 dated by the system clock, about 324 days after the simulated
+one: `Store::open` took the time for startup recovery's events from
+`SystemTime::now()`, past the writer's clock seam, so job-row retention
+(which keeps a job while any of its rows is newer than its horizon) kept
+every job startup recovery marked for the whole run, and the soak never
+aged or removed one. `Database::open` now opens the store at its clock's
+time (`Clock::wall`: the system clock in a shipped build, as before; the
+simulated one in the soak), and a new check holds every stored time to the
+simulated clock. With it, of the 23 jobs recovery marked in each run, the
+main run removed all 23 and the restart scenario 18, keeping 5 settled
+within the horizon; none was kept for an authority event, so it was the
+clock alone that pinned them. Jobs removed went from 1,612 to 1,632 and
+from 1,284 to 1,296, and every check passed as before, so nothing relied on
+them staying.
 
 The two traced runs had the same rows, cursors, cells and payload in every
 b-tree at every checkpoint; only the page counts of indexes keyed by
@@ -492,13 +550,14 @@ CI (not re-measured this round).
 | core logs only the warnings it is expected to | every warning or error core logs must match an entry of `EXPECTED_LOGS` (its exact message, level and codes, with the reason the soak provokes it): the dispatcher's two "remains pending" lines (`Conflict`, `Unavailable`), the execute that failed after it was written (`Unavailable` only), the execute never sent, the execute refused before any row after a replacement, and the held-open resolution that stays pending (`Unavailable`). Nothing may carry `InvalidInput` |
 | every lost executor answer is logged once, as unavailable | every execute answer the executor never wrote (lost, or the process dead with the request unread or inside the Engine call) is logged by core exactly once, at its execute site, with `Unavailable`, and every other code there is a refusal the executor answered, one for one; every lost container recovery lookup is logged as that job's failure with `Unavailable` in the same dispatcher pass, one for one, whenever the executor ran throughout the pass (a lost stack lookup is `release_if_unsent`'s, which holds the job without a log, and the stack site logs none); every executes refused before any row matches its log line |
 | no job dispatched before a receipt-store change is released on a closure alone | every job core held when the executor started (a new store epoch; with a replaced store, receipts lost) and that the new store answered with a closure ends in any state but `precondition_changed`; the replacements happened and such jobs were seen |
+| every time core stores is on the simulated clock | at every checkpoint, no event's `created`, job's `settled`, result's `recorded` or resolution's `completed` after the simulated now: job-row retention ages jobs by them, on the writer's clock (`Store::open` once dated startup recovery's events by the system clock, months ahead, which kept every job they name for the whole run; it now takes the time `Database::open` opens at, the writer's clock) |
 | a job's history stays while its resolution request is open | the held-open job, settled with its request open, keeps its `job_queued` event while retention prunes every older prunable event and once more; the window must be decisive (nothing prunable older than the job left, something pruned) |
 | provoked refusals observed | an approval after expiry and a session used after expiry, each refused as such |
 | audit counter and retained rows match what retention promises | at every checkpoint and before every restart: `meta.audit_bytes` is exactly `EVENT_BYTES` per event row; once the run has written as many events as the events rule keeps, at least that many remain, less what the authority rule and job-row retention (with its jobs) removed; standalone and stack receipts never fall below what retention keeps once reached; the prune watermark never decreases and never passes the youngest expiry retention may prune |
 | every retention batch within its rule's limit | every batch the writer thread reports, one transaction, removes at most its rule's limit |
 | database files under their bounds | core file 80 MiB and WAL 8 MiB; receipt file half its page cap and WAL 2 MiB, every checkpoint |
 | every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor (the newest 128 by settlement) with nothing that keeps it (no open request, no authority event, nothing newer, its settlement time included), counted by the soak's own query |
-| sizes and bounded tables flat across the last third | every table's bytes (the per-job tables with the rest), each row-budgeted table's rows, and the file, over days 60 to 90: the fitted growth of every table's bytes under 2% (or 256 KiB), the events table's aside while it regains at least 256 rows toward its budget (it refills after job-row retention removed history with its jobs, below its budget throughout); while it does, every other table as it is at the end, with the events table at its row budget at the bytes of pages it gained per row it kept (fitted bytes over fitted rows), within the 80 MiB file bound (see "Fixed: the flatness check mis-modelled the events refill"); the file's growth under 1 MiB beyond what the events table gained while it refilled, between the third's ends; and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), net of the jobs the rule keeps (every job but those the soak's own query finds removable at that moment) at the sample's bytes a job, fitted growth under 64 KiB |
+| sizes and bounded tables flat across the last third | over days 60 to 90, every b-tree on its own (each table's and each index's bytes) and each row-budgeted table's rows: every b-tree outside the events table, fitted growth under 2% of its size or its floor (192 KiB for the per-job tables', 32 KiB for core's others, 256 KiB for the receipt store's); each events b-tree, fitted growth under the leaf cells of the rows appended to it (counted from the rows) at 90% fill for the table and 75% for an index, plus 16 KiB; the cells of a row appended in the third's second half at most 1.2 times the first half's; while the events table regains rows (no events or authority rule removal in the third, fitted rows up by 256 or more), every other b-tree at the end with the events table at its row budget at the bytes it gained per row kept (or its average, if more) within the 80 MiB file bound; the file's growth under 1 MiB beyond the events b-trees' ceilings (see "Fixed: the flatness check mis-modelled the events refill" for what this catches and what not); and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), net of the jobs the rule keeps (every job but those the soak's own query finds removable at that moment) at the sample's bytes a job, fitted growth under 64 KiB |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound |
 | startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
 | core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps (but such a proof check's) at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
@@ -554,7 +613,7 @@ again:
 | Retention forgets open resolution requests | `retention::SETTLED` loses `AND NOT EXISTS(… job_resolutions … confirmation IS NULL)` | `soak_ninety_days`, a job's history stays while its resolution request is open: "day 21 10:01:30: the job settled (succeeded) with its resolution request open lost its history: retention pruned 3 events in 1 passes" |
 | Per-job tables never pruned (job-row retention removed) | `retention::jobs::prune` returns at once | `soak_ninety_days` (310 s): every table within its budget, "day 32 04:00:00: core: 10 settled jobs kept a day past job-row retention's horizon and floor, with nothing that keeps them", rising to 204 by day 51; flat: "core: bounded tables grew 1.70 MiB over the last third" and "file grew 1.73 MiB"; "core opens read 58 more pages each night over the last third (25157 now): 72345, the bound at the file bound, in 2.2 years"; "per-job tables grow 47 KiB a day (4.6 KiB a job): core.sqlite reaches 80 MiB in 2.7 years" |
 | Per-job tables leak slowly (a few KiB a day) | job-row retention's window treats every job whose ID starts with `0` or `1` as kept (`j.id NOT GLOB '[01]*' AND …`): an eighth of the jobs stay | `soak_ninety_days` (438 s), flat: "day 90 00:00:00: core: per-job tables grew 99 KiB from day 60 to 89 beyond the jobs job-row retention keeps (at most 64 KiB)" (7.4 KiB a day against 1.1 to 1.9 unmutated; the whole store's 2% and the five-year projection both pass it); and every table within its budget, from "day 33 04:00:00: core: 1 settled jobs kept a day past job-row retention's horizon and floor" |
-| A steady leak of the size the old refill model failed on (0.5 MiB over the last third) | added to the measured third of `soak_ninety_days_restarts` (events regaining 41.8 rows a day, their pages 4.8 a night), in one table at a time | `soak::checks::flatness_model`: in `jobs` or `sessions`, "core: bounded tables but the events table, which regained rows, grew 0.62 MiB over the last third"; in the events table while it refills, its end "past the 80 MiB file bound"; in the events table at its budget, "core: bounded tables grew" (the measured third, and the table flat at its budget, pass) |
+| Steady leaks over the last third, and its boundary cases | put into the measured third of `soak_ninety_days_restarts` (every b-tree's bytes and the events b-trees' appended cells, days 60 to 89) | `soak::checks::flatness_model`: `sessions` +300 KiB while `job_resources` releases 100, "core: sessions (of sessions) grew 300 KiB over the last third, more than 32 KiB"; `stack_results` +120 KiB; `sqlite_autoindex_jobs_1` +256 KiB while `jobs` releases as much; 72 KiB in `events`, `events_scope` or `events_kind` and 192 KiB in `events_job`, "core: events grew 436 KiB over the last third, more than the 426 KiB the rows appended to it explain"; 0.5 MiB with 3,000 rows regained, and at the steady state's 60 MiB; rows growing within the third, "rows appended to the events table in the second half of the last third take …"; an events index without a model. Boundaries that pass: a plateau then a gain (a finite end), falling rows (no projection), falling bytes (the end at the average row), a refill reaching the budget (projected until the events rule prunes) |
 | Job-row retention ignores an open resolution request | the candidate query loses `r.confirmation IS NULL OR` | `retention::jobs::tests::every_reference_keeps_its_job`: the batch fails (the `jobs_delete` trigger refuses the job: `StateNotDurable`) |
 | Job-row retention ignores authority events | the candidate query's authority-kind clause made false | `retention::jobs::tests::every_reference_keeps_its_job`: 9 jobs removed where 8 may be (the job with a withdrawal and its authority event gone) |
 | A crash open that loses a committed event (the harness's own check) | `core_crash` deletes one committed event from the image before the child opens it | `soak_smoke`, startup under its bounds: "day 1 06:05:00: a crash image of the core store lost committed work in its open (18 WAL frames to replay): 1285 events through cursor 1286 digest to 74746d82… (committed: 1286 events, d09ef811…)", on both crash images |
@@ -583,7 +642,8 @@ for jobs, plans, sessions and receipt-store epochs, so B-tree layouts differ
 between runs, and the dispatcher's candidate listings and startup recovery
 visit jobs in identifier order, so the order faults meet jobs differs too.
 Values still taken from the wall clock: `Store::open`'s timestamp on recovery
-events, tokio timeouts around executor calls, Engine calls and store calls
+events in the crash-image and copy opens (children on copies, discarded),
+tokio timeouts around executor calls, Engine calls and store calls
 (never reached), the legacy-expiry back-fill of a receipt store upgraded from
 schema 5 (never run here), `metrics.sqlite` query timeouts, and the deadline
 (a minute ahead) each automation reservation must meet. Counts of jobs, faults
@@ -591,13 +651,13 @@ and refusals therefore vary between runs, and page counts by a few percent.
 (Two traced runs of `soak_ninety_days_restarts` on 23 November had every
 count, row, cell and byte of payload equal at every checkpoint; only the
 pages of indexes keyed by random identifiers differed, `events_job` by
-up to 10%. Since `Store::open` dates its recovery events by the wall clock,
-months after the simulated one, job-row retention keeps the jobs they name
-for the whole run, as it would keep a job with any newer row.)
+up to 10%.)
 The thresholds leave room for that: budgets have a batch of headroom,
-flatness tolerates 2% or 256 KiB (and the events table's end sits 17 MiB
-inside the file bound; the old refill model sat within 5% of its threshold,
-which is how a page-count spread failed it), the startup factor 3.2 sits above the 2.5
+flatness judges the b-trees whose pages the random identifiers move
+(`events_job` and the per-job autoindexes) against ceilings or floors that
+measured at least 40 KiB above them, and the events table's end sits
+about 17 MiB inside the file bound (the old refill model sat within 5% of
+its threshold, which is how a page-count spread failed it), the startup factor 3.2 sits above the 2.5
 measured, and each pin is the range measured over the runs listed with it,
 widened by that range on each side. VM and full-scan steps are exact for a
 given file, so their bounds are functions of the rows the copy holds, not
