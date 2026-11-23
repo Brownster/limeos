@@ -73,8 +73,42 @@ batches, at most once a minute, and writes nothing when there is nothing to prun
 | PR-20 | Storage reader: move blocking sysfs and block-device reads to `spawn_blocking` with a deadline; add `WatchdogSec` and `sd_notify` to resident units. | A hung read is abandoned and the unit recovers without operator action. |
 | PR-21 | Separate the permits shared by stack refresh, health and storage inventory, or queue with a deadline instead of `try_lock`. | Overlapping requests no longer mark the stack cache stale. |
 | PR-22 | Per-request timeouts in place of the 30 s whole-connection timeout; SSE readers capped per session. | Keep-alive test across the 30 s mark; one session cannot take all eight streams. |
-| PR-23 | Migrations: one ordered table used by both `open` and the schema check; snapshot the database file before migrating; check the `PRAGMA journal_mode` result; verify the `jobs` table SQL after v16. | A migration added to the table alone is applied and checked. |
+| PR-23 ✔ | Migrations: one ordered table used by both `open` and the schema check; snapshot the database file before migrating; check the `PRAGMA journal_mode` result; verify the `jobs` table SQL after v16. | A migration added to the table alone is applied and checked. Done: see the note below the table. |
 | PR-24 | `postrm`/`prerm`: tolerate already-removed or never-enabled units; restart optional units that were running before an upgrade. | VM: remove twice, upgrade with the reader running. |
+
+**PR-23 as built.** `crates/persistence/src/migrations.rs` holds `MIGRATIONS`, one entry per
+version (its SQL, a description, the tables and indexes the startup check compares, and the
+tables it rewrites as text, compared right after it). `Store::open` applies the entries above
+the store's version and confirms each set its version; the startup check builds its reference
+from the same entries and compares every trigger plus the objects they name, and a mismatch is
+logged by name. `SCHEMA_VERSION` is the last entry. The version-17 space check and the
+version-19 estimate stay keyed by version in `lib.rs`.
+`a_migration_added_to_the_table_alone_is_applied_and_checked` adds a test-only entry and
+nothing else. An upgrade runs on its own connection with `locking_mode=EXCLUSIVE`, taken by an empty
+write transaction as its first access (every other connection locked out, in this process or
+another; a test reaches it from a second process; SQLite still keeps a `-shm` file), from the store's
+hash through the snapshot to the migration's commit, so all three see one state. It keeps
+`core.sqlite.v<from>.snapshot` (`VACUUM INTO`, synced, checked, mode 0600) with a record of the
+store's and the snapshot's digests; a repeated attempt on an unchanged store keeps it (cheap
+checks, then hashes) and writes no copy. Leftovers go before SQLite opens the store; other
+snapshots count by the blocks removing them frees, and go before the new one is written only
+when it would not fit otherwise. The estimate covers the snapshot, the v17 build, the v19
+rewrite bounded from the pages of `jobs`, and recovery bounded from b-tree depth over the 14
+trees SQLite's plan opens (a test reads the count from the plan); residual
+risks (stated in `lib.rs`): retention's `make_room`, and the v19 bound's reliance on records
+growing by less than their size and SQLite rewriting a transaction's WAL frames in place.
+Running out of space anywhere in the upgrade is reported with figures, and a program holding
+`core.sqlite` open, which blocks the upgrade, is named as the reason in core's log.
+`limeos-core.service` stops retrying after ten starts in six hours (long enough to trip even for
+starts that fail late in a 31-minute start); postinst resets the count before it restarts core. Open fails unless
+`journal_mode` answers `wal`. The v16 hazard: its `replace` on the `jobs` text does nothing,
+silently, when the text is not exactly as expected, and the startup check never compared
+`jobs`; the store then reached v19 without the `resolved` state. `jobs` is now compared right
+after v16 and on every start. Not verified: an upgrade of a real pre-upgrade store (no such
+fixture exists; tests build older stores from the same SQL files), and the snapshot's time and
+reads at full size on the Pi. Gap: no supported tool lists or cancels every queued job across
+users (the restore procedure relies on plan expiry instead). Operator steps:
+`docs/p03-operations.md`.
 
 ## Phase 2 — Security
 
@@ -568,10 +602,14 @@ PR-30 written, PR-41 green, and one Pi night on that exact candidate.
 - 23 November: lookup, verification and resolution of an existing receipt stay
   subject to the managed-list check. Delisting a container freezes its open jobs;
   the recovery procedure is in `docs/p03-operations.md`.
-- 23 November: `limeos-core.service` gets a start limit (ten starts in five
-  minutes) so a store that cannot be opened or upgraded stops being retried every
-  two seconds, which could otherwise write the SD card continuously. A reboot or
+- 23 November: `limeos-core.service` gets a start limit (ten starts in six hours;
+  a five-minute window would never trip for a start that fails late, after
+  hashing or migrating) so a store that cannot be opened or upgraded stops being
+  retried every two seconds, which could otherwise write the SD card
+  continuously. Successful starts count too, so postinst and the cutover scripts
+  clear the count before their own starts. A reboot or
   `systemctl reset-failed limeos-core && systemctl start limeos-core` tries again.
+  Follow-up: an hourly retry after the limit trips, for unattended recovery.
 - 23 November: `watchtower` stays in the cutover's default managed list (the
   conservative choice: a watchtower restart or an update it applies during
   activation rolls back). Choose a cutover window outside watchtower's schedule.

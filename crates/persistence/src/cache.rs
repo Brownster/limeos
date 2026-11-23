@@ -18,9 +18,11 @@
 //!   pages). A backlog job-row batch (64 jobs, up to 2,048 rows scattered)
 //!   dirtied 442 pages and spilled 437 KB at this size and 21 KB at the 2000 KiB
 //!   default: it runs only while a backlog of settled jobs past their horizon
-//!   lasts. A migration keeps the default for its own transaction (an upgrade
-//!   rewrites whole tables); an open with no migration reads its check through
-//!   the small cache, and every open sets it again once its transaction has
+//!   lasts. An upgrade runs on its own exclusive connection with SQLite's
+//!   default (a migration rewrites whole tables), and that connection closes
+//!   when the upgrade ends; the normal connection opened after it is set to
+//!   `WRITER_KIB`. An open with no upgrade sets it before its startup check,
+//!   so the check reads through the small cache, and again once startup has
 //!   committed (`settle`).
 //! * The reader answers session and revocation checks only: a few B-tree paths
 //!   of the sessions and task-token tables. A cache smaller than a query's

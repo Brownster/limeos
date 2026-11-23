@@ -1,6 +1,8 @@
 """Current schema expectations come from source, never installed DB state."""
 
 import importlib
+import importlib.util
+import re
 import runpy
 import sys
 import tempfile
@@ -10,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
+re_user_version = re.compile(r"PRAGMA user_version=([0-9]+);")
 FIXTURES = ROOT / "tests/privileged_vm"
 with patch.object(sys, "path", [str(FIXTURES), *sys.path]):
     schema = importlib.import_module("current_authority_schema")
@@ -190,15 +193,74 @@ class CurrentAuthoritySchemaTests(unittest.TestCase):
 
     def test_runner_delivers_checkout_then_actual_bundle_source_before_guest(self):
         text = (FIXTURES / "run.py").read_text()
-        delivery = text.index('str(ROOT / "crates/persistence/src/lib.rs")')
-        bundle = text.index(
-            "install -m 0644 /root/build/source/crates/persistence/src/lib.rs"
-        )
+        # The checkout's schema source (the migration table, or an older
+        # tree's lib.rs), then the bundle's, preferring its migration table.
+        delivery = text.index("str(schema_source(ROOT))")
+        bundle = text.index('f"f=/root/build/source/{MIGRATIONS_SOURCE}; "')
+        self.assertIn('f"[ -f \\"$f\\" ] || f=/root/build/source/{LEGACY_SOURCE}; "', text)
         invocation = text.index('shlex.quote("/root/" + args.guest_script.name)')
         self.assertLess(delivery, bundle)
         self.assertLess(bundle, invocation)
         self.assertIn('"root@127.0.0.1:/root/" + SOURCE_NAME', text)
 
+
+class RealSourceTree(unittest.TestCase):
+    """The readers against this checkout's own source, so a change in how the
+    schema is declared fails here and not first in a VM."""
+
+    def sql_version(self):
+        source = ROOT / "crates/persistence/src"
+        highest = 0
+        for path in [source / "schema.sql", *source.glob("migration-v*.sql")]:
+            for found in re_user_version.findall(path.read_text()):
+                highest = max(highest, int(found))
+        return highest
+
+    def test_the_checkout_declares_the_schema_its_migrations_reach(self):
+        expected = self.sql_version()
+        self.assertGreaterEqual(expected, 19)
+        self.assertEqual(schema.current_authority_schema(), expected)
+        self.assertEqual(schema.tree_authority_schema(ROOT), expected)
+        self.assertEqual(
+            schema.schema_source(ROOT), ROOT / "crates/persistence/src/migrations.rs"
+        )
+
+    def test_the_delivered_copy_reads_the_same(self):
+        # What the VM runner delivers beside the fixtures.
+        with tempfile.TemporaryDirectory(dir=ROOT / ".cache") as directory:
+            guest = Path(directory)
+            (guest / schema.SOURCE_NAME).write_bytes(schema.schema_source(ROOT).read_bytes())
+            with patch.object(schema, "__file__", str(guest / "helper.py")):
+                self.assertEqual(schema.current_authority_schema(), self.sql_version())
+
+    def test_the_current_lib_rs_alone_is_refused_with_where_to_look(self):
+        with self.assertRaises(ValueError) as refused:
+            schema.source_authority_schema(ROOT / "crates/persistence/src/lib.rs")
+        self.assertIn("migrations.rs", str(refused.exception))
+
+    def test_the_qualification_harness_agrees(self):
+        spec = importlib.util.spec_from_file_location(
+            "qualification", ROOT / "tests/qualification/arm64/qualification.py"
+        )
+        qualification = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(qualification)
+        self.assertEqual(qualification.source_schema(ROOT), self.sql_version())
+
+    def test_a_table_out_of_order_or_short_of_sources_is_refused(self):
+        table = (ROOT / "crates/persistence/src/migrations.rs").read_text()
+        broken = [
+            table.replace("plain(2,", "plain(3,", 1),
+            table.replace('include_str!("migration-v2.sql")', '"inline"', 1),
+            table.replace("pub(crate) const MIGRATIONS", "pub(crate) const TABLE", 1),
+        ]
+        with tempfile.TemporaryDirectory(dir=ROOT / ".cache") as directory:
+            source = Path(directory) / "migrations.rs"
+            for text in broken:
+                with self.subTest(change=text[:0]):
+                    self.assertNotEqual(text, table)
+                    source.write_text(text)
+                    with self.assertRaises(ValueError):
+                        schema.source_authority_schema(source)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1465,15 +1465,20 @@ fn every_store_connection_has_its_cache_size() {
     assert_eq!(
         sites,
         [
-            // The writer (`cache::WRITER_KIB`), the reader (`cache::READER_KIB`)
-            // and `upgrade_space`'s read-only look at a store before it is
-            // opened, closed before it returns.
-            "lib.rs",
-            "lib.rs",
-            "lib.rs",
-            // `resources::check`'s in-memory reference schema.
-            "resources.rs",
+            // `connect`, three spellings of one open (a test VFS or not), used
+            // for the writer, which `open_migrating_at` sizes
+            // (`cache::WRITER_KIB`) once any upgrade is over, and for the
+            // upgrade's own exclusive connection, which keeps SQLite's default
+            // for the upgrade (a migration rewrites whole tables) and is
+            // closed when it ends; the reader (`cache::READER_KIB`); and
+            // `upgrade_space`'s read-only look at a store before it is opened,
+            // closed before it returns.
+            "lib.rs", "lib.rs", "lib.rs", "lib.rs", "lib.rs",
+            // `migrations`' in-memory reference schema.
+            "migrations.rs",
+            // The snapshot's verification of its copy, closed straight away.
+            "migrations/snapshot.rs",
         ],
-        "a new SQLite connection: give it a cache size (see `cache`) and list it here"
+        "a new SQLite connection: give it a cache size (see `cache`) or name it here"
     );
 }
