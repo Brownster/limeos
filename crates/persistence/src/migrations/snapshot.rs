@@ -12,6 +12,11 @@
 //!   `.snapshot.state.partial`: leftovers of an interrupted write, removed
 //!   before the store is opened ([`remove_leftovers`]).
 //!
+//! The upgrade runs on a connection that holds the store exclusively
+//! (`locking_mode=EXCLUSIVE`, taken by an empty write transaction as its
+//! first access, so no other connection can read or write the store) from
+//! before the store is hashed until the migration commits.
+//!
 //! An upgrade that fails after its snapshot leaves the store at its old
 //! version, and systemd starts core again two seconds later. With the
 //! record, a repeated attempt keeps the snapshot and writes no copy, as
@@ -31,6 +36,8 @@ thread_local! {
     pub(crate) static FAIL_AT: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
     /// Tests: what was removed and written, in order.
     pub(crate) static EVENTS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// Tests: runs between the store's hash and the copy.
+    pub(crate) static INTERLOPER: std::cell::Cell<Option<fn(&Path)>> = const { std::cell::Cell::new(None) };
 }
 fn fail_point(_at: &'static str) -> Result<()> {
     #[cfg(test)]
@@ -116,7 +123,16 @@ fn entries(path: &Path) -> Result<Vec<Entry>> {
         let Some((version, kind)) = name.to_str().and_then(|name| classify(store, name)) else {
             continue;
         };
-        let freed = std::fs::symlink_metadata(entry.path()).map_or(0, |m| freed_by_removing(&m));
+        // Only regular files: a directory or other object under one of these
+        // names is never removed or counted (a write that needs the name
+        // then fails on it).
+        let Ok(meta) = std::fs::symlink_metadata(entry.path()) else {
+            continue;
+        };
+        if !meta.is_file() {
+            continue;
+        }
+        let freed = freed_by_removing(&meta);
         found.push(Entry {
             path: entry.path(),
             version,
@@ -152,7 +168,9 @@ fn remove(path: &Path, remove: impl Fn(&Entry) -> bool) -> Result<()> {
 /// operations before the store is even opened: opening it may need space
 /// of its own (SQLite allocates the WAL index first), which a leftover the
 /// size of the store could otherwise hold forever. Only the partial names
-/// go, nothing an operator could want.
+/// go, nothing an operator could want. `Store::open` ignores a failure: a
+/// store that needs no upgrade does not need the names, and an upgrade
+/// that does fails when it writes its partial file.
 pub(crate) fn remove_leftovers(path: &Path) -> Result<()> {
     remove(path, |e| e.kind == Kind::Leftover)
 }
@@ -171,11 +189,12 @@ pub(crate) fn snapshot_bytes(conn: &Connection) -> Result<u64> {
 }
 
 /// How a plan decides whether a snapshot can be kept.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Look {
-    /// `Store::open`, holding the store for writing: checkpoint its WAL into
-    /// the database file and confirm a match by hashing.
-    Writer,
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Look<'a> {
+    /// `Store::open`, holding the store exclusively: checkpoint its WAL into
+    /// the database file and confirm a match by hashing it through `store`,
+    /// a descriptor kept open until the exclusive connection has closed.
+    Writer { store: &'a File },
     /// A diagnostic estimate on a read-only connection: decide from the
     /// record's cheap parts alone, with the WAL already empty. Never used
     /// to keep a snapshot, only to report figures.
@@ -195,14 +214,10 @@ pub(crate) struct Plan {
     /// (every one but a kept snapshot and its record), counted honestly
     /// ([`freed_by_removing`]).
     pub(crate) freed: u64,
-    /// `data_version` when the store was last confirmed to match what a kept
-    /// snapshot holds: a commit by any other connection since changes it.
-    pub(crate) confirmed: Option<i64>,
 }
 /// What [`take`] will do for an upgrade of the store at `path` from `from`.
-pub(crate) fn plan(conn: &Connection, path: &Path, from: u32, look: Look) -> Result<Plan> {
-    let confirmed = reusable(conn, path, from, look)?;
-    let reuse = confirmed.is_some();
+pub(crate) fn plan(conn: &Connection, path: &Path, from: u32, look: Look<'_>) -> Result<Plan> {
+    let reuse = reusable(conn, path, from, look)?;
     let bytes = if reuse { 0 } else { snapshot_bytes(conn)? };
     let freed = entries(path)?
         .iter()
@@ -214,53 +229,55 @@ pub(crate) fn plan(conn: &Connection, path: &Path, from: u32, look: Look) -> Res
         reuse,
         bytes,
         freed,
-        confirmed,
     })
 }
 
-/// Has the snapshot ready, and returns the `data_version` at which the
-/// store matched it, for `Store::open` to compare once its write
-/// transaction holds the store.
+/// Has the snapshot ready, on `conn`, which holds the store exclusively
+/// (`locking_mode=EXCLUSIVE`, taken before its first read): no other
+/// connection can read or write the store from before the store is hashed
+/// until the migration transaction commits, so the hash, the copy and the
+/// migration see one state.
 ///
 /// A kept snapshot: the store's other snapshot files go. A new one: when
-/// the free space alone fits it (`delete_first` false), it is written
-/// first and the other files go after, so the previous snapshot survives a
-/// failed write; when it fits only with the space those files give back,
-/// they go first. The store itself is unchanged until the new snapshot is
-/// durable either way, and an older version's snapshot could only roll back
-/// across an upgrade the store has since completed. Any failure refuses
-/// the upgrade.
-pub(crate) fn take(conn: &Connection, path: &Path, plan: Plan, delete_first: bool) -> Result<i64> {
+/// the free space alone fits it with the write reserve to spare
+/// (`write_first`), it is written first and the other files go after, so
+/// the previous snapshot survives a failed write; only when it does not are
+/// they removed first. The store itself is unchanged until the new snapshot
+/// is durable either way, and an older version's snapshot could only roll
+/// back across an upgrade the store has since completed. Any failure
+/// refuses the upgrade.
+pub(crate) fn take(
+    conn: &Connection,
+    store: &File,
+    path: &Path,
+    plan: Plan,
+    write_first: bool,
+) -> Result<()> {
     let from = plan.from;
-    if let Some(confirmed) = plan.confirmed {
-        remove(path, |e| e.version != from || e.kind == Kind::Leftover)?;
-        return Ok(confirmed);
+    if plan.reuse {
+        return remove(path, |e| e.version != from || e.kind == Kind::Leftover);
     }
     // The old record of this version describes another snapshot: it goes
     // before anything else.
     remove(path, |e| e.version == from && e.kind == Kind::State)?;
-    if delete_first {
+    if !write_first {
         remove(path, |_| true)?;
     }
-    let taken = write(conn, path, from)?;
+    write(conn, store, path, from)?;
     remove(path, |e| {
         !(e.version == from && matches!(e.kind, Kind::Snapshot | Kind::State))
-    })?;
-    Ok(taken)
+    })
 }
 
-/// The SHA-256 and length of a file.
+/// The SHA-256 and length of a file's contents.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Digested {
     bytes: u64,
     sha256: String,
 }
-fn digest(path: &Path) -> Option<Digested> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
-        .open(path)
-        .ok()?;
+fn digest_open(mut file: &File) -> Option<Digested> {
+    use std::io::{Seek, SeekFrom};
+    file.seek(SeekFrom::Start(0)).ok()?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; 64 * 1024];
     let mut bytes = 0u64;
@@ -277,6 +294,18 @@ fn digest(path: &Path) -> Option<Digested> {
         sha256: hex::encode(hasher.finalize()),
     })
 }
+/// The digest of a file no SQLite connection has open (the snapshot, or its
+/// partial file). Never the store: closing any descriptor of a file drops
+/// every POSIX lock this process holds on it, SQLite's included, so the
+/// store is read only through the descriptor `Look::Writer` carries.
+fn digest(path: &Path) -> Option<Digested> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+        .open(path)
+        .ok()?;
+    digest_open(&file)
+}
 /// The parts of a snapshot file's identity that cost no read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cheap {
@@ -292,10 +321,6 @@ fn cheap(path: &Path) -> Option<Cheap> {
         modified: (meta.mtime(), meta.mtime_nsec()),
     })
 }
-fn data_version(conn: &Connection) -> Result<i64> {
-    conn.pragma_query_value(None, "data_version", |r| r.get(0))
-        .map_err(durable)
-}
 /// Whether the store's WAL holds nothing: absent or empty. Any other answer
 /// (an error but "not found") counts as not empty.
 fn wal_empty(path: &Path) -> bool {
@@ -306,18 +331,17 @@ fn wal_empty(path: &Path) -> bool {
         Err(error) => error.kind() == std::io::ErrorKind::NotFound,
     }
 }
-/// Whether everything committed is in the database file: after a complete
-/// `TRUNCATE` checkpoint for the writer, else when the WAL is empty.
-fn settled(conn: &Connection, path: &Path, look: Look) -> Result<bool> {
-    if look == Look::Writer {
-        let busy: i64 = conn
-            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
-            .map_err(durable)?;
-        if busy != 0 {
-            return Ok(false);
-        }
+/// Everything committed copied into the store's database file: a complete
+/// `TRUNCATE` checkpoint, which nothing can hold up on an exclusive
+/// connection.
+fn checkpoint(conn: &Connection, path: &Path) -> Result<()> {
+    let busy: i64 = conn
+        .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
+        .map_err(durable)?;
+    if busy != 0 || !wal_empty(path) {
+        return Err(Error(ErrorCode::StateNotDurable));
     }
-    Ok(wal_empty(path))
+    Ok(())
 }
 
 struct Record {
@@ -358,48 +382,42 @@ fn read_record(path: &Path) -> Option<Record> {
         },
     })
 }
-/// Whether the finished snapshot of `from` can be kept, and if so the
-/// `data_version` at which the store was confirmed to match it.
+/// Whether the finished snapshot of `from` can be kept.
 ///
 /// Ruled out without reading when the record is missing, unreadable or for
 /// another version, when the snapshot's length, inode or modification time
-/// differ from the record, or when the store's length does. Otherwise
-/// confirmed by hashing the store (everything committed in its database
-/// file) and then the snapshot, with no commit by any connection from
-/// before the store's hash to after the snapshot's.
-fn reusable(conn: &Connection, path: &Path, from: u32, look: Look) -> Result<Option<i64>> {
+/// differ from the record, or when the store's length does. Otherwise, for
+/// the writer, confirmed by hashing the store (its WAL checkpointed into it)
+/// and then the snapshot; the estimate stops at the cheap checks, with the
+/// WAL already empty.
+fn reusable(conn: &Connection, path: &Path, from: u32, look: Look<'_>) -> Result<bool> {
     let (Some(snapshot), Some(state)) = (snapshot_path(path, from), state_path(path, from)) else {
-        return Ok(None);
+        return Ok(false);
     };
     let Some(record) = read_record(&state) else {
-        return Ok(None);
+        return Ok(false);
     };
     if record.from != from || cheap(&snapshot) != Some(record.cheap) {
-        return Ok(None);
+        return Ok(false);
     }
-    if !settled(conn, path, look)? {
-        return Ok(None);
+    match look {
+        Look::Writer { .. } => checkpoint(conn, path)?,
+        Look::Estimate if !wal_empty(path) => return Ok(false),
+        Look::Estimate => {}
     }
     let store_bytes = std::fs::symlink_metadata(path).map_or(u64::MAX, |m| m.len());
     if store_bytes != record.store.bytes {
-        return Ok(None);
+        return Ok(false);
     }
-    let before = data_version(conn)?;
-    if look == Look::Estimate {
-        return Ok(Some(before));
-    }
-    if digest(path).as_ref() != Some(&record.store)
-        || digest(&snapshot).as_ref() != Some(&record.snapshot)
-    {
-        return Ok(None);
-    }
-    let unchanged = data_version(conn)? == before && wal_empty(path);
-    Ok(unchanged.then_some(before))
+    let Look::Writer { store } = look else {
+        return Ok(true);
+    };
+    Ok(digest_open(store).as_ref() == Some(&record.store)
+        && digest(&snapshot).as_ref() == Some(&record.snapshot))
 }
 
-/// Writes the snapshot of the store at `path` (schema `from`, open on `conn`
-/// outside any transaction), then its record, and returns the
-/// `data_version` from before the copy began.
+/// Writes the snapshot of the store at `path` (schema `from`, held
+/// exclusively by `conn`, outside any transaction), then its record.
 ///
 /// `VACUUM INTO` reads one consistent state of the database through SQLite,
 /// the WAL's committed frames included, which a copy of the database file
@@ -409,22 +427,22 @@ fn reusable(conn: &Connection, path: &Path, from: u32, look: Look) -> Result<Opt
 /// `quick_check`), renamed into place and the directory synced. Any failure
 /// removes the partial file and fails, so the upgrade does not start.
 ///
-/// The record is written only when the store's database file was hashed
-/// with everything committed in it and no connection committed from then to
-/// the end of the copy, so it describes exactly what the snapshot holds.
-/// Without a record the next attempt takes the snapshot again; a record not
-/// written is noted for the daemon to log ([`crate::unrecorded_snapshot`])
-/// and does not stop this upgrade.
-fn write(conn: &Connection, path: &Path, from: u32) -> Result<i64> {
+/// The record holds the store's hash, taken (through `store`, after a full
+/// checkpoint) just before the copy; the exclusive connection keeps every
+/// other connection out between the two, so it describes exactly what the
+/// snapshot holds. A record that cannot be written leaves the next attempt
+/// to take the snapshot again; it is noted for the daemon to log
+/// ([`crate::unrecorded_snapshot`]) and does not stop this upgrade.
+fn write(conn: &Connection, store: &File, path: &Path, from: u32) -> Result<()> {
     let failed = |_| Error(ErrorCode::StateNotDurable);
     let target = snapshot_path(path, from).ok_or(Error(ErrorCode::InvalidInput))?;
     let partial = named(path, from, ".partial").ok_or(Error(ErrorCode::InvalidInput))?;
-    let store = if settled(conn, path, Look::Writer)? {
-        digest(path)
-    } else {
-        None
-    };
-    let before = data_version(conn)?;
+    checkpoint(conn, path)?;
+    let hashed = digest_open(store);
+    #[cfg(test)]
+    if let Some(interloper) = INTERLOPER.get() {
+        interloper(path);
+    }
     let written = (|| {
         event("write", &target);
         OpenOptions::new()
@@ -473,17 +491,16 @@ fn write(conn: &Connection, path: &Path, from: u32) -> Result<i64> {
             return Err(error);
         }
     };
-    let unchanged = data_version(conn)? == before && wal_empty(path);
-    let recorded = match (store, copied, cheap(&target)) {
-        (Some(store), Some(copied), Some(identity)) if unchanged => {
-            record(path, from, &store, &copied, identity)
+    let recorded = match (hashed, copied, cheap(&target)) {
+        (Some(hashed), Some(copied), Some(identity)) => {
+            record(path, from, &hashed, &copied, identity)
         }
         _ => false,
     };
     if !recorded {
         crate::note_unrecorded(path);
     }
-    Ok(before)
+    Ok(())
 }
 /// Writes the record of a snapshot, as a partial file synced and renamed
 /// into place; on failure removes what it wrote and returns false.

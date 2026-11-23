@@ -581,9 +581,10 @@ fn a_snapshot_that_would_not_fit_refuses_and_says_how_much_it_needs() {
 /// before the new one is written (it is needed as space). With one byte
 /// less it is refused and a finished snapshot is still there.
 ///
-/// The simulated disk is consulted where `Store::open` measures free space;
-/// it cannot make SQLite's own allocation of the WAL index fail, which is
-/// why `leftovers_go_before_the_store_is_opened` checks that ordering.
+/// The simulated disk is consulted where `Store::open` measures free space
+/// (the upgrade connection's WAL index file is there by then); it cannot
+/// make SQLite's own allocation of that file fail, which is why
+/// `leftovers_go_before_the_store_is_opened` checks that ordering.
 #[test]
 fn snapshot_files_that_go_count_as_free_space() {
     let from = SCHEMA_VERSION - 1;
@@ -623,7 +624,7 @@ fn snapshot_files_that_go_count_as_free_space() {
         assert_eq!(
             refused.err().map(|e| e.0),
             Some(ErrorCode::StateNotDurable),
-            "{stale}: capacity {capacity}, index {index}, needed {needed}, {:?}",
+            "{stale}: capacity {capacity}, needed {needed}, {:?}",
             listing(dir.path())
         );
         assert_eq!(user_version(&path), from);
@@ -635,7 +636,13 @@ fn snapshot_files_that_go_count_as_free_space() {
         events();
         let opened = Store::open(&path);
         crate::OPEN_DISK_CAPACITY.set(None);
-        drop(opened.unwrap());
+        let listed = listing(dir.path());
+        assert!(
+            opened.is_ok(),
+            "{stale}: capacity {capacity}, needed {needed}, {listed:?}, {:?}",
+            events()
+        );
+        drop(opened);
         let order = events();
         let removed = order.iter().position(|e| *e == format!("remove {stale}"));
         let written = order.iter().position(|e| e.starts_with("write "));
@@ -735,15 +742,33 @@ fn leftovers_go_before_the_store_is_opened() {
     let file = leftover(dir.path());
     assert!(Store::open(&path).is_err());
     assert!(!file.exists());
-    // A leftover that cannot be removed refuses before the store exists.
+    // Something under a leftover name that cannot be removed (here a
+    // directory) is left alone: it never refuses a store that needs no
+    // upgrade, nor an upgrade that does not need that name.
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("core.sqlite");
     std::fs::create_dir(dir.path().join("core.sqlite.v18.snapshot.partial")).unwrap();
+    drop(Store::open(&path).unwrap());
+    drop(Store::open(&path).unwrap());
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), SCHEMA_VERSION - 1);
+    std::fs::create_dir(dir.path().join("core.sqlite.v12.snapshot.partial")).unwrap();
+    drop(Store::open(&path).unwrap());
+    assert_eq!(user_version(&path), SCHEMA_VERSION);
+    // An upgrade that needs the name is refused when it writes there.
+    let dir = tempfile::tempdir().unwrap();
+    let from = SCHEMA_VERSION - 1;
+    let path = store_at(dir.path(), from);
+    std::fs::create_dir(
+        dir.path()
+            .join(format!("core.sqlite.v{from}.snapshot.partial")),
+    )
+    .unwrap();
     assert_eq!(
         Store::open(&path).err().unwrap().0,
         ErrorCode::StateNotDurable
     );
-    assert!(!path.exists(), "SQLite never opened it");
+    assert_eq!(user_version(&path), from);
 }
 
 /// An upgrade that fails after its snapshot, started again and again (as
@@ -849,34 +874,110 @@ fn a_snapshot_that_may_not_match_is_taken_again() {
     assert_eq!(snapshots(dir.path()), kept(SCHEMA_VERSION));
 }
 
-/// A commit by another connection between the snapshot and the migration
-/// transaction refuses the upgrade (the snapshot would not hold it); the
-/// next start takes a snapshot that does.
-#[test]
-fn a_commit_after_the_snapshot_refuses_the_upgrade() {
-    fn commit(path: &Path) {
-        Connection::open(path)
-            .unwrap()
-            .execute(
-                "INSERT INTO budgets(id,limit_units) VALUES ('between',1)",
-                [],
-            )
-            .unwrap();
+/// What another connection achieved while an upgrade held the store.
+static REACHED: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+/// Tries to read and then to write the store from a connection of its own,
+/// without waiting, and notes what succeeded.
+fn interlope(path: &Path) {
+    let reached = |what| REACHED.lock().unwrap().push(what);
+    let Ok(conn) = Connection::open(path) else {
+        return;
+    };
+    conn.busy_timeout(Duration::ZERO).unwrap();
+    if conn
+        .query_row("SELECT count(*) FROM budgets", [], |r| r.get::<_, i64>(0))
+        .is_ok()
+    {
+        reached("read");
     }
+    if conn
+        .execute(
+            "INSERT INTO budgets(id,limit_units) VALUES ('between',1)",
+            [],
+        )
+        .is_ok()
+    {
+        reached("write");
+    }
+}
+
+/// The upgrade holds the store exclusively: between the store's hash and
+/// the copy, and between the snapshot and the migration, another connection
+/// can neither read nor write it, so the hash, the snapshot and the
+/// migration see one state.
+#[test]
+fn no_other_connection_reaches_the_store_during_an_upgrade() {
     let from = SCHEMA_VERSION - 1;
     let dir = tempfile::tempdir().unwrap();
     let path = store_at(dir.path(), from);
-    crate::BEFORE_MIGRATING.set(Some(commit));
+    REACHED.lock().unwrap().clear();
+    super::snapshot::INTERLOPER.set(Some(interlope));
+    crate::BEFORE_MIGRATING.set(Some(interlope));
     let opened = Store::open(&path);
+    super::snapshot::INTERLOPER.set(None);
     crate::BEFORE_MIGRATING.set(None);
-    assert_eq!(opened.err().unwrap().0, ErrorCode::StateNotDurable);
-    assert_eq!(user_version(&path), from);
-    let snapshot = snapshot_path(&path, from).unwrap();
-    assert_eq!(budget_rows(&snapshot, "between"), 0);
+    drop(opened.unwrap());
+    assert_eq!(*REACHED.lock().unwrap(), Vec::<&str>::new());
+    assert_eq!(budget_rows(&path, "between"), 0);
+    // Once the upgrade is done, the same connection reaches it.
+    interlope(&path);
+    assert_eq!(*REACHED.lock().unwrap(), ["read", "write"]);
+}
+
+/// When free space fits the new snapshot (with the reserve) but not the
+/// whole upgrade, the snapshot is written first and the older one removed
+/// after it: its space is needed only by the migrations, which run after.
+#[test]
+fn a_snapshot_that_fits_is_written_before_the_old_one_goes() {
+    let from = SCHEMA_VERSION - 1;
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), from);
+    let conn = Connection::open(&path).unwrap();
+    let bytes = snapshot_bytes(&conn).unwrap();
+    drop(conn);
+    crate::OPEN_FREE_BYTES.set(Some(0));
+    let needed = crate::upgrade_space(&path).unwrap().needed;
+    let free = bytes + MIN_FREE_BYTES;
+    assert!(free < needed);
+    let old = dir.path().join("core.sqlite.v12.snapshot");
+    std::fs::write(&old, vec![7u8; needed as usize]).unwrap();
+    crate::OPEN_FREE_BYTES.set(Some(free));
     events();
+    let opened = Store::open(&path);
+    crate::OPEN_FREE_BYTES.set(None);
+    drop(opened.unwrap());
+    assert_eq!(
+        events(),
+        [
+            format!("write core.sqlite.v{from}.snapshot"),
+            "remove core.sqlite.v12.snapshot".to_owned()
+        ]
+    );
+    assert_eq!(snapshots(dir.path()), kept(from));
+}
+
+/// Out of space in the schema-19 step (not the schema-17 build, which had
+/// its own path): the refusal still says how much space the upgrade needs,
+/// though the check before it had found enough.
+#[test]
+fn running_out_of_space_in_any_migration_says_how_much_it_needs() {
+    let from = SCHEMA_VERSION - 1;
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), from);
+    let pages: i64 = Connection::open(&path)
+        .unwrap()
+        .query_row("PRAGMA page_count", [], |r| r.get(0))
+        .unwrap();
+    crate::UPGRADE_MAX_PAGES.set(Some(pages));
+    let opened = Store::open(&path);
+    crate::UPGRADE_MAX_PAGES.set(None);
+    assert_eq!(opened.err().unwrap().0, ErrorCode::StateNotDurable);
+    crate::APPLIED.with(|applied| assert_eq!(*applied.borrow(), [SCHEMA_VERSION]));
+    let space = crate::upgrade_space(&path).unwrap();
+    assert_eq!(space.from, from);
+    assert!(space.needed > space.available);
+    assert_eq!(user_version(&path), from);
     drop(Store::open(&path).unwrap());
-    assert_eq!(writes(&events()), 1);
-    assert_eq!(budget_rows(&snapshot, "between"), 1);
 }
 
 /// One snapshot is kept, with its record. Older ones, records and leftovers
@@ -1055,10 +1156,12 @@ fn the_v19_estimate_covers_every_job_leaf_splitting() {
             |r| r.get(0),
         )
         .unwrap();
+    // The peak: the database file and the WAL as they stand when the
+    // upgrade's connection is about to close (after the commit's
+    // checkpoint, before the WAL is removed), with the snapshot and record.
     let on_disk = || -> u64 {
         [
             path.clone(),
-            path.with_extension("sqlite-wal"),
             snapshot_path(&path, 18).unwrap(),
             state_path(&path, 18).unwrap(),
         ]
@@ -1072,11 +1175,8 @@ fn the_v19_estimate_covers_every_job_leaf_splitting() {
     let before = on_disk();
     let opened = Store::open(&path);
     crate::OPEN_FREE_BYTES.set(None);
-    let store = opened.unwrap();
-    // Measured with the store still open: the WAL keeps its size until the
-    // next write (closing would checkpoint and remove it).
-    let used = on_disk() - before;
-    drop(store);
+    drop(opened.unwrap());
+    let used = on_disk() + crate::UPGRADE_WAL.get() - before;
     let snapshot = std::fs::metadata(snapshot_path(&path, 18).unwrap())
         .unwrap()
         .len();
