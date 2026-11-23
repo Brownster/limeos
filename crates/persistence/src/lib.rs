@@ -507,6 +507,7 @@ fn open_reader(path: &Path) -> Result<Connection> {
             "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA wal_autocheckpoint=0;",
         )
         .map_err(durable)?;
+    cache::settle(&reader, cache::READER_KIB)?;
     Ok(reader)
 }
 
@@ -802,6 +803,10 @@ impl Store {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
+        // A migration keeps SQLite's default cache until it commits (`cache`).
+        if version == SCHEMA_VERSION {
+            cache::settle(&conn, cache::WRITER_KIB)?;
+        }
         // Measured before the transaction: `temp_store` cannot change inside
         // one, and no earlier migration touches `events`.
         let upgrading = (1..INDEXED_SCHEMA).contains(&version);
@@ -956,6 +961,7 @@ impl Store {
             conn.execute_batch("PRAGMA temp_store=DEFAULT")
                 .map_err(durable)?;
         }
+        cache::settle(&conn, cache::WRITER_KIB)?;
         Ok(Self {
             conn,
             _lock: lock,
@@ -1027,6 +1033,7 @@ pub use automation::{
 };
 mod backup_preparation;
 mod budgets;
+mod cache;
 mod compose;
 mod core_lock;
 mod identity_enablement;

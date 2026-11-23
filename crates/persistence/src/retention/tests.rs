@@ -1136,3 +1136,115 @@ fn thirty_days_at_the_minimum_interval() {
     let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     assert_eq!(audit(&store), events(&store) * EVENT_BYTES);
 }
+
+/// WAL bytes one retention pass writes when it removes a full batch of
+/// settled events from a store at its budget, with the writer's cache at
+/// `cache_kib`. Automatic checkpoints are off so the WAL keeps every frame.
+fn wal_bytes_of_a_full_event_batch(cache_kib: u32) -> (u64, i64) {
+    let (dir, mut store, actor) = setup();
+    let path = dir.path().join("core.sqlite");
+    let base = 1_000_000;
+    let mut written = 0;
+    while written < BUDGET_ROWS + EVENT_BATCH {
+        fill(&mut store, &actor.id, EVENT_BATCH, base);
+        written += EVENT_BATCH;
+    }
+    store
+        .conn
+        .execute_batch(&format!(
+            "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0; PRAGMA cache_size=-{cache_kib}; PRAGMA shrink_memory;"
+        ))
+        .unwrap();
+    let before = events(&store);
+    store.prune().unwrap();
+    let removed = before - events(&store);
+    let wal = std::fs::metadata(path.with_extension("sqlite-wal"))
+        .unwrap()
+        .len();
+    (wal, removed)
+}
+
+#[test]
+fn a_full_retention_batch_writes_no_more_with_the_small_cache() {
+    // A cache too small for a transaction's pages spills them into the WAL
+    // before commit and writes some twice; the writer's cache must not.
+    let (default_wal, default_removed) = wal_bytes_of_a_full_event_batch(2000);
+    let (small_wal, small_removed) = wal_bytes_of_a_full_event_batch(crate::cache::WRITER_KIB);
+    assert_eq!(default_removed, EVENT_BATCH);
+    assert_eq!(small_removed, EVENT_BATCH);
+    assert_eq!(small_wal, default_wal);
+    // The batch's pages, so the margin to the cache size is visible: one WAL
+    // frame is a 24-byte header and a 4096-byte page, after a 32-byte header.
+    let pages = (small_wal - 32) / (4096 + 24);
+    eprintln!(
+        "full event batch: {pages} pages written; writer cache {} KiB = {} pages",
+        crate::cache::WRITER_KIB,
+        crate::cache::WRITER_KIB / 4
+    );
+    assert!(
+        pages * 4 * 2 <= crate::cache::WRITER_KIB as u64,
+        "a full batch writes {pages} pages, more than half the writer's cache"
+    );
+}
+
+#[test]
+fn every_store_connection_has_its_cache_size() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core.sqlite");
+    let cache = |conn: &Connection| -> i64 {
+        conn.pragma_query_value(None, "cache_size", |r| r.get(0))
+            .unwrap()
+    };
+    // Created (a migration from nothing), then reopened (no migration).
+    let store = Store::open(&path).unwrap();
+    assert_eq!(cache(&store.conn), -(crate::cache::WRITER_KIB as i64));
+    drop(store);
+    let store = Store::open(&path).unwrap();
+    assert_eq!(cache(&store.conn), -(crate::cache::WRITER_KIB as i64));
+    let reader = crate::open_reader(&path).unwrap();
+    assert_eq!(cache(&reader), -(crate::cache::READER_KIB as i64));
+    drop((store, reader));
+    // Every SQLite connection this crate opens outside its tests is one of
+    // these, each named with its cache; a new one fails here until it has one.
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sites = Vec::new();
+    let mut stack = vec![src.clone()];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let name = path
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            if name.ends_with("tests.rs") || name == "scale.rs" || name.contains("tests/") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            // Production code ends where the file's test module starts.
+            let text = text.split("#[cfg(test)]\nmod tests").next().unwrap();
+            for _ in text.matches("Connection::open") {
+                sites.push(name.clone());
+            }
+        }
+    }
+    sites.sort();
+    assert_eq!(
+        sites,
+        [
+            // The writer (`cache::WRITER_KIB`), the reader (`cache::READER_KIB`)
+            // and `upgrade_space`'s read-only look at a store before it is
+            // opened, closed before it returns.
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            // `resources::check`'s in-memory reference schema.
+            "resources.rs",
+        ],
+        "a new SQLite connection: give it a cache size (see `cache`) and list it here"
+    );
+}

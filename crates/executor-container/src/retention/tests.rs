@@ -1194,3 +1194,102 @@ fn a_schema_six_store_that_may_have_pruned_without_a_watermark_never_claims_neve
         ReceiptAbsence::NoLongerHeld
     );
 }
+
+/// WAL bytes of one prune transaction that removes a full `PRUNE_BATCH` of
+/// standalone receipts (1 KiB each, larger than a real one) at `cache_kib`.
+fn wal_bytes_of_a_full_prune_batch(cache_kib: u32) -> (u64, u32) {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let receipt = format!("{{\"padding\":\"{}\"}}", "x".repeat(1000));
+    for i in 0..RETAINED_ACTIONS + PRUNE_BATCH {
+        store
+            .conn
+            .execute(
+                "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?,?,?,'verified',?,'restart',0)",
+                params![format!("a{i}"), format!("d{i}"), format!("container:a{i}"), receipt],
+            )
+            .unwrap();
+    }
+    store
+        .conn
+        .execute_batch(&format!(
+            "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA wal_autocheckpoint=0; PRAGMA cache_size=-{cache_kib}; PRAGMA shrink_memory;"
+        ))
+        .unwrap();
+    let tx = store.conn.transaction().unwrap();
+    let removed = prune(&tx, 100_000).unwrap();
+    tx.commit().unwrap();
+    let wal = std::fs::metadata(dir.path().join("receipts.sqlite-wal"))
+        .unwrap()
+        .len();
+    (wal, removed)
+}
+
+#[test]
+fn a_full_prune_batch_writes_no_more_with_the_small_cache() {
+    // A cache too small for a transaction's pages spills them into the WAL
+    // before commit and writes some twice; the store's cache must not.
+    let (default_wal, default_removed) = wal_bytes_of_a_full_prune_batch(2000);
+    let (small_wal, small_removed) = wal_bytes_of_a_full_prune_batch(crate::CACHE_KIB);
+    assert_eq!((default_removed, small_removed), (PRUNE_BATCH, PRUNE_BATCH));
+    assert_eq!(small_wal, default_wal);
+    let pages = (small_wal - 32) / (4096 + 24);
+    eprintln!(
+        "full prune batch: {pages} pages written; cache {} KiB = {} pages",
+        crate::CACHE_KIB,
+        crate::CACHE_KIB / 4
+    );
+    assert!(
+        pages * 4 * 2 <= crate::CACHE_KIB as u64,
+        "a full batch writes {pages} pages, more than half the cache"
+    );
+}
+
+#[test]
+fn the_receipt_connection_has_its_cache_size() {
+    let dir = private_dir();
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    let cache: i64 = store
+        .conn
+        .pragma_query_value(None, "cache_size", |r| r.get(0))
+        .unwrap();
+    assert_eq!(cache, -(crate::CACHE_KIB as i64));
+    drop(store);
+    // Reopened: no migration runs, the size is the same.
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    let cache: i64 = store
+        .conn
+        .pragma_query_value(None, "cache_size", |r| r.get(0))
+        .unwrap();
+    assert_eq!(cache, -(crate::CACHE_KIB as i64));
+    // The store is this crate's only SQLite connection outside its tests; a
+    // new one fails here until it has a cache size too.
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sites = Vec::new();
+    let mut stack = vec![src.clone()];
+    while let Some(directory) = stack.pop() {
+        for entry in std::fs::read_dir(directory).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let name = path
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .into_owned();
+            if name.ends_with("tests.rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let text = text.split("#[cfg(test)]\nmod tests").next().unwrap();
+            sites.extend(text.matches("Connection::open").map(|_| name.clone()));
+        }
+    }
+    assert_eq!(
+        sites,
+        ["lib.rs"],
+        "a new SQLite connection: give it a cache size and list it here"
+    );
+}
