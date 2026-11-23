@@ -1198,3 +1198,170 @@ fn the_v19_estimate_covers_every_job_leaf_splitting() {
         needed - MIN_FREE_BYTES
     );
 }
+
+static SHM_SEEN: std::sync::Mutex<Vec<bool>> = std::sync::Mutex::new(Vec::new());
+fn note_shm(path: &Path) {
+    let mut shm = path.as_os_str().to_owned();
+    shm.push("-shm");
+    SHM_SEEN.lock().unwrap().push(PathBuf::from(shm).exists());
+}
+/// What actually happens with SQLite's WAL index during an upgrade: the
+/// exclusive connection has a `-shm` file too (SQLite creates it when the
+/// `locking_mode` statement runs, before the exclusive lock is taken), at
+/// the store's hash and before the migration. The zero-slack space test
+/// counts it; if SQLite ever keeps it in heap memory, this fails and that
+/// accounting should change.
+#[test]
+fn the_upgrade_connection_has_a_wal_index_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), SCHEMA_VERSION - 1);
+    assert!(!dir.path().join("core.sqlite-shm").exists());
+    SHM_SEEN.lock().unwrap().clear();
+    super::snapshot::INTERLOPER.set(Some(note_shm));
+    crate::BEFORE_MIGRATING.set(Some(note_shm));
+    let opened = Store::open(&path);
+    super::snapshot::INTERLOPER.set(None);
+    crate::BEFORE_MIGRATING.set(None);
+    drop(opened.unwrap());
+    assert_eq!(*SHM_SEEN.lock().unwrap(), [true, true]);
+    // On a bare connection too: absent after opening, present right after
+    // the pragma.
+    let raw = Connection::open(&path).unwrap();
+    assert!(!dir.path().join("core.sqlite-shm").exists());
+    raw.pragma_update(None, "locking_mode", "EXCLUSIVE")
+        .unwrap();
+    assert!(dir.path().join("core.sqlite-shm").exists());
+}
+
+/// The child half of `another_process_cannot_reach_the_store_during_an_upgrade`:
+/// with `LIMEOS_OUTSIDE_STORE` set, tries to read and then write that store
+/// without waiting, and exits with 10 plus 1 if it read and 2 if it wrote.
+#[test]
+fn outside_process_helper() {
+    let Some(path) = std::env::var_os("LIMEOS_OUTSIDE_STORE") else {
+        return;
+    };
+    let mut code = 10;
+    if let Ok(conn) = Connection::open(Path::new(&path)) {
+        conn.busy_timeout(Duration::ZERO).unwrap();
+        if conn
+            .query_row("SELECT count(*) FROM budgets", [], |r| r.get::<_, i64>(0))
+            .is_ok()
+        {
+            code += 1;
+        }
+        if conn
+            .execute(
+                "INSERT INTO budgets(id,limit_units) VALUES ('outside',1)",
+                [],
+            )
+            .is_ok()
+        {
+            code += 2;
+        }
+    }
+    std::process::exit(code);
+}
+/// What the outside process achieved at each hook, as its exit codes.
+static OUTSIDE: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
+fn from_outside(path: &Path) {
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "migrations::tests::outside_process_helper"])
+        .env("LIMEOS_OUTSIDE_STORE", path)
+        .status()
+        .unwrap();
+    OUTSIDE.lock().unwrap().push(status.code().unwrap_or(-1));
+}
+/// The exclusive lock is an operating-system lock, not only SQLite's
+/// bookkeeping inside this process: a separate process (this test binary
+/// run again) can neither read nor write the store between its hash and
+/// the copy, nor between the snapshot and the migration. A raw descriptor
+/// of the store opened and closed during the hold would drop the lock and
+/// fail this test while the in-process one still passed.
+#[test]
+fn another_process_cannot_reach_the_store_during_an_upgrade() {
+    let from = SCHEMA_VERSION - 1;
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), from);
+    OUTSIDE.lock().unwrap().clear();
+    super::snapshot::INTERLOPER.set(Some(from_outside));
+    crate::BEFORE_MIGRATING.set(Some(from_outside));
+    let opened = Store::open(&path);
+    super::snapshot::INTERLOPER.set(None);
+    crate::BEFORE_MIGRATING.set(None);
+    drop(opened.unwrap());
+    assert_eq!(*OUTSIDE.lock().unwrap(), [10, 10], "locked out at both");
+    assert_eq!(budget_rows(&path, "outside"), 0);
+    // And it reaches the store once the upgrade is done.
+    from_outside(&path);
+    assert_eq!(OUTSIDE.lock().unwrap()[2], 13);
+}
+
+/// A program that has the store open blocks an upgrade, which then refuses
+/// after half a second, changes nothing and is noted for core to say why.
+#[test]
+fn an_open_store_blocks_the_upgrade_and_says_so() {
+    let from = SCHEMA_VERSION - 1;
+    let dir = tempfile::tempdir().unwrap();
+    let path = store_at(dir.path(), from);
+    let other = Connection::open(&path).unwrap();
+    other
+        .query_row("SELECT count(*) FROM budgets", [], |r| r.get::<_, i64>(0))
+        .unwrap();
+    assert_eq!(
+        Store::open(&path).err().unwrap().0,
+        ErrorCode::StateNotDurable
+    );
+    assert!(crate::upgrade_blocked(&path));
+    assert!(!crate::upgrade_blocked(&path), "reported once");
+    assert_eq!(user_version(&path), from);
+    assert!(snapshots(dir.path()).is_empty());
+    drop(other);
+    drop(Store::open(&path).unwrap());
+    assert!(!crate::upgrade_blocked(&path));
+}
+
+/// `RECOVERY_TREES` is the number of b-trees startup recovery's statements
+/// open for writing, read from SQLite's own plan of them on the current
+/// schema: an index added to `events` or `jobs` changes it.
+#[test]
+fn recovery_trees_match_the_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    let mut roots = std::collections::BTreeSet::new();
+    for sql in [
+        "EXPLAIN INSERT INTO events(principal,job,kind,created) SELECT principal,id,'k',1 FROM jobs WHERE state IN ('running','verifying')",
+        "EXPLAIN UPDATE jobs SET state='needs_intervention' WHERE state IN ('running','verifying')",
+    ] {
+        let mut stmt = store.conn.prepare(sql).unwrap();
+        let opened = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(1)?, r.get::<_, i64>(3)?)))
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap();
+        roots.extend(
+            opened
+                .into_iter()
+                .filter(|(opcode, _)| opcode == "OpenWrite")
+                .map(|(_, root)| root),
+        );
+    }
+    let names: Vec<String> = roots
+        .iter()
+        .map(|root| {
+            store
+                .conn
+                .query_row(
+                    "SELECT name FROM sqlite_schema WHERE rootpage=?",
+                    [root],
+                    |r| r.get(0),
+                )
+                .unwrap_or_else(|_| format!("root {root}"))
+        })
+        .collect();
+    assert_eq!(
+        u64::try_from(roots.len()).unwrap(),
+        crate::RECOVERY_TREES,
+        "{names:?}"
+    );
+}

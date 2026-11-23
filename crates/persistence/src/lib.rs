@@ -748,11 +748,20 @@ fn retention_writes(conn: &Connection) -> Result<u64> {
         * 2;
     Ok(table.saturating_add(index))
 }
+/// The b-trees SQLite's plan for startup recovery's two statements opens
+/// for writing, per interrupted job: `events`, its four indexes and its
+/// AUTOINCREMENT row in `sqlite_sequence`; `jobs` and four of its indexes
+/// (its primary key's, `jobs_state`, `jobs_resource_lock`, `jobs_retention`);
+/// and `resource_locks` with its two indexes, which the plan opens for the
+/// foreign keys. Not all of them change for a move from `running` or
+/// `verifying` to `needs_intervention` (no trigger fires for it, and a
+/// recovery event has no notification), so counting every opened tree is
+/// an upper bound. `recovery_trees_match_the_schema` reads the count from
+/// SQLite's plan, so a new index fails it.
+const RECOVERY_TREES: u64 = 14;
 /// What startup recovery writes for `interrupted` jobs, bounded from pages:
-/// each job gets one event row (the `events` table and its `events_scope`,
-/// `events_job` and `events_kind` indexes) and a state change (the `jobs`
-/// row and its `jobs_state` and `jobs_resource_lock` indexes): six b-tree
-/// inserts or moves. An insert into a packed index can split its leaf and,
+/// one insert or move in each of [`RECOVERY_TREES`] b-trees per job. An
+/// insert into a packed index can split its leaf and,
 /// in the worst case, every page up to the root; each split costs the page
 /// and its sibling in the WAL and the sibling in the database file. A tree
 /// of `pages` pages, every interior page holding at least four cells, is at
@@ -771,7 +780,7 @@ fn recovery_writes(conn: &Connection, interrupted: u64) -> Result<u64> {
         depth += 1;
     }
     Ok(interrupted
-        .saturating_mul(6 * 3)
+        .saturating_mul(RECOVERY_TREES * 3)
         .saturating_mul(depth)
         .saturating_mul(frame_bytes(conn)?))
 }
@@ -779,10 +788,17 @@ fn recovery_writes(conn: &Connection, interrupted: u64) -> Result<u64> {
 /// snapshot: the schema-17 index build when it crosses 17, and the
 /// schema-19 rewrite when it crosses 19 (like `INDEXED_SCHEMA`, keyed by
 /// version here rather than in the migration table), plus startup
-/// recovery ([`recovery_writes`]). Retention's `make_room`, which runs only
-/// when even the audit reserve cannot hold the recovery records, is not
-/// counted: its deletes rewrite pages of `events` and its indexes, a
-/// residual risk to the write reserve on such a store.
+/// recovery ([`recovery_writes`]).
+///
+/// Retention's `make_room` is not counted. It runs only when the audit
+/// history is at its cap and even the revocation reserve cannot hold the
+/// recovery records, and then deletes whole batches of history until they
+/// fit. Deleting never grows the database file (freed pages go to its
+/// freelist), but it does write the pages it changes to the WAL, so on such
+/// a store an upgrade can need more than its estimate. That is a residual
+/// risk, accepted because it needs the audit cap reached and jobs
+/// interrupted at the moment of an upgrade, and because running out then
+/// still changes nothing and is reported with figures.
 fn upgrade_writes(conn: &Connection, from: u32) -> Result<(IndexBuild, u64)> {
     let build = if (1..INDEXED_SCHEMA).contains(&from) {
         IndexBuild::measure(conn)?
@@ -881,6 +897,24 @@ pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
     let (_, _, space) = upgrade_figures(&conn, path, from, look, build, others).ok()?;
     (space.available < space.needed).then_some(space)
 }
+/// The store whose upgrade could not take its exclusive lock, noted for
+/// [`upgrade_blocked`].
+static BLOCKED: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+fn note_blocked(path: &Path) {
+    if let Ok(mut noted) = BLOCKED.lock() {
+        *noted = Some(path.to_path_buf());
+    }
+}
+/// After `Database::open` fails: whether a pending upgrade could not start
+/// because another program has the store open (it waits half a second for
+/// it). Reported once.
+pub fn upgrade_blocked(path: &Path) -> bool {
+    BLOCKED
+        .lock()
+        .ok()
+        .and_then(|mut noted| noted.take_if(|noted| noted == path))
+        .is_some()
+}
 /// The store whose last pre-upgrade snapshot was written without a durable
 /// record, noted for [`unrecorded_snapshot`].
 static UNRECORDED: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
@@ -973,7 +1007,10 @@ fn user_version(conn: &Connection) -> Result<u32> {
 /// `locking_mode=EXCLUSIVE` and makes an empty write transaction its first
 /// access, so that it holds the database file locked against every other
 /// connection, reading or writing, in this process or another, until it
-/// closes. (SQLite still creates the WAL index file for it.)
+/// closes. Like the normal connection it has a WAL-index file (`-shm`):
+/// SQLite creates it already when the `locking_mode` statement runs, so
+/// the WAL index is not kept in heap memory
+/// (`the_upgrade_connection_has_a_wal_index_file`).
 fn connect(path: &Path, directory: &Path, exclusive: bool) -> Result<Connection> {
     let flags = rusqlite::OpenFlags::default() | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW;
     #[cfg(test)]
@@ -1006,7 +1043,17 @@ fn connect(path: &Path, directory: &Path, exclusive: bool) -> Result<Connection>
         // comes with the first write transaction, and is then held until
         // the connection closes. Take it now, as the first access.
         conn.execute_batch("BEGIN IMMEDIATE; COMMIT;")
-            .map_err(durable)?;
+            .map_err(|error| {
+                // Another connection has the store open (a WAL connection
+                // holds a shared lock for as long as it is open).
+                if matches!(
+                    error.sqlite_error_code(),
+                    Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
+                ) {
+                    note_blocked(path);
+                }
+                durable(error)
+            })?;
     }
     conn.execute_batch("PRAGMA foreign_keys=ON;")
         .map_err(durable)?;
