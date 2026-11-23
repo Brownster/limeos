@@ -168,7 +168,7 @@ run, core and the reader must have used CPU and core must have written something
 synthetic measure.sh reports, and it runs under Debian 12 too.
 
 Every guest call has a bound (a window 380 s, a restart run 120 s, the apt steps
-120 to 300 s), and the suite has a 20-minute budget of its own. A hang therefore
+120 to 300 s), and the suite has a budget of its own (now 1,500 s, 25 minutes). A hang therefore
 ends the suite with its result written, not the job by cancellation. The suite
 prints a line per window and per restart, and its result, pass or fail, carries
 per-window and per-unit CPU, writes and PSS. The local runs were on a 2-vCPU,
@@ -227,15 +227,15 @@ its third window, idle, while the executors stayed put. Traced in the VM:
   against 2.8 MiB fresh). Core plus base executors came to 15.77 to 15.78 MiB,
   over the 15 MiB gate. After a 60 s burst of 8 clients, core sat 0.7 MiB higher
   for good (arenas and code pages).
-- **The change** (`crates/persistence/src/cache.rs`, `telemetry.rs`, the
-  receipt store): each connection gets a cache sized to its work. The
-  `core.sqlite` writer has 1024 KiB. A full retention batch (1024 events)
-  writes 72 pages, and the same WAL bytes as with the default, so nothing
-  spills. A migration keeps the default until it commits. The reader has 512
-  KiB, and `metrics.sqlite` and the container receipt store have 256 KiB each
-  (a full prune batch writes 26 pages, the same WAL bytes as with the
-  default). The open-time checks now read through the small caches. The soak
-  passed all five long tests. Its only moved figures are startup page reads:
+- **The change, first round** (`crates/persistence/src/cache.rs`,
+  `telemetry.rs`, the receipt store; sizes revised in the third round below):
+  each long-lived connection got a cache sized to its work, the writer 1024
+  KiB, the reader 512 KiB, `metrics.sqlite` and the container receipt store
+  256 KiB each, and the open-time checks read through the small caches. The
+  first-round evidence that nothing spilled (equal WAL lengths) was not proof;
+  see the third round. The soak
+  passed all five long tests. Its only moved figures (withdrawn with the rest of
+  that comparison; see the third round) are startup page reads:
   52 to 54 statements (the two cache pragmas), the core open's page reads per
   page of file at median 1.88 to 2.12 and at most 2.32 to 2.73 (bound 3.2), and
   "in the open beyond the statements cold" from at most -5 to at most 283 and
@@ -331,7 +331,7 @@ each):
 
 | Gate | Threshold | Runs 1 / 2 / 3 |
 |---|---|---|
-| Core plus base executors, idle PSS (every window) | ≤ 15 MiB | 14.05 / 13.96 / 14.09 MiB (core 10.74–10.81 MiB) |
+| Core plus base executors, idle PSS (every window) | ≤ 15 MiB then | 14.05 / 13.96 / 14.09 MiB (core 10.74–10.81 MiB) |
 | Resident disk writes (600 s) | < 13 MB/day | 7.074 / 7.074 / 7.073 MB/day |
 | Idle CPU (600 s) | < 0.3% | 0.2032 / 0.2032 / 0.1999 % |
 | Core ready after `systemctl restart` (median) | < 1000 ms | 171 / 139 / 141 ms |
@@ -339,16 +339,18 @@ each):
 - **PSS, 15 MiB.** The highest settled figure seen was 14.22 MiB, in the trace
   run. The threshold is 0.78 MiB above that, about three times the largest
   run-to-run swing (0.28 MiB, mostly the executors' shared code pages), so a
-  regression of a MiB fails. The number equals the old gate, but it now rests
-  on a measured plateau.
+  regression of a MiB fails. (Raised to 15.5 MiB in the third round, with the
+  runner's figure.)
 - **Disk, 13 MB/day.** The steady figure is 7.07. Three flushes in one 600 s
   give 10.6, and adding a checkpoint gives about 12.4; 13 MB/day passes those
-  alignments, fails a flush a third larger, and stays under the 20 MB/day
-  budget.
+  alignments and stays under the 20 MB/day budget. It fails when a steady
+  flush passes 45 KiB (1.9 times today's) with two flushes in the run, or 30
+  KiB with three, or when another idle writer adds about 6 MB/day.
 - **`AnonHugePages`** was 0 for every unit in every window.
 
-**Startup reads with the smaller writer cache.** The soak comparison above
-showed where the reads moved. On the soak's largest store (28 to 31 MiB, days
+**Startup reads with the smaller writer cache** (figures withdrawn: measured in
+a shared target directory; see the third round's clean comparison). The soak
+comparison above showed where the reads moved. On the soak's largest store (28 to 31 MiB, days
 27 to 54), core's open read 2.62 to 2.72 pages per page of file against 2.32 to
 2.44 before, 85% of the 3.2 bound. Over days 63 to 89 the figure was unchanged
 (1.75 to 1.93).
@@ -367,6 +369,138 @@ store, the default-cache check added 2.0 MiB of anonymous memory and
 `shrink_memory` gave back only 0.6 MiB of it: glibc keeps the freed pages. That
 would forfeit most of the saving, so the check stays on the small cache. The
 margin is recorded here, to revisit if the bound is approached.
+
+### Third round (24 November): spill proven, worst cases, a realistic seed, the runner
+
+**Spill, measured directly.** SQLite writes a transaction's pages to the WAL at
+commit, unless its cache cannot hold them. Then it spills dirty pages early, and
+a page changed again after its spill is written again. Equal final WAL lengths
+(the first round's test) cannot show this: SQLite overwrites a frame the same
+transaction already wrote.
+
+The tests now start each transaction from an empty WAL with automatic
+checkpoints off. Any WAL bytes on disk before the commit are a spill; the frames
+after it are the pages the transaction dirtied (`measured` in
+`crates/persistence/src/retention/tests.rs`, and its receipt-store twin). The
+fixtures are the worst shapes the code allows, with the bundled SQLite and 4 KiB
+pages:
+
+| Transaction | Pages dirtied | Spilled at 512 / 1024 / 1536 / 2000 KiB |
+|---|---|---|
+| Event batch (1,024 events), densely packed | 67 | 0 / 0 / 0 / 0 |
+| Event batch, 1 prunable in 2 among pinned history | 132 | 111 KB / 0 / 0 / 0 |
+| Event batch, 1 prunable in 4 | 272 | 684 KB / 223 KB / 0 / 0 |
+| Event batch, 1 prunable in 8 | 556 | 1.85 MB / 1.38 MB / 927 KB / 511 KB |
+| `make_room` at the cap (1 in 2), inside startup's transaction | 132 | 107 KB / 0 / 0 / 0 |
+| A day's job-row batch (10 jobs, interleaved) | 44 to 46 | not spilled at 1536 |
+| Backlog job-row batch (52 jobs, about 1,770 scattered events, the `ROWS` bound) | 442 | 1.38 MB / 894 KB / 437 KB / 21 KB |
+| Receipt store: full prune (tombstones) then a 16-member stack insert, random ids, real sizes | 109 | 4 KB at 512 KiB, 0 at 768 KiB |
+
+**Sizes, revised.**
+
+- **Writer: 1536 KiB.** This holds every normal shape in the table up to one
+  prunable event in four (272 of 384 pages, 41% headroom).
+  - One prunable event in eight spills even at SQLite's 2000 KiB default; such
+    layouts mean pinned history dominating, which is not normal operation.
+  - A backlog job-row batch spills 437 KB at this size, against 21 KB at the
+    default. It runs only while at least 64 settled jobs are past their horizon
+    and floor, as a month after a day of more than 1,000 jobs. A day's batch is
+    44 to 46 pages.
+  - Halving the job-row `ROWS` bound to 1,024 would roughly halve that batch.
+    That is proposed, not applied, since it changes retention's pace.
+- **Reader: 256 KiB.** The reader answers session and revocation checks only;
+  listings and job histories run on the writer (`crates/persistence/src/lib.rs`
+  around 330).
+- **Metrics store: 256 KiB.** Unchanged.
+- **Container receipt store: 768 KiB.** Its largest transaction dirties 109
+  pages and does not spill at 768 KiB; at 512 KiB it spilled.
+- **When each size is set:**
+  - Writer: size and `shrink_memory` before the check when the open runs no
+    migration (a migration keeps the default for its transaction), and again
+    after every open commits.
+  - Metrics store: size set before its check, with nothing yet to shrink.
+  - Receipt store: size and `shrink_memory` after any migration, before its
+    check.
+- **Which connections have one.** Every long-lived connection has a size. There
+  are two deliberate exceptions, each listed in the test that fails on a new
+  open: `upgrade_space`'s temporary read-only connection, closed before it
+  returns, and `resources::check`'s in-memory reference schema.
+
+In the VM these sizes change nothing measurable: `core.sqlite` is about 0.5 MB
+and the receipt store a few KiB, so no cache reaches its size. For a
+`core.sqlite` near its cap the estimate becomes at most 1.5 MiB (writer) plus
+0.25 MiB (reader) against 2 MiB plus 2 MiB at the default: about 2.2 MiB less.
+This is an estimate, not a measurement.
+
+**Startup reads at the final sizes.** The soak was run on the same tree twice,
+with and without the cache settings, each in a private target directory. The
+second round's comparison, and a first run this round, used the target
+directory other worktrees share; a crate built from another branch can stand
+in for this one's there, so those figures are withdrawn. The clean runs (both
+scenarios):
+
+| Figure | Without the cache settings | With them | Bound |
+|---|---|---|---|
+| Startup statements | 52 | 54 (the two cache pragmas) | — |
+| Core open, page reads per page of file, max | 2.306 / 2.448 | 2.443 / 2.712 | 3.2 |
+| Core open, beyond the statements cold, max | -8 / -49 pages | 4 / 248 pages | about 700 (3% plus 256) |
+| Receipt-store open, page reads per page, max | 1.249 / 1.281 | 1.870 / 1.868 | 2.0 |
+
+- **The 1536 KiB writer does not restore the core open's reads.** They still
+  rise, to 85% of the per-page bound and 35% of the other.
+- **The receipt store's open reads 1.87 pages per page, 93% of its bound.**
+  That was so at both 256 and 768 KiB: a measurement at each size on the same
+  7 MB store read 3,386 calls either way. The cause is checking through a cache
+  smaller than the store, against the default's 2000 KiB, which nearly holds the
+  soak's 2.4 MB store.
+- **The extra reads are re-reads of pages the open just read.** They come from
+  the kernel's page cache, not the SD card, unless memory is short. Open times
+  are unchanged: 5 to 7 ms for the receipt store, about 75 to 115 ms for core.
+- **The receipt bound's margin is thin.** The alternative is to run each
+  open-time check with the default cache and shrink after. That restores the
+  reads but keeps most of the memory, since glibc held 1.4 of 2.0 MiB after
+  `shrink_memory` in the Python test. On a receipt store at its retained
+  capacity that would be up to about 1.4 MiB more PSS in the container executor
+  (1.6 to 1.9 MiB today). Which to keep is left to the operator; nothing was
+  changed for it.
+
+**A realistic metrics seed.** Core appends samples in ascending time, five at
+a time, and prunes in the same transaction. The first seeding wrote 31 days at
+once, newest first: 546 pages and 2.2 MB, against the real layout's 315 pages
+and 1.14 to 1.29 MB. The suite now writes 35 days as core does: ascending, one
+transaction per five samples, each deleting what is 31 days older than its
+newest. The last four days of pruning and page reuse are therefore behind the
+store.
+
+On that store, the strace accounting gives the same per-flush writes as
+before: two frames (leaf 3, holding the oldest rows; leaf 315, the newest), 24,576
+bytes of `write_bytes`, and 49,152 for the first flush after a start. So
+**7.07 MB/day stands**.
+
+**Settled gates, final.** Three runs of the final suite on the ascending seed,
+with CI's package of `4b6c2b32` (cache sizes of the first round; the final
+sizes do not change these stores, see above). The runner column is CI run
+45232884985: earlier suite, newest-first seed, the same package.
+
+| Gate | Threshold | Laptop runs 1 / 2 / 3 | Runner |
+|---|---|---|---|
+| Core plus base executors, idle PSS (every window) | ≤ 15.5 MiB | 14.02 / 14.31 / 14.10 MiB | 14.26 MiB |
+| Resident disk writes (600 s) | < 13 MB/day | 7.074 / 7.074 / 7.074 MB/day | 7.073 MB/day |
+| Idle CPU (600 s) | < 0.3% | 0.2099 / 0.2066 / 0.2049 % | 0.1882 % (core 0.103, reader 0.070) |
+| Core ready after `systemctl restart` (median) | < 1000 ms | 161 / 189 / 157 ms | 143 ms |
+
+- **PSS, 15.5 MiB.**
+  - Nine settled figures span 13.94 to 14.31 MiB: six laptop runs, the runner
+    and two traces. Core alone is 10.67 to 11.06 MiB. The spread, 0.37 MiB, is
+    mostly the executors' shared code pages (they read 1.56 to 1.97 MiB each).
+  - 15 MiB would leave 0.69 MiB above the highest, under twice that spread.
+    15.5 MiB leaves 1.19 MiB, three times it, so noise does not fail it and a
+    regression of 1.5 MiB does.
+  - It is half the 30 MiB budget.
+- **CPU, 0.3%.** The runner now reads 0.148% and 0.188% in two runs; 0.3% is
+  1.43 times the highest figure from either host.
+- **Time.** The suite took 1,035 s on the runner, and the `debian-vm` job 31
+  minutes of its 45.
 
 The architecture budget for core plus base executors stays 30 MiB.
 
