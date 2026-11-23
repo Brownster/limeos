@@ -118,6 +118,10 @@ def main():
                         resource["status"] == "running"
                     )
                     status = 201
+                elif path.endswith("/jobs/needs-attention"):
+                    # Administrators' stuck-job listing: none in this scenario.
+                    assert request.method == "GET"
+                    data = []
                 elif path.endswith("/logs"):
                     assert request.method == "GET"
                     data = {
