@@ -588,21 +588,31 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
     let cutoff = sim.now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY;
     if watermark < sim.last_watermark {
         problems.push(format!(
-            "{when}: the prune watermark went back from day {:.3} to day {:.3}",
-            (sim.last_watermark - START) as f64 / DAY as f64,
-            (watermark - START) as f64 / DAY as f64
+            "{when}: the prune watermark went back from {} to {}",
+            watermark_day(sim.last_watermark),
+            watermark_day(watermark)
         ));
     }
     if watermark > cutoff {
         problems.push(format!(
-            "{when}: the prune watermark (day {:.3}) is past the youngest expiry retention may prune (day {:.3}): a receipt was pruned too early",
-            (watermark - START) as f64 / DAY as f64,
+            "{when}: the prune watermark ({}) is past the youngest expiry retention may prune (day {:.3}): a receipt was pruned too early",
+            watermark_day(watermark),
             (cutoff - START) as f64 / DAY as f64
         ));
     }
     sim.last_watermark = sim.last_watermark.max(watermark);
     for problem in problems {
         sim.violation(ACCOUNTING, problem);
+    }
+}
+
+/// A prune watermark as a simulated day, or "nothing pruned" for a store that
+/// has pruned nothing yet (its watermark below every expiry).
+fn watermark_day(watermark: i64) -> String {
+    if watermark == i64::MIN {
+        "nothing pruned".into()
+    } else {
+        format!("day {:.3}", (watermark - START) as f64 / DAY as f64)
     }
 }
 
@@ -1899,8 +1909,8 @@ fn report(sim: &Sim, profile: &Profile) {
         let executed = sim.exec.faults().effects.len();
         let _ = writeln!(
             p,
-            "receipt store: {actions} action rows and {stacks} stack rows kept of {executed} executes; prune watermark at day {:.2}",
-            (watermark - START) as f64 / DAY as f64
+            "receipt store: {actions} action rows and {stacks} stack rows kept of {executed} executes; prune watermark: {}",
+            watermark_day(watermark)
         );
     }
     let _ = writeln!(p, "faults: {:?}", sim.faults());
