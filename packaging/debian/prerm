@@ -55,7 +55,12 @@ fct_cgroup_state() {
     directory="${cgroup_root}${1}"
     [[ -e "${directory}" || -L "${directory}" ]] || return 0
     [[ -d "${directory}" && ! -L "${directory}" && -f "${directory}/cgroup.events" && ! -L "${directory}/cgroup.events" ]] || return 2
-    events="$(<"${directory}/cgroup.events")" || return 2
+    # Read with mapfile, never with a command substitution of a bare redirection:
+    # under set -e, bash 5.2 (Debian 12) ends the whole script when the file has
+    # vanished since the check above, whatever guards the substitution.
+    local -a lines=()
+    { mapfile -t lines <"${directory}/cgroup.events"; } 2>/dev/null || return 2
+    events="$(printf '%s\n' "${lines[@]}")"
     case $'\n'"${events}"$'\n' in
         *$'\npopulated 0\n'*) return 0 ;;
         *$'\npopulated 1\n'*) return 1 ;;
