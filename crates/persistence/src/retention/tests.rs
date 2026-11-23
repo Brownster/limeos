@@ -1373,12 +1373,15 @@ fn measure_writer_transactions_at_each_cache_size() {
 }
 
 /// The writer's cache holds the largest transactions retention runs in normal
-/// operation without spilling: a full event batch, dense and with one
-/// prunable event in four among pinned history; a day's job-row batch (ten
-/// jobs past the floor, six events each, interleaved); and startup's
-/// `make_room` at the cap. A backlog job-row batch (64 jobs, up to 2,048 rows
-/// scattered) does spill, at this size and at SQLite's default alike; see
-/// `cache` and `measure_writer_transactions_at_each_cache_size`.
+/// operation without spilling. Covered: a full event batch, densely packed
+/// and with one prunable event in four among pinned history; a day's job-row
+/// batch (ten jobs past the floor, six events each, interleaved); startup's
+/// `make_room` at the cap (one prunable in two). Deliberately not covered,
+/// because they spill at this size and at SQLite's 2000 KiB default alike: a
+/// backlog job-row batch (64 jobs, up to 2,048 rows scattered) and an event
+/// batch with one prunable event in eight. Their volumes and when they occur
+/// are in the plan's Phase 4 section; `measure_writer_transactions_at_each_cache_size`
+/// measures every shape at each size.
 #[test]
 fn the_writers_normal_transactions_do_not_spill() {
     let kib = crate::cache::WRITER_KIB;
@@ -1473,7 +1476,11 @@ fn every_store_connection_has_its_cache_size() {
             // closed when it ends; the reader (`cache::READER_KIB`); and
             // `upgrade_space`'s read-only look at a store before it is opened,
             // closed before it returns.
-            "lib.rs", "lib.rs", "lib.rs", "lib.rs", "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
+            "lib.rs",
             // `migrations`' in-memory reference schema.
             "migrations.rs",
             // The snapshot's verification of its copy, closed straight away.

@@ -411,7 +411,9 @@ def seeded_flushes(now):
 
 def seed_metrics():
     """Stop core, write its metrics store's last five weeks as core writes them, start it again:
-    the measured core opens a store laid out as a month-old host's is."""
+    the measured core opens a store laid out as a month-old host's is. Core's unit allows ten
+    starts in six hours; the suite starts it twice between resets (postinst's start on install,
+    this one), and measure.sh resets the count before each of its three restarts."""
     sh("systemctl stop limeos-core", 60)
     db = sqlite3.connect(METRICS, isolation_level=None)
     # The connection settings core's own uses (telemetry.rs), so pages split, free and are

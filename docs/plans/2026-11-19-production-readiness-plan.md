@@ -426,7 +426,7 @@ pages:
 | Event batch, 1 prunable in 4 | 272 | 684 KB / 223 KB / 0 / 0 |
 | Event batch, 1 prunable in 8 | 556 | 1.85 MB / 1.38 MB / 927 KB / 511 KB |
 | `make_room` at the cap (1 in 2), inside startup's transaction | 132 | 107 KB / 0 / 0 / 0 |
-| A day's job-row batch (10 jobs, interleaved) | 44 to 46 | not spilled at 1536 |
+| A day's job-row batch (10 jobs, interleaved) | 42 to 46 | not spilled at 1536 |
 | Backlog job-row batch (52 jobs, about 1,770 scattered events, the `ROWS` bound) | 442 | 1.38 MB / 894 KB / 437 KB / 21 KB |
 | Receipt store: full prune (tombstones) then a 16-member stack insert, random ids, real sizes | 109 | 4 KB at 512 KiB, 0 at 768 KiB |
 
@@ -439,9 +439,29 @@ pages:
   - A backlog job-row batch spills 437 KB at this size, against 21 KB at the
     default. It runs only while at least 64 settled jobs are past their horizon
     and floor, as a month after a day of more than 1,000 jobs. A day's batch is
-    44 to 46 pages.
+    42 to 46 pages.
   - Halving the job-row `ROWS` bound to 1,024 would roughly halve that batch.
     That is proposed, not applied, since it changes retention's pace.
+- **Known spill cases, accepted.** The two shapes that spill even at the
+  default are not changed in this branch (`ROWS` stays):
+  - **Backlog job-row batch:** 442 pages; spills 437 KB at 1536 KiB, 21 KB at
+    the default. It needs at least 64 settled jobs of one family past the
+    30-day horizon beyond the floor of 128, all at once. On a household host
+    (about 10 jobs a day, retention running every minute) jobs cross the
+    horizon a few at a time, so a backlog forms only after core has not pruned
+    for about a week (64 jobs at 10 a day), on the first prune after the
+    upgrade that brought job-row retention (every old settled job at once,
+    once), or 30 days after a burst of 64 or more jobs within a minute. Each
+    batch of such a backlog spills once: a 1,000-job backlog is about 16
+    batches, about 7 MB of extra writes, once.
+  - **Event batch with one prunable event in eight:** 556 pages; spills 927 KB
+    at 1536 KiB and 511 KB at the default. It needs seven pinned events for
+    every prunable one across the oldest 9,000 or so events. Pinned history is
+    the events of jobs still open or held for an operator, pinned automation
+    proofs and authority events. A household host's oldest events are almost
+    all prunable session events and settled-job histories (the soak's store at
+    its budget is), so this takes jobs left held for an operator for weeks with
+    long histories, not normal operation.
 - **Reader: 256 KiB.** The reader answers session and revocation checks only;
   listings and job histories run on the writer (`crates/persistence/src/lib.rs`
   around 330).
@@ -449,9 +469,10 @@ pages:
 - **Container receipt store: 768 KiB.** Its largest transaction dirties 109
   pages and does not spill at 768 KiB; at 512 KiB it spilled.
 - **When each size is set:**
-  - Writer: size and `shrink_memory` before the check when the open runs no
-    migration (a migration keeps the default for its transaction), and again
-    after every open commits.
+  - Writer: an upgrade runs on its own exclusive connection with SQLite's
+    default, and that connection closes when the upgrade ends. The normal
+    connection is sized, and shrunk, before the startup check when no upgrade
+    runs, and again after startup or after the upgrade in every case.
   - Metrics store: size set before its check, with nothing yet to shrink.
   - Receipt store: size and `shrink_memory` after any migration, before its
     check.
@@ -490,13 +511,30 @@ scenarios):
 - **The extra reads are re-reads of pages the open just read.** They come from
   the kernel's page cache, not the SD card, unless memory is short. Open times
   are unchanged: 5 to 7 ms for the receipt store, about 75 to 115 ms for core.
-- **The receipt bound's margin is thin.** The alternative is to run each
-  open-time check with the default cache and shrink after. That restores the
-  reads but keeps most of the memory, since glibc held 1.4 of 2.0 MiB after
-  `shrink_memory` in the Python test. On a receipt store at its retained
-  capacity that would be up to about 1.4 MiB more PSS in the container executor
-  (1.6 to 1.9 MiB today). Which to keep is left to the operator; nothing was
-  changed for it.
+- **Decided (24 November): keep the small-cache check.** Checking through the
+  default cache and shrinking afterwards would restore the reads but keep most
+  of the memory: glibc held 1.4 of 2.0 MiB after `shrink_memory` in the Python
+  test, up to 1.4 MiB more PSS in the container executor for good. The soak's
+  receipt bound is now derived instead of a bare 2.0
+  (`RECEIPT_PAGE_FACTOR` in `bins/core/src/soak/checks.rs`, and
+  `docs/soak.md`). Through a cache smaller than the store, `quick_check` walks
+  every B-tree page once for the structure and every table's pages again for
+  their NOT NULL and CHECK constraints. That is at most 2.0 reads per page,
+  measured 1.87; the open's other statements add a few pages. The bound is
+  2.2, which leaves room for new tables and fails any further full pass
+  (1.87 plus 1.0). Core's 3.2 stands, and its comment now records the 2.71
+  measured with the writer's cache.
+
+**On the merged tree** (with the migrations rework, 24 November) the soak
+passed again. Core's open read at most 2.463 and 2.711 pages per page (bound
+3.2), and at most 7 and 351 pages beyond the statements cold (bound about 700).
+The receipt store's open read at most 1.872 (bound now 2.2).
+
+**Core starts in the suite.** Core's unit now allows ten starts in six hours.
+The suite starts core twice between resets: postinst resets the count and
+starts it on install, and the suite starts it again after seeding. measure.sh
+resets the count before each of its three restarts, so no `reset-failed` is
+needed in the suite.
 
 **A realistic metrics seed.** Core appends samples in ascending time, five at
 a time, and prunes in the same transaction. The first seeding wrote 31 days at

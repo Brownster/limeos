@@ -1311,7 +1311,10 @@ fn measure_the_largest_receipt_transaction_at_each_cache_size() {
 #[ignore = "measurement: run with --ignored --nocapture"]
 fn measure_the_open_reads_of_a_full_store() {
     let (dir, store) = full_receipt_store();
-    store.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)").unwrap();
+    store
+        .conn
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
     drop(store);
     let io = || -> (u64, u64) {
         let text = std::fs::read_to_string("/proc/thread-self/io").unwrap();
@@ -1325,7 +1328,9 @@ fn measure_the_open_reads_of_a_full_store() {
         };
         (field("syscr"), field("rchar"))
     };
-    let file = std::fs::metadata(dir.path().join("receipts.sqlite")).unwrap().len();
+    let file = std::fs::metadata(dir.path().join("receipts.sqlite"))
+        .unwrap()
+        .len();
     for _ in 0..3 {
         let before = io();
         let opened = ReceiptStore::open(dir.path()).map(drop);
@@ -1344,6 +1349,8 @@ fn measure_the_open_reads_of_a_full_store() {
 /// The store's largest transaction (a stack's first write: a full prune
 /// batch, tombstones for legacy rows, then the stack and sixteen member rows,
 /// with random ids and real receipt sizes) fits its cache without spilling.
+/// Every other transaction the store runs writes one receipt or less than a
+/// full batch, so this one covers them; none is left out.
 #[test]
 fn the_largest_receipt_transaction_does_not_spill() {
     let (dir, mut store) = full_receipt_store();
