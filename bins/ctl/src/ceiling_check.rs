@@ -2,8 +2,8 @@
 //! makes on every read of its shared ceiling, run by the operator before an
 //! edit goes live. Executors reread the file per request, so a file this
 //! refuses makes a running executor answer every request `Unavailable`,
-//! with nothing failing visibly; the next restart or package configure then
-//! fails. The walk is `limeos_executor_storage::read_root_owned_json` and
+//! with nothing failing visibly; its next restart fails, and a package
+//! configure warns and leaves it unstarted (postinst). The walk is `limeos_executor_storage::read_root_owned_json` and
 //! the role check is `Ceiling::admit`, the same code the executors run.
 use limeos_executor_protocol::{Ceiling, CeilingRole};
 use std::path::Path;
