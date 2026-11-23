@@ -438,9 +438,78 @@ impl StorageTargetCeiling {
         Ok(())
     }
 }
+/// The executor role a shared ceiling is read by, fixed by argv at start.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CeilingRole {
+    /// `limeos-storaged`: host reads and health only.
+    Host,
+    /// `limeos-containerd`.
+    Container,
+    /// The shadow package's container executor (`read-only` in argv).
+    ContainerReadOnly,
+    /// `limeos-storage-reader`: storage, stack and container-health reads.
+    StorageReader,
+}
+impl CeilingRole {
+    /// The names `limeosctl check-ceiling` takes.
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "host" => CeilingRole::Host,
+            "container" => CeilingRole::Container,
+            "container-read-only" => CeilingRole::ContainerReadOnly,
+            "storage" => CeilingRole::StorageReader,
+            _ => return None,
+        })
+    }
+}
+/// Why a well-parsed ceiling is refused for a role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CeilingRefusal {
+    /// `core_uid` is 0.
+    RootCore,
+    /// Fails [`Ceiling::configuration_valid`].
+    Invalid,
+    /// The storage reader's ceiling grants no storage, stack or
+    /// container-health read.
+    ReaderWithoutReads,
+    /// The storage reader's read flags, on another role.
+    ReaderFlagsElsewhere,
+    /// Writes or logs on a role that never performs them.
+    WritesOnReadOnlyRole,
+}
+impl CeilingRefusal {
+    pub fn message(self) -> &'static str {
+        match self {
+            CeilingRefusal::RootCore => {
+                "the ceiling names core_uid 0; core runs as its own unprivileged user, so root is never accepted"
+            }
+            CeilingRefusal::Invalid => {
+                "the ceiling fails validation (version, list sizes or IDs, or a flag that needs another)"
+            }
+            CeilingRefusal::ReaderWithoutReads => {
+                "the storage reader requires a dedicated read-only ceiling granting a storage read"
+            }
+            CeilingRefusal::ReaderFlagsElsewhere => {
+                "storage, stack and container-health reads belong only to the storage reader"
+            }
+            CeilingRefusal::WritesOnReadOnlyRole => {
+                "this executor role cannot mutate containers or read their logs"
+            }
+        }
+    }
+}
+impl std::fmt::Display for CeilingRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.message())
+    }
+}
 impl Ceiling {
+    /// Whether the ceiling is well formed. A `core_uid` of 0 is refused, as
+    /// the storage ceilings refuse it: core never runs as root, and a root
+    /// peer must not pass the executors' peer check.
     pub fn configuration_valid(&self) -> bool {
         self.version == VERSION
+            && self.core_uid != 0
             && self.managed_containers.len() <= 64
             && self
                 .managed_containers
@@ -464,8 +533,89 @@ impl Ceiling {
     pub fn can_write(&self) -> bool {
         self.allow_restart || self.allow_start || self.allow_stop || self.allow_stack
     }
+    /// Whether this ceiling's flags permit a current-version `request` of
+    /// its kind, before any check of its fields; `None` for another
+    /// version, for kinds whose arm in `validate` answers `Forbidden`
+    /// itself (executes and logs, which also check the target), and for
+    /// requests this ceiling never serves.
+    fn grants(&self, request: &Request) -> Option<bool> {
+        use limeos_contracts::Source;
+        let (version, granted) = match request {
+            Request::ContainerHealth { version, .. } => (version, self.allow_container_health_read),
+            Request::StackInventory { version } => (version, self.allow_stack_read),
+            Request::ContainerStorageInventory { version }
+            | Request::Inspect { version, .. }
+            | Request::InspectStack { version, .. } => (version, self.allow_container_read),
+            Request::StorageInventory { version } => (version, self.allow_storage_read),
+            Request::Health { version } => (version, self.allow_health),
+            Request::ReceiptEpoch { version }
+            | Request::RestartReceipt { version, .. }
+            | Request::VerifyRestart { version, .. } => (version, self.can_write()),
+            Request::Observe {
+                version, source, ..
+            } => (
+                version,
+                match source {
+                    Source::Host => self.allow_host_read,
+                    Source::Docker => self.allow_container_read,
+                    _ => return None,
+                },
+            ),
+            Request::StackReceipt { version, .. } | Request::VerifyStack { version, .. } => {
+                (version, self.allow_stack)
+            }
+            Request::ResolveAction { version, kind, .. } => (
+                version,
+                match kind {
+                    limeos_domain::ResolveKind::Container => self.can_write(),
+                    limeos_domain::ResolveKind::Stack => self.allow_stack,
+                },
+            ),
+            _ => return None,
+        };
+        (*version == VERSION).then_some(granted)
+    }
+    /// Whether this ceiling may be served by `role`: `core_uid` is not 0,
+    /// the ceiling is well formed, and its flags suit the role. The
+    /// executors run this on every read of their ceiling, and
+    /// `limeosctl check-ceiling` runs the same check.
+    pub fn admit(&self, role: CeilingRole) -> std::result::Result<(), CeilingRefusal> {
+        if self.core_uid == 0 {
+            return Err(CeilingRefusal::RootCore);
+        }
+        if !self.configuration_valid() {
+            return Err(CeilingRefusal::Invalid);
+        }
+        let reader_flags =
+            self.allow_storage_read || self.allow_stack_read || self.allow_container_health_read;
+        match role {
+            CeilingRole::StorageReader if !reader_flags => Err(CeilingRefusal::ReaderWithoutReads),
+            CeilingRole::Host | CeilingRole::Container | CeilingRole::ContainerReadOnly
+                if reader_flags =>
+            {
+                Err(CeilingRefusal::ReaderFlagsElsewhere)
+            }
+            CeilingRole::ContainerReadOnly if self.can_write() => {
+                Err(CeilingRefusal::WritesOnReadOnlyRole)
+            }
+            CeilingRole::Host | CeilingRole::StorageReader
+                if self.can_write() || self.allow_container_logs =>
+            {
+                Err(CeilingRefusal::WritesOnReadOnlyRole)
+            }
+            _ => Ok(()),
+        }
+    }
     pub fn validate(&self, peer_uid: u32, request: &Request) -> Result<Receipt> {
         if !self.configuration_valid() || peer_uid != self.core_uid {
+            return Err(Error(ErrorCode::Forbidden));
+        }
+        // A current request this ceiling does not permit is the ceiling's
+        // "no" (`Forbidden`), which core treats as final, not a malformed
+        // request (`InvalidInput`, the fall-through below). With writes
+        // revoked, an operator's resolve request gets a definite refusal
+        // instead of being retried.
+        if self.grants(request) == Some(false) {
             return Err(Error(ErrorCode::Forbidden));
         }
         match request {
@@ -663,6 +813,7 @@ impl Ceiling {
     ) -> Result<()> {
         let id = resource.strip_prefix("container:").unwrap_or_default();
         if self.version != VERSION
+            || self.core_uid == 0
             || peer_uid != self.core_uid
             || !match operation {
                 limeos_domain::ContainerAction::Restart => self.allow_restart,
@@ -933,6 +1084,151 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+    #[test]
+    fn a_ceiling_naming_root_as_core_is_invalid_and_answers_nothing() {
+        let root: Ceiling =
+            serde_json::from_str(r#"{"version":1,"core_uid":0,"allow_health":true}"#).unwrap();
+        assert!(!root.configuration_valid());
+        assert_eq!(
+            root.validate(0, &Request::Health { version: VERSION })
+                .err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
+        let core = Ceiling {
+            core_uid: 1001,
+            ..root
+        };
+        assert!(core.configuration_valid());
+        assert!(
+            core.validate(1001, &Request::Health { version: VERSION })
+                .is_ok()
+        );
+    }
+    #[test]
+    fn a_request_kind_the_ceiling_does_not_grant_is_forbidden_not_invalid() {
+        let none: Ceiling =
+            serde_json::from_str(r#"{"version":1,"core_uid":1001,"allow_health":false}"#).unwrap();
+        let id = || "d".repeat(64);
+        let forbidden = Some(Error(ErrorCode::Forbidden));
+        for request in [
+            Request::Health { version: VERSION },
+            Request::ReceiptEpoch { version: VERSION },
+            Request::StackInventory { version: VERSION },
+            Request::StorageInventory { version: VERSION },
+            Request::ContainerStorageInventory { version: VERSION },
+            Request::Observe {
+                version: VERSION,
+                source: limeos_contracts::Source::Host,
+                active: false,
+            },
+            Request::Observe {
+                version: VERSION,
+                source: limeos_contracts::Source::Docker,
+                active: false,
+            },
+            Request::Inspect {
+                version: VERSION,
+                resource: format!("container:{}", id()),
+            },
+            Request::InspectStack {
+                version: VERSION,
+                project: "media".into(),
+            },
+            Request::ContainerHealth {
+                version: VERSION,
+                nonce: id(),
+            },
+            Request::VerifyRestart {
+                version: VERSION,
+                action: id(),
+                digest: id(),
+                after: container_plan().expected,
+            },
+        ] {
+            assert_eq!(
+                none.validate(1001, &request).err(),
+                forbidden,
+                "{}",
+                serde_json::to_string(&request).unwrap()
+            );
+        }
+        // Another protocol version is still malformed, granted or not.
+        assert_eq!(
+            none.validate(1001, &Request::Health { version: 99 }).err(),
+            Some(Error(ErrorCode::InvalidInput))
+        );
+        let health = Ceiling {
+            allow_health: true,
+            ..none
+        };
+        assert!(
+            health
+                .validate(1001, &Request::Health { version: VERSION })
+                .is_ok()
+        );
+        assert_eq!(
+            health
+                .validate(1001, &Request::Health { version: 99 })
+                .err(),
+            Some(Error(ErrorCode::InvalidInput))
+        );
+    }
+    #[test]
+    fn each_role_admits_only_a_ceiling_meant_for_it() {
+        use CeilingRole::*;
+        let parse = |json: &str| serde_json::from_str::<Ceiling>(json).unwrap();
+        let writer = parse(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_container_read":true,"allow_container_logs":true,"allow_restart":true,"managed_containers":[]}"#,
+        );
+        assert_eq!(writer.admit(Container), Ok(()));
+        assert_eq!(
+            writer.admit(ContainerReadOnly),
+            Err(CeilingRefusal::WritesOnReadOnlyRole)
+        );
+        assert_eq!(
+            writer.admit(Host),
+            Err(CeilingRefusal::WritesOnReadOnlyRole)
+        );
+        let logs = parse(
+            r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_container_read":true,"allow_container_logs":true}"#,
+        );
+        assert_eq!(logs.admit(ContainerReadOnly), Ok(()));
+        assert_eq!(logs.admit(Host), Err(CeilingRefusal::WritesOnReadOnlyRole));
+        let host =
+            parse(r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_host_read":true}"#);
+        assert_eq!(host.admit(Host), Ok(()));
+        assert_eq!(
+            host.admit(StorageReader),
+            Err(CeilingRefusal::ReaderWithoutReads)
+        );
+        let reader =
+            parse(r#"{"version":1,"core_uid":1001,"allow_health":true,"allow_stack_read":true}"#);
+        assert_eq!(reader.admit(StorageReader), Ok(()));
+        for role in [Host, Container, ContainerReadOnly] {
+            assert_eq!(
+                reader.admit(role),
+                Err(CeilingRefusal::ReaderFlagsElsewhere)
+            );
+        }
+        let root = Ceiling {
+            core_uid: 0,
+            ..host.clone()
+        };
+        for role in [Host, Container, ContainerReadOnly, StorageReader] {
+            assert_eq!(root.admit(role), Err(CeilingRefusal::RootCore));
+        }
+        let invalid = Ceiling { version: 2, ..host };
+        assert_eq!(invalid.admit(Host), Err(CeilingRefusal::Invalid));
+        for (name, role) in [
+            ("host", Host),
+            ("container", Container),
+            ("container-read-only", ContainerReadOnly),
+            ("storage", StorageReader),
+        ] {
+            assert_eq!(CeilingRole::parse(name), Some(role));
+        }
+        assert_eq!(CeilingRole::parse("storage-reader"), None);
     }
     #[test]
     fn storage_reader_has_an_independent_read_only_ceiling_and_no_path_or_effect_input() {
@@ -1284,14 +1580,22 @@ mod tests {
         assert!(ceiling.validate(1002, &resolve(Stack)).is_err());
         let mut no_stack = stack_ceiling();
         no_stack.allow_stack = false;
-        assert!(no_stack.validate(1001, &resolve(Stack)).is_err());
+        // Not permitted by the ceiling as read: a final "no", not a
+        // malformed request, so core withdraws the resolve request.
+        assert_eq!(
+            no_stack.validate(1001, &resolve(Stack)).err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
         assert!(no_stack.validate(1001, &resolve(Container)).is_ok());
         let mut read_only = stack_ceiling();
         read_only.allow_restart = false;
         read_only.allow_stop = false;
         read_only.allow_start = false;
         read_only.allow_stack = false;
-        assert!(read_only.validate(1001, &resolve(Container)).is_err());
+        assert_eq!(
+            read_only.validate(1001, &resolve(Container)).err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
         let mut wire = serde_json::to_value(resolve(Stack)).unwrap();
         assert_eq!(wire["operation"], "resolve_action");
         wire["force"] = serde_json::json!(true);
@@ -1326,7 +1630,10 @@ mod tests {
             plan: plan_of(Stack),
             disputed: false,
         };
-        assert!(ceiling.validate(1001, &bad).is_err());
+        assert_eq!(
+            ceiling.validate(1001, &bad).err(),
+            Some(Error(ErrorCode::InvalidInput))
+        );
         // The carried plan must be of the named kind and well formed.
         assert!(
             ceiling

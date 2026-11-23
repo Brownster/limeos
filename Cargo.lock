@@ -974,6 +974,7 @@ dependencies = [
  "limeos-domain",
  "limeos-executor-container",
  "limeos-executor-protocol",
+ "limeos-executor-storage",
  "limeos-persistence",
  "rustix",
  "serde",

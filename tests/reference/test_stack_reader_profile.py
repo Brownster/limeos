@@ -139,16 +139,18 @@ class StackReaderProfileTests(unittest.TestCase):
     def test_installation_cannot_enable_or_start_the_reader(self):
         self.assertNotIn("[Install]", UNIT.read_text())
         self.assertFalse(UNIT.with_suffix(".socket").exists())
-        # postinst names the reader only on its restart allowlist: it starts
-        # it again after an upgrade or abort when prerm recorded it running
-        # (PR-24, tests/repository/test_maintainer_scripts.py), never otherwise.
+        # postinst names the reader only on its restart allowlist, where it
+        # starts it again after an upgrade or abort when prerm recorded it
+        # running (PR-24, tests/repository/test_maintainer_scripts.py), and in
+        # the map from a refused ceiling to the unit it keeps from starting.
         lines = [
-            line
+            line.strip()
             for line in (ROOT / "packaging/debian/postinst").read_text().splitlines()
             if "storage-reader" in line
         ]
-        self.assertEqual(len(lines), 1)
+        self.assertEqual(len(lines), 2, lines)
         self.assertTrue(lines[0].startswith("RESTARTED_UNITS=("))
+        self.assertEqual(lines[1], "storage) printf '%s\\n' limeos-storage-reader.service ;;")
         self.assertNotIn(
             "storage-reader",
             (ROOT / "packaging/systemd/limeos-core.service").read_text(),

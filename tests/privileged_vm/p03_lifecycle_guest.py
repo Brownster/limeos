@@ -442,6 +442,7 @@ def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
 
     fixture.run("apt-get", "install", "-y", "limeos-shadow=" + package_version)
     shadow_path = Path("/etc/limeos-shadow/system-policy/container.json")
+    shadow_original = shadow_path.read_bytes()
     original = json.loads(shadow_path.read_text())
     for action in ["start", "stop"]:
         value = {
@@ -469,6 +470,10 @@ def main(package_version="0.3.2", authority_schema=5, qualify_upgrade=True):
             ),
             timeout=10,
         )
+    # Restore the package's ceiling before removing the package: remove keeps
+    # /etc, and a later install checks the kept file for the read-only shadow
+    # role (a write-enabled one is refused, and its executor is not started).
+    shadow_path.write_bytes(shadow_original)
     fixture.run("apt-get", "remove", "-y", "limeos-shadow")
     fixture.passed(
         "shadow independently refuses start-enabled and stop-enabled ceilings"

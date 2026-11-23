@@ -968,3 +968,24 @@ async fn crash_between_two_effects_keeps_the_first_result_and_never_sends_the_se
         recovered
     );
 }
+#[test]
+fn a_stack_is_authorized_only_for_core_and_never_for_a_root_core() {
+    let expected = request(ContainerAction::Restart).plan.expected;
+    assert!(
+        ceiling()
+            .authorize_stack(1001, &expected, ContainerAction::Restart)
+            .is_ok()
+    );
+    assert_eq!(
+        ceiling().authorize_stack(1002, &expected, ContainerAction::Restart),
+        Err(Error(ErrorCode::Forbidden))
+    );
+    let root = ContainerCeiling {
+        core_uid: 0,
+        ..ceiling()
+    };
+    assert_eq!(
+        root.authorize_stack(0, &expected, ContainerAction::Restart),
+        Err(Error(ErrorCode::Forbidden))
+    );
+}

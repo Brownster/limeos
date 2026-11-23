@@ -27,6 +27,8 @@ def run(*args, check=True, input=None, env=None):
     if check and result.returncode != 0:
         raise RuntimeError(
             f"{args[0]} failed ({result.returncode}): {result.stderr[-4096:]}"
+            # apt shows dpkg and maintainer-script output on stdout.
+            f"\nstdout: {result.stdout[-4096:]}"
         )
     return result
 
@@ -447,10 +449,16 @@ def main(package_version="0.1.0", upgrade_version="0.1.1"):
     policy = Path("/etc/limeos/system-policy/host.json")
     old_policy = policy.read_bytes()
     policy.write_bytes(b"{corrupt")
+    # A refused ceiling does not fail configure (that would leave every unit
+    # prerm stopped down and apt blocked): configure warns in one line, keeps
+    # the file and does not start its executor.
+    refused = run("/var/lib/dpkg/info/limeos.postinst", "configure", check=False)
+    assert refused.returncode == 0, refused.stderr
     assert (
-        run("/var/lib/dpkg/info/limeos.postinst", "configure", check=False).returncode
-        != 0
-    )
+        "LimeOS warning: /etc/limeos/system-policy/host.json is refused for the host executor role"
+        in refused.stderr
+    ), refused.stderr
+    assert "limeos-storaged.service is not (re)started" in refused.stderr
     assert policy.read_bytes() == b"{corrupt"
     policy.write_bytes(old_policy)
     run("/var/lib/dpkg/info/limeos.postinst", "configure")

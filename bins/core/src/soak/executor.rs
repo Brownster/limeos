@@ -315,6 +315,7 @@ impl Faults {
 struct Serving {
     role: ContainerRole<Docker>,
     ceiling: Arc<Ceiling>,
+    restart_ceiling: Arc<ContainerCeiling>,
     world: Arc<World>,
     clock: Clock,
     faults: Arc<Mutex<Faults>>,
@@ -439,6 +440,7 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
             let outcome = {
                 let handled = answer(
                     &serving.role,
+                    &serving.restart_ceiling,
                     peer.uid(),
                     request,
                     &mut receipt,
@@ -593,21 +595,12 @@ impl Executor {
             allow_stop: true,
             allow_container_logs: true,
             allow_stack: true,
-            managed_containers: managed_containers.clone(),
-            managed_stacks: managed_stacks.clone(),
-        };
-        assert!(ceiling.configuration_valid());
-        // As the daemon derives it from its ceiling.
-        let restart_ceiling = ContainerCeiling {
-            version: ceiling.version,
-            core_uid: ceiling.core_uid,
-            allow_restart: ceiling.allow_restart,
-            allow_start: ceiling.allow_start,
-            allow_stop: ceiling.allow_stop,
-            allow_stack: ceiling.allow_stack,
             managed_containers,
             managed_stacks,
         };
+        assert!(ceiling.configuration_valid());
+        // As the daemon derives it from its ceiling.
+        let restart_ceiling = limeos_executor::ceiling::container_ceiling(&ceiling);
         Self {
             dir: dir.to_path_buf(),
             socket,
@@ -663,10 +656,10 @@ impl Executor {
                 engine: Docker(self.world.clone()),
                 receipts: Some(Arc::new(tokio::sync::Mutex::new(store))),
                 epoch: Some(epoch),
-                ceiling: self.restart_ceiling.clone(),
                 docker: true,
             },
             ceiling: self.ceiling.clone(),
+            restart_ceiling: self.restart_ceiling.clone(),
             world: self.world.clone(),
             clock: self.clock.clone(),
             faults: self.faults.clone(),

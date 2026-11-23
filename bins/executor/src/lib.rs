@@ -1,5 +1,6 @@
 //! Shared retained read owners and the closed nonpersistent mount runtime.
 pub mod blocking_read;
+pub mod ceiling;
 pub mod container_requests;
 pub mod health_read;
 pub mod read_budget;
@@ -8,9 +9,12 @@ pub mod read_gate;
 pub mod read_launch;
 pub mod read_supervision;
 pub mod service;
+pub mod shared_role;
 pub mod stack_read;
 pub mod storage_mount_admission;
 pub mod storage_mount_supervision;
+#[cfg(test)]
+mod test_root;
 /// Host prerequisite and package planning with no production caller yet.
 #[cfg(feature = "deferred")]
 pub mod updates;
