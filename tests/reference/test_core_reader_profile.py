@@ -42,6 +42,9 @@ class CoreReaderProfile(unittest.TestCase):
             NotifyAccess=["main"],
             WatchdogSec=["30s"],
             TimeoutStartSec=["90s"],
+            # A store core cannot open or upgrade stops being retried.
+            StartLimitIntervalSec=["6h"],
+            StartLimitBurst=["10"],
         )
         self.assertEqual(actual, expected)
 
