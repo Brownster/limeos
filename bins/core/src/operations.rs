@@ -89,6 +89,8 @@ pub(super) struct Failure {
     /// received it. Any failure after the connection exists (writing,
     /// waiting, reading, a refusal, a deadline) leaves it true.
     pub(super) sent: bool,
+    /// With `RateLimited`: when the executor says its effect budget frees.
+    pub(super) budget_frees_at: Option<i64>,
 }
 
 /// Whether an error from an authorization read is a definite refusal of the
@@ -166,6 +168,7 @@ impl Core {
     ) -> std::result::Result<Receipt, Failure> {
         // Set once the connection exists, before the first byte is written.
         let mut sent = false;
+        let mut budget_frees_at = None;
         let outcome = tokio::time::timeout(deadline, async {
             let mut stream = UnixStream::connect(self.container_socket.as_ref())
                 .await
@@ -177,6 +180,7 @@ impl Core {
                 return Err(Error(ErrorCode::Unavailable));
             }
             if let Some(error) = response.error {
+                budget_frees_at = response.budget_frees_at;
                 return Err(Error(error));
             }
             if !response.ready {
@@ -194,7 +198,11 @@ impl Core {
         })
         .await
         .unwrap_or(Err(Error(ErrorCode::Unavailable)));
-        outcome.map_err(|error| Failure { error, sent })
+        outcome.map_err(|error| Failure {
+            error,
+            sent,
+            budget_frees_at,
+        })
     }
     /// The receipt store's current epoch, recorded (`observe_executor_epoch`)
     /// before it is returned. Asked immediately before a claim, which
@@ -499,6 +507,22 @@ impl Core {
             })
             .await
     }
+    /// Settles a claimed job whose execute was never sent or was refused
+    /// before the executor recorded anything: as refused, and with the
+    /// effect budget's free time when that budget refused it
+    /// (`note_execute_failure`).
+    pub(super) async fn settle_unsent(
+        &self,
+        id: String,
+        budget: Option<Option<i64>>,
+    ) -> Result<()> {
+        self.db
+            .call(move |s| match budget {
+                Some(frees_at) => s.record_budget_refusal(&id, frees_at, now()),
+                None => s.record_unsent_execute(&id, now()),
+            })
+            .await
+    }
     async fn mark(&self, job: &RestartJob, state: JobState) -> Result<()> {
         let id = job.id.clone();
         let from = job.state;
@@ -585,12 +609,8 @@ impl Core {
                 Err(failure) if !failure.sent || refused_before_any_row(failure.error) => {
                     // Never sent, or refused before the executor recorded
                     // anything: nothing ran or can run for this job.
-                    note_execute_failure(failure);
                     let id = job.id.clone();
-                    return self
-                        .db
-                        .call(move |s| s.record_unsent_execute(&id, now()))
-                        .await;
+                    return self.settle_unsent(id, note_execute_failure(failure)).await;
                 }
                 Err(failure) => {
                     note_execute_failure(failure);
@@ -868,15 +888,19 @@ pub(super) fn refused_before_any_row(error: Error) -> bool {
 /// other leaves it held for reconciliation. The clock-free barrier gets its
 /// own message, since after a backward clock step every new action is
 /// refused the same way, and so does the executor's effect budget.
-pub(super) fn note_execute_failure(failure: Failure) {
+/// For a refusal by the effect budget, returns `Some` with when the
+/// executor says the budget frees, for `Core::settle_unsent`.
+pub(super) fn note_execute_failure(failure: Failure) -> Option<Option<i64>> {
     if !failure.sent {
         tracing::warn!(
             "the container executor could not be reached; the execute request was never sent, and the job is released without effect"
         );
     } else if failure.error.0 == ErrorCode::RateLimited {
         tracing::warn!(
-            "executor refused the action: a container it would act on has spent its executor action budget (at most 10 effects in ten minutes and 60 a day); nothing was recorded or run, and the job is settled as refused; try again later, and read the executor's action log if no one here asked for that many"
+            frees_at = failure.budget_frees_at,
+            "executor refused the action: a container it would act on has spent its executor effect budget; nothing was recorded or run, and the job is settled as refused with the time the budget frees; read the executor's action log if no one here asked for that many effects"
         );
+        return Some(failure.budget_frees_at);
     } else if refused_before_any_row(failure.error) {
         tracing::warn!(
             "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether an action with it already ran; check the system clock (nothing was recorded or run, and the job is settled as refused)"
@@ -884,6 +908,7 @@ pub(super) fn note_execute_failure(failure: Failure) {
     } else {
         tracing::warn!(code=?failure.error.0, "execute call failed; the job is held for reconciliation");
     }
+    None
 }
 
 /// Logs when the store's writer has been on one item past `STORE_STALL`, and

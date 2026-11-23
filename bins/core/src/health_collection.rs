@@ -206,6 +206,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         epoch,
         logs,
         error,
+        budget_frees_at,
         storage,
         storage_targets,
         target_preparation,
@@ -215,6 +216,7 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
     if version != limeos_contracts::VERSION
         || !ready
         || error.is_some()
+        || budget_frees_at.is_some()
         || stack_cohort.is_some()
         || storage_mount_catalog.is_some()
         || storage_mount_inspection.is_some()

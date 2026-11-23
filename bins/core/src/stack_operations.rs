@@ -389,12 +389,8 @@ impl Core {
                 {
                     // Never sent, or refused before the executor recorded
                     // anything: nothing ran or can run for this job.
-                    super::operations::note_execute_failure(failure);
-                    let id = job.id.clone();
-                    return self
-                        .db
-                        .call(move |s| s.record_unsent_execute(&id, now()))
-                        .await;
+                    let budget = super::operations::note_execute_failure(failure);
+                    return self.settle_unsent(job.id.clone(), budget).await;
                 }
                 Err(failure) => {
                     super::operations::note_execute_failure(failure);

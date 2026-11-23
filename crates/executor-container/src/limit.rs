@@ -2,7 +2,7 @@
 //!
 //! Core is trusted within the ceiling, so a core that is compromised can ask
 //! for every effect the ceiling grants. The executor sees every effect, so it
-//! bounds them alone: each managed container may receive at most
+//! bounds them alone: each managed container may be charged at most
 //! [`BURST`] effects in any ten minutes and [`DAILY`] in any day, whatever
 //! the operation (restart, start and stop share one budget) and whether it
 //! comes alone or as a member of a stack action. A stack action is admitted
@@ -20,18 +20,33 @@
 //! transaction that prepares the action, so a crash cannot leave an effect
 //! uncharged or a charge without its receipt; and a `refused` row for a
 //! refusal. The budget is a count of a container's effect rows inside each
-//! window, so it survives a restart of the executor and needs no counter of
-//! its own. A member never sent (its stack stopped first, or its plan expired
-//! after prepare) is marked `not_sent` and no longer counts; an effect whose
-//! outcome was never recorded (a crash) counts.
+//! window, whatever their outcome, so it survives a restart of the executor
+//! and needs no counter of its own. A charge is never refunded: a member
+//! never sent (its stack stopped first, or its plan expired between prepare
+//! and the Engine call, which core can aim at since it writes the plan's
+//! expiry) still counts. So every effect row was admitted by the budget, and
+//! the budget bounds every row the log can hold (below).
+//!
+//! Atomicity. The check (`within_budget`) and the charge (the prepare
+//! transaction) are not one SQL transaction. They are atomic because every
+//! execute holds the receipt store's mutex for its whole call (the role takes
+//! it with `try_lock`, `bins/executor/src/container_requests.rs`), the
+//! receipt store takes `&mut self`, and no `.await` lies between the check
+//! and the commit that charges. A change that puts an await between them must
+//! move the check into the prepare transaction.
 //!
 //! Clock. Rows carry the wall clock (`CLOCK_REALTIME`), the clock that
 //! validates plans and the only one that means the same after a reboot. A
-//! row counts while `at > now - window`, so a row dated after `now` (the
-//! clock stepped back) still counts: a backward step of D keeps a recent
-//! charge for up to the window plus D, the strict direction. A forward step
-//! of D ages every row by D, so a container's budget can come back up to D
-//! early, at most once per step. Core cannot set the clock.
+//! row counts while `now - window < at <= now + window`. A row dated after
+//! `now` (the clock stepped back) still counts while it is within one window
+//! of `now`, so a small backward step holds a charge longer, the strict
+//! direction; a row further in the future (a clock that ran far ahead and was
+//! corrected) no longer counts, so a large backward step gives the budget
+//! back at most once, as a forward step of more than the window does. Without
+//! that bound, ten charges taken while a clock without a battery ran three
+//! years ahead would refuse the container for three years once it was
+//! corrected. Core cannot set the clock; each step changes at most one
+//! window's worth of budget.
 //!
 //! Failure. A budget that cannot be read refuses the effect
 //! (`StateNotDurable`), like any store failure before prepare. A refusal is
@@ -39,14 +54,17 @@
 //!
 //! Bounds. Rows are kept newest first up to [`LOG_ROWS`], removed oldest
 //! first in the inserting transaction by sequence number, never by the clock.
-//! Refusal rows are coalesced: at most one per container per
-//! [`REFUSAL_INTERVAL`], carrying the number of refusals since the previous
-//! one this process saw. So in any day at most [`MANAGED`] containers each
-//! write [`DAILY`] effect rows and 24 refusal rows, fewer than `LOG_ROWS`:
-//! no row a daily window counts is ever removed, and a flood of refused
-//! requests costs at most one write per container an hour. `effect_days`
-//! keeps per-day totals for [`DAYS_KEPT`] days, so the volume of past days
-//! survives after their rows were pushed out.
+//! Refusal rows are coalesced: none for a container while one of its refusal
+//! rows is within [`REFUSAL_INTERVAL`] of `now` either way, carrying the
+//! number of refusals since the previous one this process saw. So, the clock
+//! steady, a container has at most [`DAILY`] effect rows (of any outcome) and
+//! 25 refusal rows in any day, and [`MANAGED`] containers fewer than
+//! `LOG_ROWS` together: no row a daily window counts is ever removed, and a
+//! flood of refused requests costs at most one write per container an hour.
+//! Every class of row the log can hold is in that bound. Each clock step can
+//! add at most one more window's worth. `effect_days` keeps per-day totals
+//! for [`DAYS_KEPT`] days, so the volume of past days survives after their
+//! rows were pushed out.
 use super::*;
 use rusqlite::Transaction;
 
@@ -82,15 +100,18 @@ pub const DAYS_KEPT: i64 = 400;
 /// The most containers a ceiling lists (`ContainerCeiling::authorize`); every
 /// row names one, since a stack's targets must be listed too.
 pub const MANAGED: i64 = 64;
+/// Refusal rows one container can have in any day: one per interval, and
+/// one more where a day's boundary falls between two.
+pub const REFUSAL_ROWS: i64 = DAILY.seconds / REFUSAL_INTERVAL + 1;
 /// Refusals counted but not yet written, at most this many containers.
 const SUPPRESSED: usize = 256;
-// A day of the most every listed container can be charged and refused fits
-// in the log, so the daily window never loses a row it counts.
-const _: () =
-    assert!(MANAGED * (DAILY.effects as i64 + DAILY.seconds / REFUSAL_INTERVAL) < LOG_ROWS);
+// A day of every row every listed container can have (effect rows of any
+// outcome, all admitted by the budget, and refusal rows) fits in the log, so
+// the daily window never loses a row it counts.
+const _: () = assert!(MANAGED * (DAILY.effects as i64 + REFUSAL_ROWS) < LOG_ROWS);
 
 /// The schema step that adds the log (receipt schema 9).
-pub(crate) const SCHEMA: &str = "CREATE TABLE effect_log(seq INTEGER PRIMARY KEY,at INTEGER NOT NULL,kind TEXT NOT NULL CHECK(kind IN ('effect','refused')),resource TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop')),stack TEXT,action TEXT NOT NULL,peer INTEGER NOT NULL,principal TEXT NOT NULL,outcome TEXT CHECK(outcome IN ('effect_accepted','outcome_unknown','not_sent','rate_limited')),refusals INTEGER NOT NULL DEFAULT 0); CREATE INDEX effect_log_resource ON effect_log(resource,kind,at); CREATE TABLE effect_days(day INTEGER PRIMARY KEY,effects INTEGER NOT NULL,refusals INTEGER NOT NULL);";
+pub(crate) const SCHEMA: &str = "CREATE TABLE effect_log(seq INTEGER PRIMARY KEY,at INTEGER NOT NULL,kind TEXT NOT NULL CHECK(kind IN ('effect','refused')),resource TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop')),stack TEXT,action TEXT NOT NULL,peer INTEGER NOT NULL,principal TEXT NOT NULL,outcome TEXT CHECK(outcome IN ('effect_accepted','outcome_unknown','not_sent','rate_limited')),refusals INTEGER NOT NULL DEFAULT 0); CREATE INDEX effect_log_resource ON effect_log(resource,kind,at); CREATE TABLE effect_days(day INTEGER PRIMARY KEY,charges INTEGER NOT NULL,refusals INTEGER NOT NULL);";
 /// Every column, for the open's schema check.
 pub(crate) const COLUMNS: &str = "SELECT seq,at,kind,resource,operation,stack,action,peer,principal,outcome,refusals FROM effect_log LIMIT 0";
 
@@ -155,27 +176,45 @@ pub(crate) fn outcome(state: ExecutionState) -> Option<&'static str> {
 }
 
 /// The containers among `resources` with no room left in some window at
-/// `now`. Pure lookup.
+/// `now`, each with when it has room again by this clock: when enough of the
+/// charges it counts have left every window it is spent in. Pure lookup.
 pub(crate) fn spent(
     conn: &Connection,
     windows: &[Window],
     resources: &[&str],
     now: i64,
-) -> Result<Vec<String>> {
+) -> Result<Vec<(String, i64)>> {
     let mut spent = Vec::new();
     for resource in resources {
+        let mut frees = None;
         for window in windows {
+            let (from, to) = (
+                now.saturating_sub(window.seconds),
+                now.saturating_add(window.seconds),
+            );
             let used: u32 = conn
                 .query_row(
-                    "SELECT count(*) FROM effect_log WHERE resource=?1 AND kind='effect' AND at>?2 AND (outcome IS NULL OR outcome<>'not_sent')",
-                    params![resource, now.saturating_sub(window.seconds)],
+                    "SELECT count(*) FROM effect_log WHERE resource=?1 AND kind='effect' AND at>?2 AND at<=?3",
+                    params![resource, from, to],
                     |r| r.get(0),
                 )
                 .map_err(durable)?;
             if used >= window.effects {
-                spent.push((*resource).to_owned());
-                break;
+                // Room comes back when the charge that brings the count
+                // below the limit leaves the window.
+                let leaving: i64 = conn
+                    .query_row(
+                        "SELECT at FROM effect_log WHERE resource=?1 AND kind='effect' AND at>?2 AND at<=?3 ORDER BY at LIMIT 1 OFFSET ?4",
+                        params![resource, from, to, used - window.effects],
+                        |r| r.get(0),
+                    )
+                    .map_err(durable)?;
+                let at = leaving.saturating_add(window.seconds).max(now);
+                frees = Some(frees.map_or(at, |f: i64| f.max(at)));
             }
+        }
+        if let Some(frees) = frees {
+            spent.push(((*resource).to_owned(), frees));
         }
     }
     Ok(spent)
@@ -224,11 +263,15 @@ pub(crate) fn finish(tx: &Transaction<'_>, seq: i64, state: ExecutionState) -> R
     Ok(())
 }
 
-/// Add to the day's totals and keep the newest `DAYS_KEPT` days.
-fn tally(tx: &Transaction<'_>, now: i64, effects: i64, refusals: i64) -> Result<()> {
+/// Add to the day's totals and keep the newest `DAYS_KEPT` days. A day's
+/// `charges` counts every container charged that day, sent or not; its
+/// `refusals` counts the refusals its refusal rows stand for, booked to the
+/// day each row is written (a coalesced row carries refusals from up to an
+/// hour before it).
+fn tally(tx: &Transaction<'_>, now: i64, charges: i64, refusals: i64) -> Result<()> {
     tx.execute(
-        "INSERT INTO effect_days(day,effects,refusals) VALUES(?1,?2,?3) ON CONFLICT(day) DO UPDATE SET effects=effects+excluded.effects,refusals=refusals+excluded.refusals",
-        params![now.div_euclid(86_400), effects, refusals],
+        "INSERT INTO effect_days(day,charges,refusals) VALUES(?1,?2,?3) ON CONFLICT(day) DO UPDATE SET charges=charges+excluded.charges,refusals=refusals+excluded.refusals",
+        params![now.div_euclid(86_400), charges, refusals],
     )
     .map_err(durable)?;
     tx.execute(
@@ -252,28 +295,39 @@ fn trim(tx: &Transaction<'_>) -> Result<()> {
 
 impl ReceiptStore {
     /// Refuse with `RateLimited` an effect on `resources` when any of them
-    /// has no room left, recording the refusal (`refuse`). Before prepare:
-    /// nothing is recorded for the action.
+    /// has no room left, recording the refusal (`refuse`) and when every one
+    /// has room again (`take_frees_at`). Before prepare: nothing is recorded
+    /// for the action. The caller charges in the prepare transaction with no
+    /// await in between (see "Atomicity" above).
     pub(crate) fn within_budget(
         &mut self,
         entry: &Entry<'_>,
         resources: &[&str],
         now: i64,
     ) -> Result<()> {
+        self.frees_at = None;
         let spent = spent(&self.conn, self.windows, resources, now)?;
         if spent.is_empty() {
             return Ok(());
         }
-        for resource in &spent {
+        for (resource, frees) in &spent {
+            self.frees_at = Some(self.frees_at.map_or(*frees, |f| f.max(*frees)));
             self.refuse(entry, resource, now);
         }
         Err(Error(ErrorCode::RateLimited))
     }
 
-    /// One refusal for `resource`: written when no refusal row for it is
-    /// younger than `REFUSAL_INTERVAL` (none dated after `now` either, so a
-    /// clock stepped back delays rows rather than multiplying them), with
-    /// every refusal counted since the last row; otherwise counted.
+    /// After a `RateLimited` refusal: when, by the executor's clock, every
+    /// container the refused action would charge has room again.
+    pub fn take_frees_at(&mut self) -> Option<i64> {
+        self.frees_at.take()
+    }
+
+    /// One refusal for `resource`: written when none of its refusal rows is
+    /// within `REFUSAL_INTERVAL` of `now` either way (so a clock stepped back
+    /// a little delays rows rather than multiplying them, and one stepped
+    /// back a long way does not silence them), with every refusal counted
+    /// since the last row; otherwise counted.
     fn refuse(&mut self, entry: &Entry<'_>, resource: &str, now: i64) {
         let refusals = self
             .suppressed
@@ -303,14 +357,18 @@ impl ReceiptStore {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         let tx = self.conn.transaction().map_err(durable)?;
-        let last: Option<i64> = tx
+        let recent: bool = tx
             .query_row(
-                "SELECT max(at) FROM effect_log WHERE resource=?1 AND kind='refused'",
-                [resource],
+                "SELECT EXISTS(SELECT 1 FROM effect_log WHERE resource=?1 AND kind='refused' AND at>?2 AND at<?3)",
+                params![
+                    resource,
+                    now.saturating_sub(REFUSAL_INTERVAL),
+                    now.saturating_add(REFUSAL_INTERVAL)
+                ],
                 |r| r.get(0),
             )
             .map_err(durable)?;
-        if last.is_some_and(|last| last > now || now - last < REFUSAL_INTERVAL) {
+        if recent {
             return Ok(None);
         }
         tx.execute(

@@ -110,13 +110,13 @@ pub fn read(
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut statement =
-        conn.prepare("SELECT day,effects,refusals FROM effect_days ORDER BY day")?;
+        conn.prepare("SELECT day,charges,refusals FROM effect_days ORDER BY day")?;
     let days = statement
         .query_map([], |r| {
             let day: i64 = r.get(0)?;
             Ok(serde_json::json!({
                 "day": &utc(day.saturating_mul(86_400))[..10],
-                "effects": r.get::<_, i64>(1)?,
+                "charges": r.get::<_, i64>(1)?,
                 "refusals": r.get::<_, i64>(2)?,
             }))
         })?
@@ -206,7 +206,7 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO effect_days(day,effects,refusals) VALUES(20833,5,7)",
+            "INSERT INTO effect_days(day,charges,refusals) VALUES(20833,5,7)",
             [],
         )
         .unwrap();
@@ -221,7 +221,7 @@ mod tests {
         assert_eq!(rows[0]["stack"], serde_json::Value::Null);
         assert_eq!(
             days,
-            [serde_json::json!({"day": "2027-01-15", "effects": 5, "refusals": 7})]
+            [serde_json::json!({"day": "2027-01-15", "charges": 5, "refusals": 7})]
         );
         // Read-only: the reader wrote nothing.
         let (all, _) = read(dir.path(), 8192).unwrap();

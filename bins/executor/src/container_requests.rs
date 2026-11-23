@@ -69,6 +69,9 @@ where
                 .execute(&role.engine, ceiling, uid, &request, clock)
                 .await;
             journal(&mut store);
+            if budget_spent(&executed, &mut store, receipt) {
+                return Ok(());
+            }
             receipt.restart = Some(executed.inspect_err(note_refusal)?);
             receipt.epoch = Some(store.epoch().to_owned());
         }
@@ -132,6 +135,9 @@ where
                 .execute_stack(&role.engine, ceiling, uid, &request, clock)
                 .await;
             journal(&mut store);
+            if budget_spent(&executed, &mut store, receipt) {
+                return Ok(());
+            }
             receipt.stack = Some(executed.inspect_err(note_refusal)?);
             receipt.epoch = Some(store.epoch().to_owned());
         }
@@ -260,6 +266,19 @@ fn note_refusal(error: &Error) {
             "execute refused: the plan expires at or below the receipt store's prune watermark, so whether the action already ran can no longer be told; the system clock has probably stepped back, and plans are refused until it passes the watermark again"
         );
     }
+}
+
+/// An execute the effect budget refused: answered as a refusal (not ready,
+/// `rate_limited`) that also says when the budget frees, so core can tell
+/// the person. True when it was one.
+fn budget_spent<T>(executed: &Result<T>, store: &mut ReceiptStore, receipt: &mut Receipt) -> bool {
+    if !matches!(executed, Err(Error(ErrorCode::RateLimited))) {
+        return false;
+    }
+    receipt.ready = false;
+    receipt.error = Some(ErrorCode::RateLimited);
+    receipt.budget_frees_at = store.take_frees_at();
+    true
 }
 
 /// The message of the journal line for each effect in the action log.

@@ -221,6 +221,9 @@ async fn fixture() -> (
                     if let Some(code) = state.execute_error {
                         response.ready = false;
                         response.error = Some(code);
+                        if code == ErrorCode::RateLimited {
+                            response.budget_frees_at = Some(BUDGET_FREES_AT);
+                        }
                     }
                 }
                 if matches!(
@@ -505,6 +508,8 @@ async fn recovery_never_dispatches_again_and_closes_an_action_nothing_recorded()
         task.abort();
     }
 }
+/// When the fake executor says its effect budget frees.
+pub(super) const BUDGET_FREES_AT: i64 = 1_900_000_000;
 fn missing_events(progress: &limeos_contracts::JobProgress) -> usize {
     progress
         .events
@@ -1072,6 +1077,16 @@ async fn an_execute_refused_by_the_effect_budget_settles_the_job_as_refused() {
     let progress = settled(&core, &token, &job.id).await;
     assert_eq!(progress.job.state, JobState::PreconditionChanged);
     assert_eq!(missing_events(&progress), 0);
+    // The job's history says why, and when the budget frees.
+    assert_eq!(
+        record_events(
+            &progress,
+            &limeos_domain::EventKind::ExecutorBudgetSpent {
+                frees_at: Some(BUDGET_FREES_AT)
+            }
+        ),
+        1
+    );
     {
         let fixture = state.lock().unwrap();
         assert_eq!(

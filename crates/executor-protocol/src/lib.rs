@@ -279,6 +279,12 @@ pub struct Receipt {
     pub logs: Option<limeos_domain::ContainerLogs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorCode>,
+    /// Set with `error: rate_limited`: when, by the executor's clock, every
+    /// container the refused action would charge has room in its effect
+    /// budget again (ADR 0013).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(as = "Option<f64>", optional)]
+    pub budget_frees_at: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<limeos_domain::StorageInventory>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -856,6 +862,7 @@ impl Receipt {
             epoch: None,
             logs: None,
             error: None,
+            budget_frees_at: None,
             storage: None,
             storage_targets: None,
             target_preparation: None,

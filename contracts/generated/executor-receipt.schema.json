@@ -14,6 +14,14 @@
         }
       ]
     },
+    "budget_frees_at": {
+      "description": "Set with `error: rate_limited`: when, by the executor's clock, every\ncontainer the refused action would charge has room in its effect\nbudget again (ADR 0013).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int64"
+    },
     "closed": {
       "description": "Set by a receipt lookup or `ResolveAction` when the executor holds a\nclosure for the action, recorded now or earlier: no execute request\nfor it can run any more. Without it an absence proves nothing about an\nexecute request still on its way. Sent only when set, like every\nother optional answer, so a refusal stays version, `ready` and error.",
       "type": "boolean"

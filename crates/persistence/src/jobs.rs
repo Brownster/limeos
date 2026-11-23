@@ -246,6 +246,23 @@ impl Store {
     /// refusal does. Only a job still `running` (just claimed) qualifies; a
     /// repeat is `Conflict`.
     pub fn record_unsent_execute(&mut self, id: &str, now: i64) -> Result<()> {
+        self.settle_unsent(id, None, now)
+    }
+
+    /// As `record_unsent_execute`, for an execute the executor's effect
+    /// budget refused: the job's history also records why, and when the
+    /// budget frees (`EventKind::ExecutorBudgetSpent`), so the person sees
+    /// more than a refused job.
+    pub fn record_budget_refusal(
+        &mut self,
+        id: &str,
+        frees_at: Option<i64>,
+        now: i64,
+    ) -> Result<()> {
+        self.settle_unsent(id, Some(EventKind::ExecutorBudgetSpent { frees_at }), now)
+    }
+
+    fn settle_unsent(&mut self, id: &str, cause: Option<EventKind>, now: i64) -> Result<()> {
         self.write(|tx| {
             let (principal, intent): (String, String) = tx
                 .query_row("SELECT principal,intent FROM jobs WHERE id=?", [id], |r| {
@@ -274,6 +291,9 @@ impl Store {
                 != 1
             {
                 return Err(Error(ErrorCode::Conflict));
+            }
+            if let Some(cause) = cause {
+                event(tx, Some(&principal), Some(id), cause, now)?;
             }
             event(
                 tx,

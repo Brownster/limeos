@@ -183,7 +183,12 @@ impl Fixture {
     async fn restart(&mut self, c: char, now: i64) -> Result<RestartReceipt> {
         self.act(c, ContainerAction::Restart, now).await
     }
-    async fn stack(&mut self, operation: ContainerAction, now: i64) -> Result<StackReceipt> {
+    fn stack_request(
+        &mut self,
+        operation: ContainerAction,
+        now: i64,
+        expires_at: i64,
+    ) -> StackRequest {
         let plan = StackPlan {
             id: self.action(),
             version: limeos_domain::STACK_VERSION,
@@ -197,13 +202,16 @@ impl Fixture {
             )
             .unwrap(),
             created_at: now,
-            expires_at: now + PLAN_TTL_SECONDS,
+            expires_at,
         };
-        let request = StackRequest {
+        StackRequest {
             action: self.action(),
             plan_digest: limeos_identity::digest(&encode(&plan).unwrap()),
             plan,
-        };
+        }
+    }
+    async fn stack(&mut self, operation: ContainerAction, now: i64) -> Result<StackReceipt> {
+        let request = self.stack_request(operation, now, now + PLAN_TTL_SECONDS);
         let store = self.store.as_mut().unwrap();
         let receipt = store
             .execute_stack(&self.world, &ceiling(), 1001, &request, || now)
@@ -385,28 +393,12 @@ async fn a_stack_charges_every_target_and_is_refused_whole_when_one_is_spent() {
 }
 
 #[tokio::test]
-async fn members_never_sent_do_not_count_and_a_crash_before_the_outcome_does() {
+async fn every_charge_counts_whatever_its_outcome() {
     let mut f = Fixture::new();
     // a's effect fails: the stack stops there, b and c are never sent.
     *f.world.fail.lock().unwrap() = Some('a');
+    let request = f.stack_request(ContainerAction::Restart, T, T + PLAN_TTL_SECONDS);
     let store = f.store.as_mut().unwrap();
-    let plan = StackPlan {
-        id: "1".repeat(64),
-        version: limeos_domain::STACK_VERSION,
-        operation: ContainerAction::Restart,
-        principal: "alice".into(),
-        grant_revision: 1,
-        catalog_stack: "registered".into(),
-        expected: StackSnapshot::new("media", ['a', 'b', 'c'].map(|c| f.world.now(c)).to_vec())
-            .unwrap(),
-        created_at: T,
-        expires_at: T + PLAN_TTL_SECONDS,
-    };
-    let request = StackRequest {
-        action: "2".repeat(64),
-        plan_digest: limeos_identity::digest(&encode(&plan).unwrap()),
-        plan,
-    };
     store
         .execute_stack(&f.world, &ceiling(), 1001, &request, || T)
         .await
@@ -424,27 +416,157 @@ async fn members_never_sent_do_not_count_and_a_crash_before_the_outcome_does() {
             ("effect".to_owned(), 'c', Some("not_sent".to_owned()), 0),
         ]
     );
-    let resources = [resource('a'), resource('b')];
-    let charged = |f: &mut Fixture, window: &[Window]| {
+    // The unknown outcome counts, and so do the members never sent: a charge
+    // is never refunded, so no row escapes the budget.
+    let resources = [resource('a'), resource('b'), resource('c')];
+    let charged = |f: &mut Fixture| {
         let resources: Vec<&str> = resources.iter().map(String::as_str).collect();
-        spent(&f.store().conn, window, &resources, T + 1).unwrap()
+        let one = [Window {
+            seconds: 600,
+            effects: 1,
+        }];
+        spent(&f.store().conn, &one, &resources, T + 1)
+            .unwrap()
+            .into_iter()
+            .map(|(r, _)| r)
+            .collect::<Vec<_>>()
     };
-    // a's unknown outcome counts; b's unsent effect does not.
-    let one = [Window {
-        seconds: 600,
-        effects: 1,
-    }];
-    assert_eq!(charged(&mut f, &one), [resource('a')]);
-    // An outcome never recorded (a crash between prepare and the Engine
-    // call) counts.
+    assert_eq!(charged(&mut f), resources);
+    // So does an outcome never recorded (a crash between prepare and the
+    // Engine call).
     f.store()
         .conn
-        .execute(
-            "UPDATE effect_log SET outcome=NULL WHERE resource=?1",
-            [&resource('b')],
-        )
+        .execute("UPDATE effect_log SET outcome=NULL", [])
         .unwrap();
-    assert_eq!(charged(&mut f, &one), resources);
+    assert_eq!(charged(&mut f), resources);
+}
+
+/// A clock core can aim at: the plan is valid for every check before prepare
+/// (the first three readings) and expired at the re-check after it, as for
+/// a plan whose expiry core put just past the moment it sends it.
+fn aimed(valid: i64, expired: i64) -> impl Fn() -> i64 {
+    let readings = std::cell::Cell::new(0);
+    move || {
+        let n = readings.get();
+        readings.set(n + 1);
+        if n < 3 { valid } else { expired }
+    }
+}
+
+/// The attack the reviewers found: plans whose expiry falls between prepare
+/// and the Engine call leave rows that were charged but never sent, single
+/// and as stacks. A day of it every 61 s: every row is still admitted by the
+/// budget, no container holds more than a day's budget of effect rows and
+/// refusal rows, nothing reaches the Engine, and another container's counted
+/// charges stay in the log and keep counting.
+#[tokio::test]
+async fn charges_never_sent_cannot_flood_the_log_or_evict_another_containers_charges() {
+    let mut f = Fixture::new();
+    for i in 0..5 {
+        f.restart('e', T + i).await.unwrap();
+    }
+    let sent = f.world.effects();
+    let (mut admitted, mut refusals) = (0, 0);
+    let mut now = T + 10;
+    while now < T + DAILY.seconds {
+        let outcome = if now % 2 == 0 {
+            let mut request = f.container('a', ContainerAction::Restart, now);
+            request.plan.expires_at = now + 1;
+            request.plan_digest = limeos_identity::digest(&encode(&request.plan).unwrap());
+            let store = f.store.as_mut().unwrap();
+            store
+                .execute(&f.world, &ceiling(), 1001, &request, aimed(now, now + 1))
+                .await
+                .map(|r| r.state)
+        } else {
+            let request = f.stack_request(ContainerAction::Restart, now, now + 1);
+            let store = f.store.as_mut().unwrap();
+            store
+                .execute_stack(&f.world, &ceiling(), 1001, &request, aimed(now, now + 1))
+                .await
+                .map(|r| r.state)
+        };
+        match outcome {
+            Ok(state) => {
+                assert_eq!(state, ExecutionState::PreconditionChanged);
+                admitted += 1;
+            }
+            Err(Error(ErrorCode::RateLimited)) => refusals += 1,
+            Err(other) => panic!("{other:?} at {now}"),
+        }
+        now += 61;
+    }
+    assert_eq!(f.world.effects(), sent);
+    assert!(admitted > 0 && refusals > 0, "{admitted} {refusals}");
+    for c in ['a', 'b', 'c'] {
+        let r = resource(c);
+        let effects = f.rows(&format!(
+            "SELECT count(*) FROM effect_log WHERE resource='{r}' AND kind='effect'"
+        ));
+        let refused = f.rows(&format!(
+            "SELECT count(*) FROM effect_log WHERE resource='{r}' AND kind='refused'"
+        ));
+        assert!(
+            effects <= i64::from(DAILY.effects),
+            "{c}: {effects} effect rows"
+        );
+        assert!(refused <= REFUSAL_ROWS, "{c}: {refused} refusal rows");
+    }
+    assert!(
+        f.rows("SELECT count(*) FROM effect_log")
+            <= 5 + 3 * (i64::from(DAILY.effects) + REFUSAL_ROWS)
+    );
+    // e's five charges are all still there and still count.
+    let e = resource('e');
+    assert_eq!(
+        f.rows(&format!(
+            "SELECT count(*) FROM effect_log WHERE resource='{e}' AND kind='effect'"
+        )),
+        5
+    );
+    let five = [Window {
+        seconds: DAILY.seconds,
+        effects: 5,
+    }];
+    assert_eq!(
+        spent(&f.store().conn, &five, &[e.as_str()], T + 3600)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_refusal_says_when_every_container_it_names_has_room_again() {
+    let mut f = Fixture::new();
+    for i in 0..BURST.effects {
+        f.restart('a', T + i64::from(i)).await.unwrap();
+    }
+    assert_eq!(
+        refused(f.restart('a', T + 30).await),
+        ErrorCode::RateLimited
+    );
+    // The first charge leaves the burst window 600 s after it.
+    assert_eq!(f.store().take_frees_at(), Some(T + BURST.seconds));
+    assert_eq!(f.store().take_frees_at(), None);
+    // A stack names the latest of its spent members.
+    for i in 0..BURST.effects {
+        f.restart('b', T + 100 + i64::from(i)).await.unwrap();
+    }
+    assert_eq!(
+        refused(f.stack(ContainerAction::Restart, T + 200).await),
+        ErrorCode::RateLimited
+    );
+    assert_eq!(f.store().take_frees_at(), Some(T + 100 + BURST.seconds));
+    // A day spent: the charge that brings the count below the limit leaves
+    // the daily window.
+    let mut g = Fixture::new();
+    for i in 0..DAILY.effects {
+        g.restart('a', T + i64::from(i) * 360).await.unwrap();
+    }
+    let at = T + i64::from(DAILY.effects) * 360 + 3600;
+    assert_eq!(refused(g.restart('a', at).await), ErrorCode::RateLimited);
+    assert_eq!(g.store().take_frees_at(), Some(T + DAILY.seconds));
 }
 
 #[tokio::test]
@@ -464,25 +586,48 @@ async fn the_budget_survives_an_executor_restart() {
 }
 
 #[tokio::test]
-async fn a_clock_stepped_back_keeps_recent_charges_and_one_stepped_forward_ages_them() {
+async fn a_clock_step_changes_at_most_one_windows_worth_of_budget() {
     let mut f = Fixture::new();
     for i in 0..BURST.effects {
         f.restart('a', T + i64::from(i)).await.unwrap();
     }
-    // An hour back: every charge is dated after now, and still counts.
+    // Five minutes back: the charges are dated after now, within the burst
+    // window of it, and still count.
     assert_eq!(
-        refused(f.restart('a', T - 3600).await),
+        refused(f.restart('a', T - 300).await),
         ErrorCode::RateLimited
     );
-    // A day back, the same: a backward step only ever refuses more.
-    assert_eq!(
-        refused(f.restart('a', T - DAILY.seconds).await),
-        ErrorCode::RateLimited
-    );
+    // An hour back: further in the future than the burst window, so the
+    // burst comes back once; the daily window still counts them (ten of 60).
+    f.restart('a', T - 3600).await.unwrap();
     // Forward past the window: the charges have aged out.
     f.restart('a', T + BURST.seconds + 10).await.unwrap();
-    // Back again, before those charges: eleven now count against ten.
+    // Back again, before those charges: they are within the window of now
+    // again, and eleven now count against ten.
     assert_eq!(refused(f.restart('a', T).await), ErrorCode::RateLimited);
+
+    // A day's budget spent while the clock ran three years ahead.
+    let mut g = Fixture::new();
+    let ahead = T + 3 * 365 * DAILY.seconds;
+    for i in 0..DAILY.effects {
+        g.restart('a', ahead + i64::from(i) * 360).await.unwrap();
+    }
+    assert_eq!(
+        refused(g.restart('a', ahead + DAILY.seconds - 1).await),
+        ErrorCode::RateLimited
+    );
+    // Corrected: those charges are years in the future and no longer count,
+    // so the container is not refused for three years.
+    g.restart('a', T).await.unwrap();
+    // Corrected by less than a day, they still count until they age out.
+    let mut h = Fixture::new();
+    for i in 0..DAILY.effects {
+        h.restart('a', T + i64::from(i) * 360).await.unwrap();
+    }
+    assert_eq!(
+        refused(h.restart('a', T - 7200).await),
+        ErrorCode::RateLimited
+    );
 }
 
 #[tokio::test]
@@ -670,7 +815,7 @@ async fn one_record_per_effect_and_coalesced_records_for_a_flood_of_refusals() {
         .store()
         .conn
         .query_row(
-            "SELECT sum(effects),sum(refusals) FROM effect_days",
+            "SELECT sum(charges),sum(refusals) FROM effect_days",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
@@ -685,7 +830,7 @@ async fn the_log_and_its_daily_totals_stay_within_their_row_bounds() {
     f.store()
         .conn
         .execute_batch(&format!(
-            "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{rows}) INSERT INTO effect_log(at,kind,resource,operation,action,peer,principal,outcome) SELECT {old},'effect','{e}','restart','{x}',1001,'alice','effect_accepted' FROM n; WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{days}) INSERT INTO effect_days(day,effects,refusals) SELECT i,1,0 FROM n;",
+            "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{rows}) INSERT INTO effect_log(at,kind,resource,operation,action,peer,principal,outcome) SELECT {old},'effect','{e}','restart','{x}',1001,'alice','effect_accepted' FROM n; WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{days}) INSERT INTO effect_days(day,charges,refusals) SELECT i,1,0 FROM n;",
             rows = LOG_ROWS + 500,
             days = DAYS_KEPT + 50,
             old = T - 2 * DAILY.seconds,
@@ -734,4 +879,133 @@ fn a_store_from_before_the_log_gains_it_empty() {
         .query_row("SELECT count(*) FROM effect_log", [], |r| r.get(0))
         .unwrap();
     assert_eq!(rows, 0);
+}
+
+/// The receipt store with its retention saturated (1,024 standalone
+/// receipts, 256 stack receipts of `stack_members` members, every receipt as
+/// an execute writes it) and the action log full of rows of the longest
+/// values the protocol admits (a 128-byte principal, a 64-character
+/// project), plus 400 days of totals: (pages of the receipts alone, pages in
+/// all, file bytes, bytes of the log's b-trees). The executor opens it.
+fn saturated_with_a_full_log(stack_members: u32) -> (i64, i64, u64, i64) {
+    use limeos_domain::{StackMemberReceipt, StackReceipt};
+    let dir = private_dir();
+    let store = ReceiptStore::open(dir.path()).unwrap();
+    let id = |tag: u32, i: u32| format!("{tag:08x}{i:056x}");
+    let member = |i: u32| ContainerSnapshot {
+        resource: format!("container:{}", id(7, i)),
+        image: format!("sha256:{}", "b".repeat(64)),
+        started_at: "2026-10-05T07:00:00.000000000Z".into(),
+        running: true,
+    };
+    let tx = store.conn.unchecked_transaction().unwrap();
+    for i in 0..crate::retention::RETAINED_ACTIONS {
+        let receipt = RestartReceipt {
+            action: id(1, i),
+            plan_digest: id(2, i),
+            operation: ContainerAction::Restart,
+            before: member(i),
+            state: ExecutionState::Verified,
+            error: None,
+        };
+        tx.execute(
+            "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?1,?2,?3,'verified',?4,'restart',?5)",
+            params![receipt.action, receipt.plan_digest, receipt.before.resource, encode(&receipt).unwrap(), T],
+        )
+        .unwrap();
+    }
+    let members: Vec<_> = (0..stack_members).map(member).collect();
+    let project = "p".repeat(64);
+    for i in 0..crate::retention::RETAINED_STACKS {
+        let receipt = StackReceipt {
+            action: id(3, i),
+            plan_digest: id(4, i),
+            operation: ContainerAction::Restart,
+            before: StackSnapshot::new(&project, members.clone()).unwrap(),
+            state: ExecutionState::Verified,
+            members: members
+                .iter()
+                .map(|m| StackMemberReceipt {
+                    resource: m.resource.clone(),
+                    state: ExecutionState::Verified,
+                    error: None,
+                })
+                .collect(),
+            error: None,
+        };
+        tx.execute(
+            "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?1,?2,?3,'verified',?4,'restart',?5)",
+            params![receipt.action, receipt.plan_digest, receipt.before.resource, encode(&receipt).unwrap(), T],
+        )
+        .unwrap();
+        for m in &receipt.members {
+            let row = crate::stack::member_receipt_for_tests(&receipt, m);
+            tx.execute(
+                "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?1,?2,?3,'verified',?4,'restart',?5)",
+                params![row.action, row.plan_digest, row.before.resource, encode(&row).unwrap(), T],
+            )
+            .unwrap();
+        }
+    }
+    tx.commit().unwrap();
+    let pages = |store: &ReceiptStore| -> i64 {
+        store
+            .conn
+            .query_row("PRAGMA page_count", [], |r| r.get(0))
+            .unwrap()
+    };
+    let receipts = pages(&store);
+    store
+        .conn
+        .execute_batch(&format!(
+            "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{rows}) \
+             INSERT INTO effect_log(at,kind,resource,operation,stack,action,peer,principal,outcome,refusals) \
+             SELECT {T}+i,'effect','container:'||printf('%064x',i),'restart','stack:{project}',printf('%064x',i),4294967295,'{principal}','outcome_unknown',0 FROM n; \
+             WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<{days}) \
+             INSERT INTO effect_days(day,charges,refusals) SELECT 20000+i,1000000,1000000 FROM n; \
+             PRAGMA wal_checkpoint(TRUNCATE);",
+            rows = LOG_ROWS,
+            days = DAYS_KEPT,
+            principal = "x".repeat(128),
+        ))
+        .unwrap();
+    let total = pages(&store);
+    let log: i64 = store
+        .conn
+        .query_row(
+            "SELECT sum(pgsize) FROM dbstat WHERE name IN ('effect_log','effect_log_resource','effect_days')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let file = std::fs::metadata(dir.path().join("receipts.sqlite"))
+        .unwrap()
+        .len();
+    drop(store);
+    // The executor still opens it (quick_check reads every page).
+    ReceiptStore::open(dir.path()).unwrap();
+    (receipts, total, file, log)
+}
+
+/// With every stack at the protocol's 16 members and every log row as long
+/// as allowed, the store stays well inside its page cap (the last-resort
+/// stop on every execute); with stacks the size of the soak's household's
+/// largest (6), inside half of it, the bound the soak holds. Prints the sizes
+/// the documentation quotes.
+#[test]
+fn a_full_log_beside_saturated_receipts_stays_within_the_store_cap() {
+    for members in [limeos_domain::MAX_STACK_MEMBERS as u32, 6] {
+        let (receipts, total, file, log) = saturated_with_a_full_log(members);
+        eprintln!(
+            "stacks of {members}: saturated receipts {receipts} pages; with a full log {total} pages ({file} bytes); the log's b-trees {log} bytes, {} a row",
+            log / LOG_ROWS
+        );
+        assert!(total * 4 < i64::from(crate::MAX_PAGES) * 3, "{total} pages");
+        if members <= 6 {
+            assert!(
+                file <= u64::from(crate::MAX_PAGES) * 4096 / 2,
+                "{file} bytes"
+            );
+        }
+    }
 }

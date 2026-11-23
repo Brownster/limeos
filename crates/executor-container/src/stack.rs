@@ -57,6 +57,14 @@ fn member_receipt(stack: &StackReceipt, member: &StackMemberReceipt) -> Result<C
         error: member.error,
     })
 }
+/// `member_receipt`, for tests that build saturated stores.
+#[cfg(test)]
+pub(crate) fn member_receipt_for_tests(
+    stack: &StackReceipt,
+    member: &StackMemberReceipt,
+) -> ContainerReceipt {
+    member_receipt(stack, member).unwrap()
+}
 fn unique(error: rusqlite::Error) -> Error {
     match error {
         rusqlite::Error::SqliteFailure(code, _)

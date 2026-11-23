@@ -166,6 +166,9 @@ pub struct ReceiptStore {
     suppressed: std::collections::HashMap<String, u32>,
     /// Action-log rows not yet journaled (`take_journal`).
     journal: Vec<ActionRecord>,
+    /// When the containers of the last refusal by the budget have room again
+    /// (`take_frees_at`).
+    frees_at: Option<i64>,
 }
 /// Owns the locked `receipts.lock` descriptor; on drop the lock is released, then
 /// the descriptor is closed.
@@ -321,7 +324,7 @@ impl ReceiptStore {
             .map_err(durable)?;
         let _ = conn.prepare(limit::COLUMNS).map_err(durable)?;
         let _ = conn
-            .prepare("SELECT day,effects,refusals FROM effect_days LIMIT 0")
+            .prepare("SELECT day,charges,refusals FROM effect_days LIMIT 0")
             .map_err(durable)?;
         retention::watermark(&conn)?;
         File::open(directory)
@@ -336,6 +339,7 @@ impl ReceiptStore {
             windows: &limit::WINDOWS,
             suppressed: Default::default(),
             journal: Vec::new(),
+            frees_at: None,
         })
     }
 

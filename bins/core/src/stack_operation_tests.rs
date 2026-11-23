@@ -308,6 +308,9 @@ fn reply(state: &mut Engine, request: Request) -> Option<Receipt> {
             if let Some(code) = state.execute_error {
                 response.ready = false;
                 response.error = Some(code);
+                if code == ErrorCode::RateLimited {
+                    response.budget_frees_at = Some(super::operation_tests::BUDGET_FREES_AT);
+                }
                 return Some(response);
             }
             let operation = request.plan.operation;
@@ -2141,6 +2144,13 @@ async fn a_stack_refused_by_the_effect_budget_is_settled_as_refused() {
         .unwrap();
     assert_eq!(progress.job.state, JobState::PreconditionChanged);
     assert_eq!(missing_events(&progress), 0);
+    let budget = limeos_domain::EventKind::ExecutorBudgetSpent {
+        frees_at: Some(super::operation_tests::BUDGET_FREES_AT),
+    };
+    assert_eq!(
+        progress.events.iter().filter(|e| e.event == budget).count(),
+        1
+    );
     {
         let engine = f.engine.lock().unwrap();
         assert_eq!((engine.executes, engine.receipts), (1, 0));

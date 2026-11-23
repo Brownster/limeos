@@ -231,6 +231,15 @@ pub enum EventKind {
     /// a dispatch under an earlier store epoch. Nothing was released; the job
     /// stays held for an operator.
     ExecutorRecordDisagrees,
+    /// The container executor refused the job's execute because a container
+    /// it would act on has spent its effect budget (ADR 0013): nothing ran,
+    /// and the job is settled as refused. `frees_at` is when, by the
+    /// executor's clock, every such container has room again.
+    ExecutorBudgetSpent {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(as = "Option<f64>", optional)]
+        frees_at: Option<i64>,
+    },
     JobTransition {
         state: JobState,
     },
