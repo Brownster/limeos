@@ -104,6 +104,153 @@ fn descriptor_walk_rejects_writable_ancestors_links_and_escaping_paths() {
     assert!(path::open(Path::new("/etc/passwd/child"), true, true).is_err());
 }
 #[test]
+fn owned_json_walk_refuses_links_foreign_owners_writable_modes_and_extra_names() {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let owner = rustix::process::geteuid().as_raw();
+    let anchor = tempfile::tempdir().unwrap();
+    let root = anchor.path();
+    let mode = |p: &Path, m| std::fs::set_permissions(p, std::fs::Permissions::from_mode(m));
+    mode(root, 0o755).unwrap();
+    std::fs::create_dir_all(root.join("etc/policy")).unwrap();
+    mode(&root.join("etc"), 0o755).unwrap();
+    mode(&root.join("etc/policy"), 0o755).unwrap();
+    std::fs::write(root.join("etc/policy/c.json"), r#"{"a":1}"#).unwrap();
+    mode(&root.join("etc/policy/c.json"), 0o640).unwrap();
+    let read = |file: &str, uid| {
+        read_owned_json_beneath::<serde_json::Value>(root, Path::new(file), uid)
+            .map(|v| v["a"].clone())
+    };
+    assert_eq!(read("/etc/policy/c.json", owner), Ok(serde_json::json!(1)));
+    // Another owner than the expected one, at the leaf or above it.
+    assert_eq!(
+        read("/etc/policy/c.json", owner + 1),
+        Err(ProtectedRead::UnsafePath)
+    );
+    assert_eq!(
+        read("/etc/policy/absent.json", owner),
+        Err(ProtectedRead::Missing)
+    );
+    // A symlinked intermediate directory, even to the genuine one.
+    symlink("policy", root.join("etc/linked")).unwrap();
+    assert_eq!(
+        read("/etc/linked/c.json", owner),
+        Err(ProtectedRead::UnsafePath)
+    );
+    // A symlinked leaf.
+    symlink("c.json", root.join("etc/policy/l.json")).unwrap();
+    assert_eq!(
+        read("/etc/policy/l.json", owner),
+        Err(ProtectedRead::UnsafePath)
+    );
+    // A second hard link.
+    std::fs::hard_link(
+        root.join("etc/policy/c.json"),
+        root.join("etc/policy/h.json"),
+    )
+    .unwrap();
+    assert_eq!(
+        read("/etc/policy/c.json", owner),
+        Err(ProtectedRead::Malformed)
+    );
+    std::fs::remove_file(root.join("etc/policy/h.json")).unwrap();
+    assert_eq!(read("/etc/policy/c.json", owner), Ok(serde_json::json!(1)));
+    // A group- or world-writable directory anywhere on the way, or leaf.
+    mode(&root.join("etc"), 0o775).unwrap();
+    assert_eq!(
+        read("/etc/policy/c.json", owner),
+        Err(ProtectedRead::UnsafePath)
+    );
+    mode(&root.join("etc"), 0o755).unwrap();
+    mode(&root.join("etc/policy/c.json"), 0o646).unwrap();
+    assert_eq!(
+        read("/etc/policy/c.json", owner),
+        Err(ProtectedRead::UnsafePath)
+    );
+    mode(&root.join("etc/policy/c.json"), 0o644).unwrap();
+    mode(root, 0o777).unwrap();
+    assert_eq!(
+        read("/etc/policy/c.json", owner),
+        Err(ProtectedRead::UnsafePath)
+    );
+    mode(root, 0o755).unwrap();
+    // Not a regular file, or not JSON.
+    assert_eq!(read("/etc/policy", owner), Err(ProtectedRead::Malformed));
+    std::fs::write(root.join("etc/policy/c.json"), b"{").unwrap();
+    assert_eq!(
+        read("/etc/policy/c.json", owner),
+        Err(ProtectedRead::Malformed)
+    );
+    // Names that would escape or alias are refused before any open.
+    assert_eq!(
+        read("/etc/../etc/policy/c.json", owner),
+        Err(ProtectedRead::InvalidPath)
+    );
+    assert_eq!(
+        read("etc/policy/c.json", owner),
+        Err(ProtectedRead::InvalidPath)
+    );
+    // Larger than 64 KiB, even if it is valid JSON.
+    let big = format!(r#"{{"a":1,"pad":"{}"}}"#, "x".repeat(65536));
+    std::fs::write(root.join("etc/policy/c.json"), &big).unwrap();
+    assert_eq!(
+        read("/etc/policy/c.json", owner),
+        Err(ProtectedRead::Malformed)
+    );
+    let fits = format!(r#"{{"a":1,"pad":"{}"}}"#, "x".repeat(65536 - 20));
+    assert!(fits.len() <= 65536);
+    std::fs::write(root.join("etc/policy/c.json"), &fits).unwrap();
+    assert_eq!(read("/etc/policy/c.json", owner), Ok(serde_json::json!(1)));
+    // A directory this process may not search: denied, not "unsafe". Root
+    // searches anything, so only an unprivileged run sees it.
+    if owner != 0 {
+        mode(&root.join("etc/policy"), 0o600).unwrap();
+        assert_eq!(
+            read("/etc/policy/c.json", owner),
+            Err(ProtectedRead::PermissionDenied)
+        );
+        mode(&root.join("etc/policy"), 0o755).unwrap();
+    }
+}
+#[test]
+fn owned_json_walk_refuses_a_foreign_owner_below_a_correctly_owned_anchor() {
+    // An unprivileged test cannot chown, so it uses a tree that already has
+    // one: from `/` as root, down to this crate's manifest, whose path
+    // leaves root's ownership at some component (a home directory, say).
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    let mut seen = std::path::PathBuf::from("/");
+    let mut foreign = None;
+    for part in manifest.components().skip(1) {
+        seen.push(part);
+        let meta = std::fs::symlink_metadata(&seen).unwrap();
+        use std::os::unix::fs::MetadataExt;
+        if meta.file_type().is_symlink() {
+            eprintln!("skipped: {} is a symlink", seen.display());
+            return;
+        }
+        if meta.uid() != 0 {
+            foreign = Some(seen.clone());
+            break;
+        }
+        if meta.mode() & 0o022 != 0 {
+            eprintln!("skipped: {} is writable by others", seen.display());
+            return;
+        }
+    }
+    let Some(foreign) = foreign else {
+        eprintln!("skipped: the whole manifest path is root-owned");
+        return;
+    };
+    // Every component above `foreign` is root-owned and safe, so the
+    // refusal can only come from the owner check at `foreign`.
+    assert_eq!(
+        read_owned_json_beneath::<serde_json::Value>(Path::new("/"), &manifest, 0),
+        Err(ProtectedRead::UnsafePath),
+        "{} is not root-owned",
+        foreign.display()
+    );
+}
+
+#[test]
 fn filesystem_types_are_explicit_and_multidevice_btrfs_stays_closed() {
     assert!(filesystem_matches(StorageFilesystem::Ext4, "ext4"));
     assert!(!filesystem_matches(

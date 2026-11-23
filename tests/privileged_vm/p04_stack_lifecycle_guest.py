@@ -710,6 +710,7 @@ def refusals():
     version = session["version"]
     fx.run("apt-get", "install", "-y", "limeos-shadow=" + version)
     shadow_policy = Path("/etc/limeos-shadow/system-policy/container.json")
+    shadow_original = shadow_policy.read_bytes()
     original = json.loads(shadow_policy.read_text())
     shadow_policy.write_text(
         json.dumps(
@@ -731,6 +732,10 @@ def refusals():
     )
     check(status != 201, "shadow package produced a stack plan", status=status, body=body)
     detail["shadow_plan_status"] = status
+    # Restore the package's ceiling before removing the package: remove keeps
+    # /etc, and a later install checks the kept file for the read-only shadow
+    # role (a write-enabled one is refused, and its executor is not started).
+    shadow_policy.write_bytes(shadow_original)
     fx.run("apt-get", "remove", "-y", "limeos-shadow")
     event_mark = mark()
     # (b) Task token protocol has no stack operation.

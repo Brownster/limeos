@@ -627,3 +627,20 @@ fn a_child_sharing_the_receipt_lock_description_does_not_block_a_reopen_after_dr
     assert!(ReceiptStore::open(dir.path()).is_ok());
     assert_eq!(identity(&stdin), identity(&lock));
 }
+#[test]
+fn a_ceiling_naming_root_as_core_authorizes_nothing() {
+    let resource = format!("container:{}", "a".repeat(64));
+    assert!(
+        ceiling()
+            .authorize(1001, &resource, ContainerAction::Restart)
+            .is_ok()
+    );
+    let root = RestartCeiling {
+        core_uid: 0,
+        ..ceiling()
+    };
+    assert_eq!(
+        root.authorize(0, &resource, ContainerAction::Restart),
+        Err(Error(ErrorCode::Forbidden))
+    );
+}

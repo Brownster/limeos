@@ -81,7 +81,9 @@ class HostObservationRunsUnprivileged(unittest.TestCase):
         loop_end = script.index("done", script.index("for target in host container storage"))
         position = script.index(call)
         self.assertLess(loop_end, position)
-        self.assertLess(position, script.index("systemctl restart"))
+        # The restart call itself, not the warning that tells an operator to
+        # restart an executor whose ceiling was refused.
+        self.assertLess(position, script.index('systemctl restart "'))
         for directory in ("/etc/limeos root 0755", "/etc/limeos/system-policy root 0755"):
             self.assertLess(script.index(f"fct_directory {directory}"), position)
         with tempfile.TemporaryDirectory() as directory:

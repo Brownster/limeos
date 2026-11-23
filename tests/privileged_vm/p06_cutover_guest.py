@@ -510,7 +510,7 @@ def ceiling():
     check(not any(v for k, v in value.items() if k.startswith("allow_")), "proposal enables something", value=value)
     check(sorted(value["managed_containers"]) == sorted(state["ids"][n] for n in RUNNING), "managed containers differ from docker ps")
     check(value["managed_stacks"] == ["media"], "managed_stacks differ", stacks=value["managed_stacks"])
-    check(sh(f"/usr/lib/limeos/limeosctl check-ceiling {proposed} {uid}", check_rc=False)[0] == 0, "check-ceiling refused the proposal")
+    check(sh(f"/usr/lib/limeos/limeosctl check-ceiling {proposed} {uid} container", check_rc=False)[0] == 0, "check-ceiling refused the proposal")
     # Nothing acts before the flags are set: install it as proposed first and observe refusal.
     shutil_copy(proposed, POLICY)
     sh("systemctl reset-failed limeos-containerd; systemctl restart limeos-containerd")
@@ -527,7 +527,7 @@ def ceiling():
         value[key] = True
     enabled_file = Path("/root/container-enabled.json")
     enabled_file.write_text(json.dumps(value, indent=2) + "\n")
-    check(sh(f"/usr/lib/limeos/limeosctl check-ceiling {enabled_file} {uid}", check_rc=False)[0] == 0, "check-ceiling refused the enabled ceiling")
+    check(sh(f"/usr/lib/limeos/limeosctl check-ceiling {enabled_file} {uid} container", check_rc=False)[0] == 0, "check-ceiling refused the enabled ceiling")
     shutil_copy(enabled_file, POLICY)
     sh("systemctl reset-failed limeos-containerd; systemctl restart limeos-containerd")
     fx.wait_container_ready(timeout=45)
