@@ -1218,7 +1218,9 @@ fn hex64(seed: u64) -> String {
 /// stacks of `MAX_STACK_MEMBERS` members, every row settled, expired and
 /// legacy (so pruning also writes a tombstone for each), with random ids and
 /// receipts the size of real ones: about 450 bytes a container receipt and
-/// 6.5 KiB a full stack receipt (16 members' snapshots and states).
+/// 6.5 KiB a full stack receipt (16 members' snapshots and states); and the
+/// action log at its `LOG_ROWS`, every row of the longest values allowed and
+/// old enough to prune, for containers spread like random ones.
 fn full_receipt_store() -> (tempfile::TempDir, ReceiptStore) {
     let dir = private_dir();
     let store = ReceiptStore::open(dir.path()).unwrap();
@@ -1252,13 +1254,24 @@ fn full_receipt_store() -> (tempfile::TempDir, ReceiptStore) {
             .unwrap();
         }
     }
+    let principal = "p".repeat(128);
+    let project = format!("stack:{}", "q".repeat(64));
+    for at in 0..crate::limit::LOG_ROWS {
+        tx.execute(
+            "INSERT INTO effect_log(at,kind,resource,operation,stack,action,peer,principal,outcome) VALUES(?,'effect',?,'restart',?,?,4294967295,?,'effect_accepted')",
+            params![at, format!("container:{}", next()), project, next(), principal],
+        )
+        .unwrap();
+    }
     tx.commit().unwrap();
     (dir, store)
 }
 
 /// The receipt store's largest transaction: a stack's first write, which
-/// prunes a full batch and then inserts the stack row and its sixteen member
-/// rows (`stack::write_stack`), at `cache_kib`. Returns the frames committed,
+/// prunes a full batch, inserts the stack row and its sixteen member rows,
+/// and charges the sixteen members to the action log at its cap, which
+/// prunes as many old rows and counts the day (`stack::write_stack`,
+/// `limit::charge`), at `cache_kib`. Returns the frames committed,
 /// the WAL bytes on disk before the commit (a spill; see the persistence
 /// crate's `measured`) and the rows pruned.
 fn largest_transaction(
@@ -1291,6 +1304,20 @@ fn largest_transaction(
         )
         .unwrap();
     }
+    let targets: Vec<String> = (0..limeos_domain::MAX_STACK_MEMBERS as u64)
+        .map(|i| format!("container:{}", hex64((1 << 42) + i)))
+        .collect();
+    let targets: Vec<&str> = targets.iter().map(String::as_str).collect();
+    let principal = "p".repeat(128);
+    let project = format!("stack:{}", "q".repeat(64));
+    let entry = crate::limit::Entry {
+        action: &hex64((1 << 40) + 1),
+        operation: ContainerAction::Restart,
+        stack: Some(&project),
+        peer: u32::MAX,
+        principal: &principal,
+    };
+    crate::limit::charge(&tx, &entry, &targets, 100_000, crate::limit::HOLD).unwrap();
     let spilled = std::fs::metadata(&wal).map(|m| m.len()).unwrap_or(0);
     tx.commit().unwrap();
     let total = std::fs::metadata(&wal).unwrap().len();
@@ -1350,7 +1377,9 @@ fn measure_the_open_reads_of_a_full_store() {
 
 /// The store's largest transaction (a stack's first write: a full prune
 /// batch, tombstones for legacy rows, then the stack and sixteen member rows,
-/// with random ids and real receipt sizes) fits its cache without spilling.
+/// with random ids and real receipt sizes, and the sixteen members charged
+/// to an action log at its cap, pruning as many of its rows) fits its cache
+/// without spilling. A refusal row is its own, smaller transaction.
 /// Every other transaction the store runs writes one receipt or less than a
 /// full batch, so this one covers them; none is left out.
 #[test]

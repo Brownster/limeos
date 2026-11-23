@@ -67,19 +67,29 @@ fn owned_by_caller(owner: u32, caller: u32) -> Result<(), String> {
     Ok(())
 }
 
+/// The page cache of this command's connection: a short-lived reader of at
+/// most a few MiB, read once.
+const CACHE_KIB: i64 = 256;
+
+/// The receipt store, read-only, with a small page cache: limeosctl's only
+/// SQLite connection, open for one command.
+fn open(directory: &Path) -> rusqlite::Result<Connection> {
+    let conn = Connection::open_with_flags(
+        directory.join("receipts.sqlite"),
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    conn.busy_timeout(Duration::from_millis(500))?;
+    conn.pragma_update(None, "cache_size", -CACHE_KIB)?;
+    Ok(conn)
+}
+
 /// The newest `limit` rows, oldest first, and every day's totals, each as
 /// one JSON object.
 pub fn read(
     directory: &Path,
     limit: u32,
 ) -> Result<(Vec<serde_json::Value>, Vec<serde_json::Value>), Box<dyn std::error::Error>> {
-    let conn = Connection::open_with_flags(
-        directory.join("receipts.sqlite"),
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )?;
-    conn.busy_timeout(Duration::from_millis(500))?;
-    // A small page cache: this reads at most a few MiB once.
-    conn.pragma_update(None, "cache_size", -256)?;
+    let conn = open(directory)?;
     let version: u32 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if version < LOG_SCHEMA {
         return Err(format!(
@@ -226,6 +236,51 @@ mod tests {
         // Read-only: the reader wrote nothing.
         let (all, _) = read(dir.path(), 8192).unwrap();
         assert_eq!(all.len(), 6);
+    }
+
+    /// The reader has its small cache, and it is the only SQLite connection
+    /// limeosctl opens outside its tests: a new one fails here until it has
+    /// a cache size too.
+    #[test]
+    fn the_reader_is_limeosctls_only_connection_and_has_a_small_cache() {
+        let dir = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        drop(ReceiptStore::open(dir.path()).unwrap());
+        let cache: i64 = open(dir.path())
+            .unwrap()
+            .pragma_query_value(None, "cache_size", |r| r.get(0))
+            .unwrap();
+        assert_eq!(cache, -CACHE_KIB);
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sites = Vec::new();
+        let mut stack = vec![src.clone()];
+        while let Some(directory) = stack.pop() {
+            for entry in std::fs::read_dir(directory).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let name = path
+                    .strip_prefix(&src)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned();
+                if name.ends_with("tests.rs") {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&path).unwrap();
+                let text = text.split("#[cfg(test)]\nmod tests").next().unwrap();
+                sites.extend(text.matches("Connection::open").map(|_| name.clone()));
+            }
+        }
+        assert_eq!(
+            sites,
+            ["action_log.rs"],
+            "a new SQLite connection: give it a cache size and list it here"
+        );
     }
 
     #[test]

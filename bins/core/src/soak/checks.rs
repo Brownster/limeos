@@ -200,7 +200,12 @@ pub const PAGE: u64 = 4096;
 /// plus the share of the file in tables (about 0.86 measured, receipts being
 /// most of it); the open's other statements (schema, watermark, counts) read
 /// a few pages more. 2.2 holds that with room for new tables, and fails a
-/// further full pass over the store (1.87 plus 1.0).
+/// further full pass over the store (1.87 plus 1.0). With the executor's
+/// action log (`effect_log`, `effect_days`; PR-30) the soak's copies read
+/// 1.82 to 1.85 per page on both profiles, and a store with saturated
+/// receipts and a full log of the longest rows 1.84 (20,984 KiB read for
+/// 11,388 KiB, `measure_the_open_reads_of_a_full_store`), so a further full
+/// pass would still fail.
 pub const CORE_PAGE_FACTOR: u64 = 3200;
 pub const RECEIPT_PAGE_FACTOR: u64 = 2200;
 pub const PAGE_SLACK: u64 = 256;

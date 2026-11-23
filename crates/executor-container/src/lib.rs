@@ -37,8 +37,10 @@ const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 /// what migrations filled freed) after any migration and before the check. Its
 /// largest transaction, a stack's first write (a full `PRUNE_BATCH` with
 /// tombstones for legacy rows, then the stack row and sixteen members, random
-/// ids, real receipt sizes), dirties 109 pages and does not spill at 768 KiB
-/// (192 pages); it spilled at 512 KiB (the test
+/// ids, real receipt sizes, and the sixteen members charged to an action log
+/// at its cap of rows of the longest values, pruning as many), dirties 153
+/// pages (109 before the action log) and does not spill at 768 KiB (192
+/// pages); it spilled at 512 KiB (the test
 /// `the_largest_receipt_transaction_does_not_spill`).
 const CACHE_KIB: u32 = 768;
 /// The store's limits, for the long-uptime soak to assert against rather
