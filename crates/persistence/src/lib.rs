@@ -199,7 +199,7 @@ impl Database {
     /// `open`, with the writer thread on `clock` (the system clock, except
     /// for the soak's `test_support::open`).
     fn open_with(path: &Path, clock: writer_clock::Clock) -> Result<Self> {
-        let mut store = Store::open(path)?;
+        let mut store = Store::open_at(path, clock.wall())?;
         let generation = store.generation;
         let audit = Arc::new(AtomicI64::new(store.audit_usage()?.bytes));
         let reader = Arc::new(std::sync::Mutex::new(Some(open_reader(path)?)));
@@ -751,6 +751,12 @@ fn event(
 }
 impl Store {
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_at(path, writer_clock::unix_now())
+    }
+    /// `open`, at `wall` (seconds since the Unix epoch, from the clock the
+    /// writer thread will read): the time startup recovery records and the
+    /// time any batch it must run to make room is taken at.
+    fn open_at(path: &Path, wall: i64) -> Result<Self> {
         let directory = path
             .parent()
             .ok_or(Error(ErrorCode::InvalidInput))?
@@ -924,7 +930,7 @@ impl Store {
         // refusal still changes nothing, upgrade included), and startup is
         // refused only when nothing more can be pruned.
         if !retention::recovery_fits(interrupted, audit_bytes) {
-            retention::make_room(&tx, interrupted)?;
+            retention::make_room(&tx, interrupted, wall)?;
         }
         tx.execute("UPDATE meta SET generation=generation+1 WHERE id=1", [])
             .map_err(durable)?;
@@ -933,11 +939,7 @@ impl Store {
             .map_err(durable)?;
         // Set-based recovery stays bounded in memory. Every uncertain job
         // keeps its complete resource set; recovery never redispatches effects.
-        let recovered_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            .min(i64::MAX as u64) as i64;
+        let recovered_at = wall;
         let recovered = tx.execute(
             "INSERT INTO events(principal,job,kind,created) SELECT principal,id,?,? FROM jobs WHERE state IN ('running','verifying')",
             params![json(&EventKind::JobRecoveryRequired)?, recovered_at],
