@@ -150,7 +150,11 @@ pub const PROOF_BY_KIND: &str = "the proof check looks events up by kind (1 = on
 pub const PROOF_FILES: &str = "the proof check's largest read, in files' worth of pages";
 
 /// Core's file and WAL: the events table at its 131,072-row budget is about
-/// 40 MiB of rows and indexes; the audit cap (twice that) is the hard stop.
+/// 22 MiB of rows and indexes filled by the login burst's small rows, and
+/// would be about 60 MiB of the household's rows at the bytes of pages each
+/// row kept takes once job-row retention has removed its jobs' events
+/// around it (`flatness` asserts that end stays within this bound); the
+/// audit cap is the hard stop on rows.
 pub const CORE_FILE_BOUND: u64 = 80 << 20;
 pub const CORE_WAL_BOUND: u64 = 8 << 20;
 /// Half the receipt store's own page cap (`limits::MAX_PAGES`, below its
@@ -1130,60 +1134,31 @@ fn trends(sim: &mut Sim) {
     let samples = sim.samples.clone();
     let day = |s: &Sample| (s.at - START) as f64 / DAY as f64;
     let mut problems = Vec::new();
-    for (store, pick, budget) in [
+    for (store, pick, budget, file_bound) in [
         (
             "core",
             (|s: &Sample| &s.core) as fn(&Sample) -> &StoreStat,
             core_budget as fn(&str) -> Option<Budget>,
+            CORE_FILE_BOUND,
         ),
-        ("receipts", |s: &Sample| &s.receipts, receipt_budget),
+        (
+            "receipts",
+            |s: &Sample| &s.receipts,
+            receipt_budget,
+            RECEIPT_FILE_BOUND,
+        ),
     ] {
         let last = &samples[samples.len() * 2 / 3..];
         let span = day(last.last().unwrap()) - day(&last[0]);
         let tables: Vec<String> = pick(last.last().unwrap()).tables.keys().cloned().collect();
-        // Every table: the per-job tables, bounded by job-row retention,
-        // with the rest, less what the events table regained by each
-        // checkpoint (`refilled`): it refills to its budget once job-row
-        // retention has removed settled jobs' history with them, and stops
-        // there. Taken off each sample before the fit, so a refill late in
-        // the third excuses only what it added, and when.
-        let bounded: Vec<(f64, f64)> = last
-            .iter()
-            .map(|s| {
-                let bytes: f64 = pick(s).tables.values().map(|(_, b)| *b as f64).sum();
-                (day(s), bytes - refilled(pick(&last[0]), pick(s), budget))
-            })
-            .collect();
-        let refill = refilled(pick(&last[0]), pick(last.last().unwrap()), budget);
-        // Bounded content must be flat: its fitted growth over the last
-        // third under 2% of its size (or 256 KiB).
-        let grown = slope(&bounded) * span;
-        if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) {
-            problems.push((
-                FLAT,
-                format!(
-                    "{store}: bounded tables grew {:.2} MiB over the last third, beyond {:.2} MiB the events table regained toward its budget",
-                    grown / 1048576.0,
-                    refill / 1048576.0
-                ),
-            ));
+        let points: Vec<(f64, &StoreStat)> = last.iter().map(|s| (day(s), pick(s))).collect();
+        let flat = flatness(store, &points, budget, file_bound);
+        if let Some(refill) = flat.refill {
+            sim.measures.insert(EVENTS_PER_ROW, refill.per_row);
+            sim.measures
+                .insert(EVENTS_AT_BUDGET, refill.at_budget / 1048576.0);
         }
-        // The file may grow by at most 1 MiB over the last third beyond that
-        // refill (both taken between the third's ends): every table is
-        // bounded.
-        let file: Vec<(f64, f64)> = last.iter().map(|s| (day(s), pick(s).file as f64)).collect();
-        let file_grown = file.last().unwrap().1 - file[0].1;
-        let allowed = 1024.0 * 1024.0 + refill;
-        if file_grown > allowed {
-            problems.push((
-                FLAT,
-                format!(
-                    "{store}: file grew {:.2} MiB over the last third, more than {:.2} MiB",
-                    file_grown / 1048576.0,
-                    allowed / 1048576.0
-                ),
-            ));
-        }
+        problems.extend(flat.problems.into_iter().map(|p| (FLAT, p)));
         // Every bounded table by name: rows flat within 10% of its budget.
         for table in tables {
             let Some(Budget::Rows(limit)) = budget(&table) else {
@@ -1367,24 +1342,130 @@ fn trends(sim: &mut Sim) {
     }
 }
 
-/// Bytes the events table of `to` gained over `from` by rows it regained
-/// while still within its row budget (the budget check holds it to that at
-/// every checkpoint), at its bytes a row in `to`: the refill after job-row
-/// retention removed settled jobs' history with them. No other table's
-/// growth is excused.
-fn refilled(from: &StoreStat, to: &StoreStat, budget: fn(&str) -> Option<Budget>) -> f64 {
-    to.tables
+/// The events table regaining rows toward its budget over the last third.
+#[derive(Debug)]
+struct Refill {
+    /// Bytes its pages gained per row it kept: its fitted growth in bytes
+    /// over its fitted growth in rows.
+    per_row: f64,
+    /// Every other table's bytes at the end, with the events table at its
+    /// row budget at `per_row` bytes a row.
+    at_budget: f64,
+}
+
+/// What the flatness check found in one store over the last third.
+#[derive(Debug)]
+struct Flat {
+    problems: Vec<String>,
+    refill: Option<Refill>,
+}
+
+/// Rows the events table must regain over the last third for its bytes a
+/// row kept to be measured (the run regains about 1,200).
+const REFILL_MIN_ROWS: i64 = 256;
+
+/// Sizes flat over the last third (`points`: day and the store's stat at
+/// each checkpoint), every table bounded.
+///
+/// The events table is judged apart while it regains rows toward its budget
+/// (after job-row retention removed settled jobs' events with them, below
+/// its budget at every checkpoint of the third, so the events rule removed
+/// nothing). Its pages then grow by every row appended, not only by the
+/// rows it regains: a job's events stay where they were written, between
+/// the job-less events of their days (logins, plans), and when job-row
+/// retention removes them 30 days later their pages keep those neighbours,
+/// so the space is not reused (rows are appended at the end of the table and
+/// of its scope and kind indexes) until the events rule reaches those rows.
+/// Measured on the restart scenario: rows of days 30 to 59 at 15 a page and
+/// 57% full, of days 60 to 89 (their jobs' events still there) at 24 and
+/// 97%, the login burst's at 54 and 98%; 78 rows appended a day for 42 kept,
+/// 469 bytes of pages a row kept against 179 on average, most of which are
+/// the burst's small session rows. That growth is bounded: the row budget
+/// caps the rows, and a page keeps at least a third of its space in use
+/// (SQLite rebalances one emptier than that). It goes on, though, until the
+/// burst's rows have all been replaced, years at household rates, so what
+/// is asserted is where it ends: every other table as it is at the end, with
+/// the events table at its row budget at the bytes a row it kept, within the
+/// file bound. Every other table, and the events table while it is not
+/// regaining rows, must be flat: fitted growth under 2% of their size (or
+/// 256 KiB).
+fn flatness(
+    store: &str,
+    points: &[(f64, &StoreStat)],
+    budget: fn(&str) -> Option<Budget>,
+    file_bound: u64,
+) -> Flat {
+    let mut problems = Vec::new();
+    let (first, last) = (points[0], points[points.len() - 1]);
+    let span = last.0 - first.0;
+    let events_bytes = |s: &StoreStat| s.tables.get("events").map_or(0, |t| t.1) as f64;
+    let refilling = match budget("events") {
+        Some(Budget::Rows(limit)) => {
+            last.1.rows("events") - first.1.rows("events") >= REFILL_MIN_ROWS
+                && points.iter().all(|(_, s)| s.rows("events") <= limit)
+        }
+        _ => false,
+    };
+    let bounded: Vec<(f64, f64)> = points
         .iter()
-        .filter(|(table, _)| *table == "events")
-        .filter_map(|(table, (rows, bytes))| {
-            let Some(Budget::Rows(limit)) = budget(table) else {
-                return None;
-            };
-            let gained = rows - from.rows(table);
-            (gained > 0 && *rows <= limit && *rows > 0)
-                .then(|| gained as f64 * *bytes as f64 / *rows as f64)
+        .map(|(day, s)| {
+            let bytes: f64 = s.tables.values().map(|(_, b)| *b as f64).sum();
+            (*day, bytes - if refilling { events_bytes(s) } else { 0.0 })
         })
-        .sum()
+        .collect();
+    let grown = slope(&bounded) * span;
+    if grown > (mean(&bounded) * 0.02).max(256.0 * 1024.0) {
+        problems.push(format!(
+            "{store}: bounded tables{} grew {:.2} MiB over the last third",
+            if refilling {
+                " but the events table, which regained rows,"
+            } else {
+                ""
+            },
+            grown / 1048576.0
+        ));
+    }
+    let mut refill = None;
+    if refilling && let Some(Budget::Rows(limit)) = budget("events") {
+        let rows: Vec<(f64, f64)> = points
+            .iter()
+            .map(|(day, s)| (*day, s.rows("events") as f64))
+            .collect();
+        let bytes: Vec<(f64, f64)> = points
+            .iter()
+            .map(|(day, s)| (*day, events_bytes(s)))
+            .collect();
+        let regained = last.1.rows("events") - first.1.rows("events");
+        let per_row = slope(&bytes) / slope(&rows).max(f64::MIN_POSITIVE);
+        let others = bounded[bounded.len() - 1].1;
+        let at_budget = others + limit as f64 * per_row.max(0.0);
+        if at_budget > file_bound as f64 {
+            problems.push(format!(
+                "{store}: the events table took {per_row:.0} bytes of pages a row it kept over the last third ({regained} rows regained): at its budget of {limit} rows, with every other table as it is, the tables hold {:.1} MiB, past the {:.0} MiB file bound",
+                at_budget / 1048576.0,
+                mib(file_bound)
+            ));
+        }
+        refill = Some(Refill { per_row, at_budget });
+    }
+    // The file may grow by at most 1 MiB over the last third beyond what the
+    // events table gained while it regained rows (both taken between the
+    // third's ends): every table is bounded.
+    let file_grown = last.1.file as f64 - first.1.file as f64;
+    let allowed = 1024.0 * 1024.0
+        + if refill.is_some() {
+            (events_bytes(last.1) - events_bytes(first.1)).max(0.0)
+        } else {
+            0.0
+        };
+    if file_grown > allowed {
+        problems.push(format!(
+            "{store}: file grew {:.2} MiB over the last third, more than {:.2} MiB",
+            file_grown / 1048576.0,
+            allowed / 1048576.0
+        ));
+    }
+    Flat { problems, refill }
 }
 
 /// Bytes of core's events table (with its indexes) in a sample.
@@ -1448,6 +1529,10 @@ pub const STARTUP_EVENT_PAGES: &str = "events table's pages gained a night over 
 /// jobs are gone) beyond the jobs job-row retention keeps: 64 KiB, two KiB a
 /// day over 30 days, a dozen jobs' worth.
 pub const PER_JOB_FLAT: f64 = 64.0 * 1024.0;
+pub const EVENTS_PER_ROW: &str =
+    "events table's bytes of pages a row it kept while it regained rows over the last third";
+pub const EVENTS_AT_BUDGET: &str =
+    "core's tables with the events table at its budget at that rate, MiB";
 pub const PER_JOB_NET: &str =
     "per-job tables' fitted growth over the last third beyond the jobs retention keeps, KiB";
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
@@ -2262,4 +2347,117 @@ fn verdict(sim: &Sim, profile: &Profile) {
         profile.name,
         verdict.join("\n")
     );
+}
+
+/// The flatness model on the restart scenario's last third as measured
+/// (days 60 to 89 of `soak_ninety_days_restarts`, 23 November: the events
+/// table regaining 41.8 rows a day while its pages gain 4.8, about 20 KiB,
+/// the per-job tables 0.12 MiB in all), and with a steady leak of the size
+/// that run's old check failed on (0.51 MiB over the third) added to one
+/// table at a time: each leak fails, the run as measured passes.
+#[cfg(test)]
+mod flatness_model {
+    use super::*;
+
+    const LEAK: f64 = 0.5 * 1048576.0;
+    /// Pages the events table gained over the measured third.
+    const MEASURED: f64 = 139.0;
+
+    /// The measured third, the events table's pages gaining `events_pages`,
+    /// with `leak` bytes added steadily to `table`.
+    fn third(
+        events_rows: impl Fn(f64) -> i64,
+        events_pages: f64,
+        table: &str,
+        leak: f64,
+    ) -> Vec<StoreStat> {
+        (60..=89)
+            .map(|day| {
+                let t = (day - 60) as f64;
+                let added = |name: &str| if name == table { leak * t / 29.0 } else { 0.0 };
+                let mut tables = BTreeMap::new();
+                let events = (5623.0 + events_pages * t / 29.0) * PAGE as f64;
+                tables.insert(
+                    "events".to_owned(),
+                    (events_rows(t), (events + added("events")) as i64),
+                );
+                let per_job = 2.6 * 1048576.0 + 0.119 * 1048576.0 * t / 29.0;
+                tables.insert("jobs".to_owned(), (415, (per_job + added("jobs")) as i64));
+                tables.insert(
+                    "sessions".to_owned(),
+                    (3, (8192.0 + added("sessions")) as i64),
+                );
+                StoreStat {
+                    tables,
+                    file: 30_183_424,
+                    wal: 0,
+                }
+            })
+            .collect()
+    }
+
+    fn judge(stats: &[StoreStat]) -> Flat {
+        let points: Vec<(f64, &StoreStat)> = stats
+            .iter()
+            .enumerate()
+            .map(|(i, s)| (60.0 + i as f64, s))
+            .collect();
+        flatness("core", &points, core_budget, CORE_FILE_BOUND)
+    }
+
+    fn refilling(t: f64) -> i64 {
+        128_568 + (41.8 * t) as i64
+    }
+
+    #[test]
+    fn the_measured_refill_is_flat_and_its_end_within_the_bound() {
+        let flat = judge(&third(refilling, MEASURED, "", 0.0));
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+        let refill = flat.refill.expect("the events table regained rows");
+        assert!((440.0..500.0).contains(&refill.per_row), "{refill:?}");
+        assert!(refill.at_budget < 64.0 * 1048576.0, "{refill:?}");
+    }
+
+    #[test]
+    fn a_leak_in_another_table_fails() {
+        for table in ["jobs", "sessions"] {
+            let flat = judge(&third(refilling, MEASURED, table, LEAK));
+            assert!(
+                flat.problems
+                    .iter()
+                    .any(|p| p.contains("bounded tables but the events table")),
+                "{table}: {:?}",
+                flat.problems
+            );
+        }
+    }
+
+    #[test]
+    fn a_leak_in_the_events_table_while_it_refills_fails() {
+        let flat = judge(&third(refilling, MEASURED, "events", LEAK));
+        assert!(
+            flat.problems
+                .iter()
+                .any(|p| p.contains("past the 80 MiB file bound")),
+            "{:?}",
+            flat.problems
+        );
+    }
+
+    #[test]
+    fn a_leak_in_the_events_table_at_its_budget_fails() {
+        // At its budget the events rule removes the oldest rows, whose
+        // pages are reused: flat.
+        let flat = judge(&third(|_| 131_072, 0.0, "", 0.0));
+        assert!(flat.problems.is_empty(), "{:?}", flat.problems);
+        let flat = judge(&third(|_| 131_072, 0.0, "events", LEAK));
+        assert!(flat.refill.is_none());
+        assert!(
+            flat.problems
+                .iter()
+                .any(|p| p.contains("core: bounded tables grew")),
+            "{:?}",
+            flat.problems
+        );
+    }
 }
