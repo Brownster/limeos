@@ -304,7 +304,7 @@ pub(super) fn recovery_fits(interrupted: i64, audit_bytes: i64) -> bool {
 /// one event per interrupted job, so it removes about that many rows, rounded
 /// up to a batch, and moves to the next rule when one has nothing more to
 /// give. Refused only when no rule can free enough (pinned history).
-pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
+pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64, now: i64) -> Result<()> {
     for rule in RULES.iter().filter(|rule| rule.audited) {
         loop {
             let rows = audited_events(tx)?;
@@ -316,13 +316,7 @@ pub(super) fn make_room(tx: &Transaction<'_>, interrupted: i64) -> Result<()> {
             }
             let excess = (rule.rows)(tx)?.saturating_sub(rule.budget);
             if excess <= 0
-                || (rule.prune)(
-                    tx,
-                    excess.min(rule.batch),
-                    crate::writer_clock::unix_now(),
-                    &mut jobs::Scan::default(),
-                )?
-                .rows
+                || (rule.prune)(tx, excess.min(rule.batch), now, &mut jobs::Scan::default())?.rows
                     == 0
             {
                 break;

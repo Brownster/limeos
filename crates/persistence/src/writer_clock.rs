@@ -18,6 +18,18 @@ pub(crate) enum Clock {
     #[cfg(feature = "test-support")]
     Simulated(Arc<SimClock>),
 }
+impl Clock {
+    /// Seconds since the Unix epoch on this clock: what `Store::open` dates
+    /// its recovery events by, so a store opened on simulated time writes
+    /// none from another clock.
+    pub(crate) fn wall(&self) -> i64 {
+        match self {
+            Self::System => unix_now(),
+            #[cfg(feature = "test-support")]
+            Self::Simulated(clock) => clock.now(),
+        }
+    }
+}
 
 /// One writer thread's view of its clock, created on that thread.
 pub(crate) struct WriterTime {
