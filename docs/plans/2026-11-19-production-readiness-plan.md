@@ -84,20 +84,26 @@ from the same entries and compares every trigger plus the objects they name, and
 logged by name. `SCHEMA_VERSION` is the last entry. The version-17 space check and the
 version-19 estimate stay keyed by version in `lib.rs`.
 `a_migration_added_to_the_table_alone_is_applied_and_checked` adds a test-only entry and
-nothing else. Before migrating an existing store, open keeps `core.sqlite.v<from>.snapshot`
-beside it (`VACUUM INTO`, WAL included, synced, checked, mode 0600) with a record of the store
-and snapshot; a repeated attempt on an unchanged store keeps it (cheap checks, then hashes) and
-writes no copy, so a failing upgrade under `Restart=on-failure` no longer writes one every few
-seconds. Leftovers go before SQLite opens the store; other snapshots count by the blocks
-removing them frees; the estimate covers the snapshot, the v17 build, the v19 rewrite bounded
-from the pages of `jobs`, and recovery; `upgrade_space` reports what open measured. Open fails
-unless `journal_mode` answers `wal`, and refuses a commit made between snapshot and migration.
-The v16 hazard: its `replace` on the `jobs` text does nothing, silently, when the text is not
-exactly as expected, and the startup check never compared `jobs`; the store then reached v19
-without the `resolved` state. `jobs` is now compared right after v16 and on every start. Not
-verified: an upgrade of a real pre-upgrade store (no such fixture exists; tests build older
-stores from the same SQL files), and the snapshot's time and reads at full size on the Pi.
-Operator steps: `docs/p03-operations.md`.
+nothing else. An upgrade runs on its own connection with `locking_mode=EXCLUSIVE`, taken by an empty
+write transaction as its first access (every other connection locked out), from the store's
+hash through the snapshot to the migration's commit, so all three see one state. It keeps
+`core.sqlite.v<from>.snapshot` (`VACUUM INTO`, synced, checked, mode 0600) with a record of the
+store's and the snapshot's digests; a repeated attempt on an unchanged store keeps it (cheap
+checks, then hashes) and writes no copy. Leftovers go before SQLite opens the store; other
+snapshots count by the blocks removing them frees, and go before the new one is written only
+when it would not fit otherwise. The estimate covers the snapshot, the v17 build, the v19
+rewrite bounded from the pages of `jobs`, and recovery bounded from b-tree depth; residual
+risks (stated in `lib.rs`): retention's `make_room`, and the v19 bound's reliance on records
+growing by less than their size and SQLite rewriting a transaction's WAL frames in place.
+Running out of space anywhere in the upgrade is reported with figures. Open fails unless
+`journal_mode` answers `wal`. The v16 hazard: its `replace` on the `jobs` text does nothing,
+silently, when the text is not exactly as expected, and the startup check never compared
+`jobs`; the store then reached v19 without the `resolved` state. `jobs` is now compared right
+after v16 and on every start. Not verified: an upgrade of a real pre-upgrade store (no such
+fixture exists; tests build older stores from the same SQL files), and the snapshot's time and
+reads at full size on the Pi. Gap: no supported tool lists or cancels every queued job across
+users (the restore procedure relies on plan expiry instead). Operator steps:
+`docs/p03-operations.md`.
 
 ## Phase 2 — Security
 
