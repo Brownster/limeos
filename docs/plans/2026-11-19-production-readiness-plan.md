@@ -194,10 +194,14 @@ PR-30 written, PR-41 green, and one Pi night on that exact candidate.
 - 23 November: lookup, verification and resolution of an existing receipt stay
   subject to the managed-list check. Delisting a container freezes its open jobs;
   the recovery procedure is in `docs/p03-operations.md`.
-- 23 November: `limeos-core.service` gets a start limit (ten starts in five
-  minutes) so a store that cannot be opened or upgraded stops being retried every
-  two seconds, which could otherwise write the SD card continuously. A reboot or
+- 23 November: `limeos-core.service` gets a start limit (ten starts in six hours;
+  a five-minute window would never trip for a start that fails late, after
+  hashing or migrating) so a store that cannot be opened or upgraded stops being
+  retried every two seconds, which could otherwise write the SD card
+  continuously. Successful starts count too, so postinst and the cutover scripts
+  clear the count before their own starts. A reboot or
   `systemctl reset-failed limeos-core && systemctl start limeos-core` tries again.
+  Follow-up: an hourly retry after the limit trips, for unattended recovery.
 - 23 November: `watchtower` stays in the cutover's default managed list (the
   conservative choice: a watchtower restart or an update it applies during
   activation rolls back). Choose a cutover window outside watchtower's schedule.
