@@ -38,6 +38,9 @@ class Window:
         self.overrides = {}
         self.notes = {}
         self.base = list(BASE)
+        self.memory = {u: {"Rss": pss // 1024 + 900, "Pss": pss // 1024, "Pss_Anon": pss // 4096,
+                           "Pss_File": pss // 1024 - pss // 4096, "AnonHugePages": 0}
+                       for u, (_pid, pss, _t, _w) in self.units.items()}
 
     def build(self):
         processes, start, end = [], [], []
@@ -87,12 +90,16 @@ class Window:
 
 def figures(window, before=None, after=None):
     report, raw, b, a = window.build()
-    return guest.window_figures(report, raw, before or b, after or a)
+    memory = {u: m for u, m in window.memory.items() if u in window.units}
+    return guest.window_figures(report, raw, before or b, after or a, memory)
 
 
-def run(windows=None, readiness=(120.0, 130.0, 140.0)):
+THP_OFF = "always madvise [never]"
+
+
+def run(windows=None, readiness=(120.0, 130.0, 140.0), thp=THP_OFF):
     windows = windows if windows is not None else [figures(Window()) for _ in range(3)]
-    return guest.evaluate(windows, list(readiness))
+    return guest.evaluate(windows, list(readiness), thp)
 
 
 class HealthyTests(unittest.TestCase):
@@ -116,6 +123,19 @@ class HealthyTests(unittest.TestCase):
         self.assertEqual(windows[0]["tolerated_reader_helpers"],
                          [{"unit": READER, "pid": 777, "only_at": "start", "cpu_ticks_then": 7}])
         self.assertEqual(windows[1]["tolerated_reader_helpers"][0]["only_at"], "end")
+
+    def test_memory_detail_is_recorded_per_unit(self):
+        window = figures(Window())
+        self.assertEqual(set(window["memory_kb"]), set(HEALTHY))
+        self.assertEqual(window["memory_kb"]["limeos-core.service"]["AnonHugePages"], 0)
+        self.assertIn("Pss_File", window["memory_kb"][READER])
+
+    def test_a_month_of_samples_is_31_days_one_a_minute(self):
+        rows = guest.month_of_samples(1_800_000_030)
+        self.assertEqual(len(rows), 31 * 24 * 60)
+        self.assertEqual(rows[0][0], 1_800_000_000 - 60)
+        self.assertEqual(rows[-1][0], 1_800_000_000 - 31 * 86400)
+        self.assertEqual(len({r[0] for r in rows}), len(rows))
 
     def test_lib_base_units_reads_the_real_library(self):
         lib = (ROOT / "scripts/cutover/lib.sh").read_text()
@@ -272,6 +292,17 @@ class FailureTests(unittest.TestCase):
 
     def test_no_windows(self):
         self.assert_fails(run([]), "0 windows measured")
+
+    def test_transparent_huge_pages_in_a_unit(self):
+        def huge(window):
+            window.memory["limeos-core.service"]["AnonHugePages"] = 2048
+        self.window_run(huge, "limeos-core.service: 2048 kB of transparent huge pages")
+
+    def test_no_memory_detail_for_a_unit(self):
+        self.window_run(lambda w: w.memory.pop(READER), f"{READER}: no smaps_rollup after the window")
+
+    def test_transparent_huge_pages_left_enabled_in_the_guest(self):
+        self.assert_fails(run(thp="[always] madvise never"), "transparent huge pages are not disabled")
 
 
 if __name__ == "__main__":

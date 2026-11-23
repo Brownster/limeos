@@ -35,11 +35,13 @@ five minutes, so a 200 s window holds zero or one flush and its extrapolation sw
 normally holds two. The result carries every window's figure and the per-unit split, pass or fail.
 """
 
+import http.client
 import json
 import os
 import re
 import shutil
 import socket
+import sqlite3
 import statistics
 import subprocess
 import sys
@@ -54,11 +56,12 @@ PSS_GATE_BYTES = 15 * MIB
 DISK_GATE_MB_DAY = 10.0
 READY_GATE_MS = 1000.0
 CPU_BUDGET_PERCENT = 0.1
-# Not the budget, which this guest does not meet: a regression ceiling. Today's figure here is
-# 0.203 % over the 600 s (three local runs, windows 0.18 to 0.225 %; the stack reader takes 0.12
-# and core 0.07). Twice that leaves room for a slower or busier runner and still fails when idle
-# CPU doubles. No runner figure is behind it yet. See the plan's Phase 4 section.
-CPU_CEILING_PERCENT = 0.4
+# Not the budget, which neither guest meets: a regression ceiling over both measured figures.
+# Over the 600 s, the GitHub runner's guest read 0.148 % (windows 0.145 to 0.155 %; reader 0.058,
+# core 0.075) and this laptop's 0.203 to 0.205 % (windows 0.18 to 0.225 %; reader 0.12, core 0.07).
+# 0.3 % is 1.46 times the higher figure and twice the runner's: a doubling of idle CPU on the
+# runner fails it, and so does half as much again on the slower laptop guest.
+CPU_CEILING_PERCENT = 0.3
 # The per-process sums must match measure.sh's rows to their rounding (4 and 3 decimals).
 CPU_AGREEMENT = 0.0005
 DISK_AGREEMENT = 0.002
@@ -88,6 +91,11 @@ IMAGE = "limeos-footprint:local"
 # Nothing listens here: measure.sh's HTTPS rows fail fast instead of timing out.
 NO_PROXY_PORT = "8002"
 CHANGE_NOTE = "process set changed during the window"
+THP_ENABLED = Path("/sys/kernel/mm/transparent_hugepage/enabled")
+METRICS = Path("/var/lib/limeos/core/metrics.sqlite")
+# A host that has run a month: core's metrics store holds the 31 days it keeps, one sample a minute.
+MONTH_SAMPLES = 31 * 24 * 60
+LOGIN = {"username": "footprint-admin", "password": "Synthetic-VM-password-2026"}
 GATED_ROWS = ("core_base_idle_pss", "backend_cpu_idle", "resident_disk_writes")
 
 deadline = None
@@ -117,11 +125,14 @@ def parse_samples(raw):
     return samples
 
 
-def window_figures(report, raw, before, after):
+def window_figures(report, raw, before, after, memory=None):
     """One idle window's figures and problems.
 
     `before` and `after`: {unit: {"MainPID": str, "NRestarts": str}} from systemctl show around the
-    window, for every base unit and the reader. A problem is anything that makes the window's
+    window, for every base unit and the reader. `memory`: {unit: smaps_rollup fields in kB} of each
+    of those main processes, read just after the window, so a step can be attributed to anonymous
+    or file-backed memory; a unit with transparent huge pages in use fails the window (the guest
+    disables them: the production kernel has none). A problem is anything that makes the window's
     figures untrustworthy; the caller fails the suite on any.
     """
     problems, tolerated = [], []
@@ -206,9 +217,18 @@ def window_figures(report, raw, before, after):
     if pss_row is not None and base_pss != pss_row:
         problems.append(f"per-process base PSS {base_pss} disagrees with the row {pss_row}")
 
+    memory = memory or {}
+    for unit in required:
+        detail = memory.get(unit)
+        if not detail:
+            problems.append(f"{unit}: no smaps_rollup after the window")
+        elif detail.get("AnonHugePages", 0) != 0:
+            problems.append(f"{unit}: {detail['AnonHugePages']} kB of transparent huge pages; the guest setting did not take")
+
     return {
         "elapsed_s": elapsed,
         "clk_tck": clk,
+        "memory_kb": memory,
         "core_base_idle_pss_bytes": pss_row,
         "core_base_idle_swap_bytes": rows.get("core_base_idle_swap", {}).get("value"),
         "all_resident_idle_pss_bytes": rows.get("all_resident_idle_pss", {}).get("value"),
@@ -233,9 +253,11 @@ def readiness_of(report):
     return row.get("value"), row.get("note")
 
 
-def evaluate(windows, readiness):
+def evaluate(windows, readiness, thp=None):
     """Gates and whole-run problems from window_figures results and readiness values."""
     problems = [f"window {i}: {p}" for i, w in enumerate(windows, 1) for p in w["problems"]]
+    if thp is not None and "[never]" not in thp:
+        problems.append(f"transparent huge pages are not disabled in the guest: {thp}")
     if len(windows) != WINDOWS:
         problems.append(f"{len(windows)} windows measured, {WINDOWS} required")
     timed = [w for w in windows if w["elapsed_s"] > 0]
@@ -348,6 +370,76 @@ def unit_states(units):
     return states
 
 
+def disable_thp():
+    """x86's 2 MiB transparent huge pages back a whole 2 MiB of a process's heap once one page of an
+    aligned block is touched, which made core's PSS step by 2 MiB at random in one CI run. The
+    production Pi's kernel has no transparent huge pages (and 16 KiB pages), so they are off here
+    before LimeOS starts; a window that still finds them fails."""
+    for name in ("enabled", "defrag"):
+        (THP_ENABLED.parent / name).write_text("never")
+    return THP_ENABLED.read_text().strip()
+
+
+def month_of_samples(now):
+    """(minute, cpu, memory, temperature, disk) rows for the 31 days before `now`."""
+    minute = now // 60 * 60
+    return [(minute - i * 60, 12.5, 40.0, 51.0, 63.0) for i in range(1, MONTH_SAMPLES + 1)]
+
+
+def seed_metrics():
+    """Stop core, fill its metrics store with a month of samples, start it again: the measured
+    core opens a store the size a month-old host's is."""
+    sh("systemctl stop limeos-core", 60)
+    with sqlite3.connect(METRICS) as db:
+        db.executemany("INSERT OR REPLACE INTO samples VALUES(?,?,?,?,?)", month_of_samples(int(time.time())))
+    db.close()
+    owner = METRICS.parent.stat()
+    for path in METRICS.parent.glob(METRICS.name + "*"):
+        os.chown(path, owner.st_uid, owner.st_gid)
+    sh("systemctl start limeos-core", 60)
+    eventually(lambda: sh(f"{CTL} --socket {CORE_SOCKET} status", 30, check=False)[0] == 0, 60, "core status")
+    return METRICS.stat().st_size
+
+
+def request(method, path, body=None, cookie=None):
+    connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=10)
+    headers = {"Origin": "https://localhost", "Content-Type": "application/json"}
+    if cookie:
+        headers["Cookie"] = cookie
+    try:
+        connection.request(method, path, json.dumps(body) if body else None, headers)
+        response = connection.getresponse()
+        response.read()
+        return response.status, dict(response.getheaders())
+    finally:
+        connection.close()
+
+
+def use_pass():
+    """What a household does first: log in, open the overview, look at the month's history.
+    Fills what that use fills (allocator arenas, caches) before the settle, so the windows
+    measure core as it is after use, not a process nobody has asked anything."""
+    status, headers = request("POST", "/api/v1/auth/login", LOGIN)
+    if status != 200:
+        raise RuntimeError(f"login for the use pass failed: {status}")
+    cookie = headers["set-cookie"].split(";")[0]
+    codes = {}
+    for path in ["/api/v1/overview", "/api/v1/resources?limit=50", "/api/v1/system/history?range=30d",
+                 "/api/v1/system/history?range=24h", "/api/v1/overview", "/api/v1/system/history?range=30d"]:
+        codes[path] = request("GET", path, cookie=cookie)[0]
+    if any(code != 200 for code in codes.values()):
+        raise RuntimeError(f"a use-pass request failed: {codes}")
+    return codes
+
+
+def rollup(pid):
+    out = {}
+    for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines()[1:]:
+        key, value = line.split(":", 1)
+        out[key] = int(value.split()[0])
+    return {k: out.get(k) for k in ("Rss", "Pss", "Pss_Anon", "Pss_File", "AnonHugePages")}
+
+
 def fixture(repository, package_version):
     sh("apt-get update -qq", 180)
     sh("DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends docker.io busybox-static curl", 300)
@@ -392,6 +484,7 @@ def fixture(repository, package_version):
         raise RuntimeError("propose-catalog --install did not install the catalog")
     sh(f"systemctl start {READER}", 60)
     eventually(lambda: active(READER) and READER_SOCKET.is_socket(), 60, "the stack reader")
+    return {"metrics_bytes": seed_metrics(), "use_pass": use_pass()}
 
 
 def measure(name, bound, *extra):
@@ -440,7 +533,7 @@ def main(package_version):
     def write():
         # Whatever was measured so far is evaluated too, so a failed or cut-short run still says
         # what each window and unit used.
-        result.update(evaluate(windows, readiness))
+        result.update(evaluate(windows, readiness, result.get("thp")))
         if "error" in result:
             result["result"] = "fail"
         result["seconds"] = round(time.monotonic() - started, 1)
@@ -451,7 +544,8 @@ def main(package_version):
         output.write_text(json.dumps(result, indent=2) + "\n")
 
     try:
-        fixture(repository, package_version)
+        result["thp"] = disable_thp()
+        result["state"] = fixture(repository, package_version)
         timings["fixture"] = round(time.monotonic() - started, 1)
         print(f"fixture ready after {timings['fixture']} s; settling {SETTLE_S} s", flush=True)
         result["containers"] = sh("docker ps -a --format '{{.Names}} {{.State}}'", 30)[1].split("\n")
@@ -464,10 +558,18 @@ def main(package_version):
         for index in range(1, WINDOWS + 1):
             before = unit_states(required)
             report, raw = measure(f"window-{index}", WINDOW_BOUND_S, "--window", str(WINDOW_S))
-            figures = window_figures(report, raw, before, unit_states(required))
+            after = unit_states(required)
+            memory = {}
+            for unit, state in after.items():
+                try:
+                    memory[unit] = rollup(int(state.get("MainPID", "0")))
+                except (OSError, ValueError):
+                    pass
+            figures = window_figures(report, raw, before, after, memory)
             windows.append(figures)
             print(f"window {index}/{WINDOWS}: CPU {figures['backend_cpu_idle_percent']} %, writes "
                   f"{figures['resident_disk_writes_mb_day']} MB/day, PSS {figures['core_base_idle_pss_bytes']} B, "
+                  f"core {memory.get(CORE)}, "
                   f"{len(figures['tolerated_reader_helpers'])} reader helper(s) tolerated, "
                   f"{len(figures['problems'])} problem(s)", flush=True)
         timings["windows"] = round(time.monotonic() - mark, 1)
