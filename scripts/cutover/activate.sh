@@ -456,7 +456,9 @@ fct_main() {
             if (( ATTACHED )); then fct_enter_scope "${unit}" "${original_args[@]}"; fi
             local rc=0
             fct_detach "${unit}" "${original_args[@]}" || rc=$?
-            return "${rc}"
+            # The run's status, passed on deliberately: an exit, so the library's error report
+            # does not take a failed run (already reported in its log) for an unexpected stop.
+            exit "${rc}"
         fi
     else
         fct_refuse_if_active

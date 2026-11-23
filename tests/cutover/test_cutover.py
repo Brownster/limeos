@@ -7,6 +7,7 @@ Run: python3 -m unittest discover -s tests/cutover
 
 import fcntl
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -1106,6 +1107,27 @@ class ActivateTests(Harness):
         self.assertNotEqual(int(reached.read_text()), os.getsid(0))
         for name in RUST:
             self.assertEqual(self.unit_state(name), ("active", "enabled"))
+
+    # Found in the Debian 12 VM rehearsal: the follower passed the run's status on with `return`,
+    # which the ERR trap took for a failure, so every refused, failed or rolled-back detached
+    # activation ended with a spurious "activate.sh stopped unexpectedly ... 'return "${rc}"'".
+    def test_a_refused_detached_run_is_not_reported_as_an_unexpected_stop(self):
+        self.passing_snapshot()
+        result = self.approved("--host", "other.lan", attached=False)
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("core.json origin must be https://other.lan:8002", output)
+        self.assertNotIn("stopped unexpectedly", output)
+
+    def test_a_rolled_back_detached_run_is_not_reported_as_an_unexpected_stop(self):
+        self.passing_snapshot()
+        (self.stub / "units" / f"{READER}.restarts").write_text("2\n")
+        result = self.approved(attached=False)
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("health check failed: stack reader ready: was false", output)
+        self.assertIn("ROLLBACK: running return.sh", output)
+        self.assertNotIn("stopped unexpectedly", output)
 
     def test_detached_run_survives_the_terminal_hanging_up(self):
         self.passing_snapshot()
@@ -2640,6 +2662,66 @@ class LintTests(unittest.TestCase):
                  for number, line in enumerate(path.read_text().splitlines(), 1)
                  if pattern.search(line) and not line.lstrip().startswith("#")]
         self.assertEqual(found, [], "read files with mapfile or read instead")
+
+
+class RunbookStateListTests(unittest.TestCase):
+    """The runbook's commands that build preflight's --state-list, run as an operator pastes them."""
+
+    def block(self):
+        text = (REPO / "docs/p06-cutover-runbook.md").read_text()
+        found = re.search(r"```sh\n(.*?)```", text[text.index("Build the state list"):], re.S)
+        self.assertIsNotNone(found)
+        return [line.strip() for line in found.group(1).splitlines() if line.strip()]
+
+    def test_limeosctl_is_called_where_the_package_installs_it(self):
+        # The package ships limeosctl in /usr/lib/limeos and nothing on PATH: a bare `limeosctl`
+        # fails with "command not found", leaves an empty report and an empty state list.
+        build = (REPO / "packaging/build.py").read_text()
+        self.assertIn('lib = stage / "usr/lib" / package', build)
+        self.assertNotRegex(build, r'"usr/s?bin')
+        scan = self.block()[0]
+        self.assertTrue(scan.startswith("/usr/lib/limeos/limeosctl migrate scan --json "), scan)
+
+    def test_the_list_holds_the_frozen_apps_files_and_none_of_the_packages(self):
+        # Shaped like the scan report the VM rehearsal got on Debian 12 with the package installed:
+        # the frozen app and LimeOS share /etc/limeos and /var/lib/limeos.
+        files = {
+            "etc": ["agent-policy.json", "core.json", "credentials.env", "management-catalog.json",
+                    "policy-backups/agent-policy-20261000T010203Z.json", "system-policy/container.json",
+                    "system-policy/host.json"],
+            "state": ["agent-actions/actions.sqlite", "auto_update.json", "core/core.lock", "core/core.sqlite",
+                      "core/core.sqlite-wal", "core/metrics.sqlite", "executors/container/receipts.sqlite",
+                      "assistant/state.json", "integrations/jellyfin.json", "metrics/metrics.sqlite"],
+            "stacks": ["media/compose.yaml"],
+            "checkout": ["backup_config.json", "media_paths.json", "storage_plugins/example.json"],
+        }
+        report = {
+            "locations": [{"label": "etc", "path": "/etc/limeos"}, {"label": "state", "path": "/var/lib/limeos"},
+                          {"label": "stacks", "path": "/opt/stacks"},
+                          {"label": "checkout", "path": "/home/holly/pi-health/config/"}],
+            "files": [{"location": where, "path": path, "kind": "file"} for where, paths in files.items() for path in paths]
+                     + [{"location": "etc", "path": "policy-backups", "kind": "directory"}],
+        }
+        with tempfile.TemporaryDirectory(prefix="cutover-runbook-") as tmp:
+            scan = Path(tmp) / "migrate-scan.json"
+            scan.write_text(json.dumps(report))
+            command = self.block()[1].replace("/root/migrate-scan.json", str(scan))
+            command, _, target = command.rpartition(" >")
+            self.assertEqual(target, "/root/cutover-state-paths.txt")
+            result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "/etc/limeos/agent-policy.json",
+            "/etc/limeos/credentials.env",
+            "/etc/limeos/policy-backups/agent-policy-20261000T010203Z.json",
+            "/var/lib/limeos/agent-actions/actions.sqlite",
+            "/var/lib/limeos/auto_update.json",
+            "/var/lib/limeos/integrations/jellyfin.json",
+            "/var/lib/limeos/metrics/metrics.sqlite",
+            "/home/holly/pi-health/config/backup_config.json",
+            "/home/holly/pi-health/config/media_paths.json",
+            "/home/holly/pi-health/config/storage_plugins/example.json",
+        ])
 
 
 def script_line(name, number):

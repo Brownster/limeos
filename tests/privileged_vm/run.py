@@ -304,7 +304,10 @@ def main():
                     )
                 # Cutover scripts and their Caddy template, at the relative layout
                 # the scripts expect (scripts/cutover, packaging/).
-                run(*ssh, "mkdir -p /root/limeos-src/scripts /root/limeos-src/packaging")
+                run(
+                    *ssh,
+                    "mkdir -p /root/limeos-src/scripts /root/limeos-src/packaging /root/limeos-src/docs",
+                )
                 run(
                     "scp",
                     *common,
@@ -321,6 +324,24 @@ def main():
                     str(port),
                     str(ROOT / "packaging/Caddyfile.cutover.example"),
                     "root@127.0.0.1:/root/limeos-src/packaging/",
+                )
+                # The runbook (the cutover guest runs its commands as written) and the
+                # exposure ceilings the unit-hardening case compares against.
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    str(ROOT / "docs/p06-cutover-runbook.md"),
+                    "root@127.0.0.1:/root/limeos-src/docs/",
+                )
+                run(
+                    "scp",
+                    *common,
+                    "-P",
+                    str(port),
+                    str(ROOT / "scripts/check_unit_exposure.py"),
+                    "root@127.0.0.1:/root/limeos-src/scripts/",
                 )
                 if args.build_bundle:
                     if args.retain_previous_repository:
