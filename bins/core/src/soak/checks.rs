@@ -40,6 +40,8 @@ pub const HELD_OPEN: &str = "a job's history stays while its resolution request 
 pub const EPOCHS: &str =
     "no job dispatched before a receipt-store change is released on a closure alone";
 pub const CLOCK: &str = "every time core stores is on the simulated clock";
+pub const BUDGET: &str =
+    "the executor's effect budget refuses only the action storm, which it does refuse";
 
 /// A warning or error core may log while the soak drives it: its message,
 /// exactly as core writes it, whether it is an error, the codes it may carry
@@ -93,6 +95,21 @@ pub const EXPECTED_LOGS: &[ExpectedLog] = &[
               the harness releases it (`release_held`)",
     },
     ExpectedLog {
+        message: RATE_LIMITED,
+        error: false,
+        codes: &[],
+        why: "the action storm's scripted jobs spend a container's executor effect budget \
+              (counted exactly, `lost_answers`, and only in the storm, `BUDGET`): the job is \
+              settled as refused",
+    },
+    ExpectedLog {
+        message: limeos_executor::container_requests::REFUSAL_LINE,
+        error: false,
+        codes: &[],
+        why: "the executor's journal line for each refusal row of its action log, at most one \
+              per container an hour (`BUDGET`)",
+    },
+    ExpectedLog {
         message: "the container executor could not be reached; the execute request was never sent, and the job is released without effect",
         error: false,
         codes: &[],
@@ -115,6 +132,9 @@ pub fn expected_log(entry: &super::sim::Logged) -> Option<&'static ExpectedLog> 
 
 /// Core's message for an execute the executor refused before any row.
 pub const BEYOND_HISTORY: &str = "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether an action with it already ran; check the system clock (nothing was recorded or run, and the job is settled as refused)";
+
+/// Core's message for an execute the executor's effect budget refused.
+pub const RATE_LIMITED: &str = "executor refused the action: a container it would act on has spent its executor action budget (at most 10 effects in ten minutes and 60 a day); nothing was recorded or run, and the job is settled as refused; try again later, and read the executor's action log if no one here asked for that many";
 
 /// Core's message for an execute that failed after it was written: the one
 /// site every lost execute answer reaches, logged unconditionally.
@@ -288,6 +308,9 @@ fn receipt_budget(table: &str) -> Option<Budget> {
         "stack_actions" => Rows(stacks + batch + super::engine::STACKS.len() as i64),
         "retention" => Rows(1),
         "pruned_legacy" => Rows(0),
+        // The action log keeps its newest rows; its totals their newest days.
+        "effect_log" => Rows(limits::LOG_ROWS),
+        "effect_days" => Rows(limits::DAYS_KEPT),
         _ => return None,
     })
 }
@@ -1054,6 +1077,7 @@ fn mean(points: &[(f64, f64)]) -> f64 {
 /// The end of a run: the final checks, the report, and the verdict.
 pub fn finish(sim: &mut Sim, profile: &Profile) {
     final_state(sim);
+    effect_budget(sim, profile);
     if profile.trends {
         trends(sim);
     }
@@ -1061,6 +1085,49 @@ pub fn finish(sim: &mut Sim, profile: &Profile) {
     report(sim, profile);
     verdict(sim, profile);
 }
+
+/// The executor's effect budget (ADR 0013) against the household: nothing
+/// but the action storm meets it. Refusals are answered from the storm's
+/// first minute until a day after its last day's last proposal, the daily window in
+/// which the storm's charges still count (a household job on a container
+/// the storm spent that evening is refused too), plus an hour for the
+/// storm's queue to drain; never otherwise. A storm long enough to spend a
+/// day's budget (six hours of a stack action every 45 s charge each stacked
+/// container about 25 effects an hour) is refused at least once.
+fn effect_budget(sim: &mut Sim, profile: &Profile) {
+    let (day, hour, minutes) = profile.action_burst;
+    let start = START + day * DAY + hour * 3600;
+    let storm_end = start + (profile.storm_days - 1) * DAY + minutes * MINUTE + 3600;
+    let end = storm_end + limeos_executor_container::limit::DAILY.seconds;
+    let times = sim.exec.faults().rate_limited.clone();
+    let outside: Vec<_> = times.iter().filter(|&&at| at < start || at > end).collect();
+    if let Some(first) = outside.first() {
+        sim.violation(
+            BUDGET,
+            format!(
+                "{} executes refused by the effect budget outside the action storm, the first on day {} at {:02}:{:02}",
+                outside.len(),
+                (**first - START) / DAY,
+                (**first - START).rem_euclid(DAY) / 3600,
+                (**first - START).rem_euclid(3600) / 60
+            ),
+        );
+    }
+    if minutes >= 360 && day < profile.days && times.is_empty() {
+        sim.violation(
+            BUDGET,
+            format!("the {minutes}-minute action storm was never refused by the effect budget"),
+        );
+    }
+    sim.measures.insert(BUDGET_REFUSALS, times.len() as f64);
+    sim.measures.insert(
+        BUDGET_AFTER,
+        times.iter().filter(|&&at| at > storm_end).count() as f64,
+    );
+}
+pub const BUDGET_AFTER: &str =
+    "of them, household jobs refused within a day of the storm (its charges still count)";
+pub const BUDGET_REFUSALS: &str = "executes refused by the executor's effect budget";
 
 fn final_state(sim: &mut Sim) {
     idle_coverage(sim);
@@ -1229,12 +1296,15 @@ fn lost_answers(sim: &mut Sim) {
     for kind in executes {
         *expected.entry("Unavailable".into()).or_default() += lost.get(kind).copied().unwrap_or(0);
     }
-    // A refusal before any row has its own message (`BEYOND_HISTORY`).
-    let mut beyond = 0;
+    // A refusal before any row has its own message (`BEYOND_HISTORY`,
+    // `RATE_LIMITED`).
+    let (mut beyond, mut limited) = (0, 0);
     for ((kind, code), count) in &refused {
         if executes.contains(kind) {
             if code == "BeyondReceiptHistory" {
                 beyond += count;
+            } else if code == "RateLimited" {
+                limited += count;
             } else {
                 *expected.entry(code.clone()).or_default() += count;
             }
@@ -1242,7 +1312,7 @@ fn lost_answers(sim: &mut Sim) {
     }
     expected.retain(|_, count| *count > 0);
     let mut logged: BTreeMap<String, u64> = BTreeMap::new();
-    let mut logged_beyond = 0;
+    let (mut logged_beyond, mut logged_limited) = (0, 0);
     for ((_, message, code), count) in &sim.logged {
         if message == EXECUTE_FAILED {
             *logged
@@ -1250,7 +1320,17 @@ fn lost_answers(sim: &mut Sim) {
                 .or_default() += count;
         } else if message == BEYOND_HISTORY {
             logged_beyond += count;
+        } else if message == RATE_LIMITED {
+            logged_limited += count;
         }
+    }
+    if logged_limited != limited {
+        sim.violation(
+            LOST_ANSWERS,
+            format!(
+                "core logged {logged_limited} executes refused by the effect budget; the executor refused {limited}"
+            ),
+        );
     }
     if logged_beyond != beyond {
         sim.violation(
@@ -2641,6 +2721,7 @@ fn verdict(sim: &Sim, profile: &Profile) {
         LOGS,
         EPOCHS,
         CLOCK,
+        BUDGET,
     ];
     if profile.held_open.is_some() {
         checks.push(HELD_OPEN);

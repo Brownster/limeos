@@ -44,10 +44,15 @@
 //! - Day 20, 06:00 to 16:00: a runaway client logs in and out with valid
 //!   credentials twice a second (two password workers, about half a second
 //!   per check on a Pi, cap it near four a second): 144,000 events.
-//! - Day 25, 08:00 to 20:00: a scripted client queues a container action
-//!   every 40 s and a stack action every 45 s: 1,080 + 960 proposals, enough
-//!   to overflow both receipt budgets (1,024 standalone, 256 stacks) although
-//!   many of them meet a lock held by a job waiting for the operator.
+//! - Days 25 to 28, 08:00 to 20:00: a scripted client queues a container
+//!   action every 40 s and a stack action every 45 s, on containers and
+//!   stacks the job list does not show busy, enough to overflow both receipt
+//!   budgets (1,024 standalone, 256 stacks) although many of them meet a lock
+//!   held by a job waiting for the operator. One day of it is more than the
+//!   container executor's effect budget admits (60 effects a container a
+//!   day, a stack charging each target; ADR 0013), which is why it runs four:
+//!   it meets the budget on purpose (`checks::effect_budget`), and like a
+//!   person it then leaves a refused container alone for a day (`busy`).
 use super::{
     checks,
     engine::{HOST, STACKS, container_id},
@@ -65,8 +70,13 @@ pub struct Profile {
     pub days: i64,
     /// (day, start hour, minutes) of the runaway-login burst.
     pub session_burst: (i64, i64, i64),
-    /// (day, start hour, minutes) of the scripted action storm.
+    /// (day, start hour, minutes) of the scripted action storm, repeated on
+    /// `storm_days` days from that day.
     pub action_burst: (i64, i64, i64),
+    /// Days the storm runs: the executor's effect budget (ADR 0013) lets
+    /// each container take at most 60 effects a day, so filling the receipt
+    /// store's budgets takes more than one day of storm.
+    pub storm_days: i64,
     /// Weekday of the idle window (every day when 1).
     pub idle_every: i64,
     /// Trend checks need a steady last third.
@@ -258,10 +268,12 @@ pub async fn run(profile: Profile) -> Sim {
             until: day_at(day, hour, minutes),
         },
     );
-    let (day, hour, minutes) = profile.action_burst;
-    let until = day_at(day, hour, minutes);
-    agenda.at(day_at(day, hour, 0), Step::ScriptedContainer { until });
-    agenda.at(day_at(day, hour, 1), Step::ScriptedStack { until });
+    let (first, hour, minutes) = profile.action_burst;
+    for day in first..first + profile.storm_days {
+        let until = day_at(day, hour, minutes);
+        agenda.at(day_at(day, hour, 0), Step::ScriptedContainer { until });
+        agenda.at(day_at(day, hour, 1), Step::ScriptedStack { until });
+    }
 
     while drive(&mut sim, &mut agenda, end).await {}
     drain(&mut sim, &mut agenda).await;
@@ -503,20 +515,34 @@ fn fate(sim: &mut Sim) -> Fate {
 }
 
 /// Resources the job list shows as busy: locked by a held job or claimed by
-/// a queued one. People (and a sane script) pick something else; one time
-/// in twenty they act anyway, and meet the lock.
+/// a queued one, or refused by the executor's effect budget within the last
+/// day (its daily window; the job list shows the refused job). People (and
+/// a sane script) pick something else; one time in twenty they act anyway,
+/// and meet the lock or the budget.
 fn busy(sim: &mut Sim) -> std::collections::HashSet<String> {
     if sim.rng.per_mille(50) {
         return Default::default();
     }
-    let mut stmt = sim
-        .side()
-        .prepare_cached("SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued'")
-        .unwrap();
-    stmt.query_map([], |r| r.get(0))
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap()
+    let mut busy: std::collections::HashSet<String> = {
+        let mut stmt = sim
+            .side()
+            .prepare_cached("SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued'")
+            .unwrap();
+        stmt.query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    let since = sim.now() - limeos_executor_container::limit::DAILY.seconds;
+    busy.extend(
+        sim.exec
+            .faults()
+            .refused_resources
+            .iter()
+            .filter(|&(_, &at)| at > since)
+            .map(|(resource, _)| resource.clone()),
+    );
+    busy
 }
 
 /// Core's `propose_action`: session, authorization, fresh inspection

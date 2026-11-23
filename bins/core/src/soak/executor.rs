@@ -120,6 +120,12 @@ pub struct Faults {
     pub lost: BTreeMap<&'static str, u64>,
     /// Requests answered with a refusal, by kind and code.
     pub refused: BTreeMap<(&'static str, String), u64>,
+    /// When each execute the effect budget refused was answered.
+    pub rate_limited: Vec<i64>,
+    /// When the effect budget last refused an action on each resource (a
+    /// container, or a stack and each of its targets), as the job list
+    /// shows a refused job.
+    pub refused_resources: HashMap<String, i64>,
     /// Requests served, by kind.
     pub requests: BTreeMap<&'static str, u64>,
     /// Times the process died (or stopped) on its own.
@@ -416,6 +422,20 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
         Request::ExecuteStack { request, .. } => Some(request.action.clone()),
         _ => None,
     };
+    // The resources an effect budget refusal concerns.
+    let charged: Vec<String> = match &request {
+        Request::ExecuteContainer { request, .. } | Request::Restart { request, .. } => {
+            vec![request.plan.expected.resource.clone()]
+        }
+        Request::ExecuteStack { request, .. } => request
+            .plan
+            .targets()
+            .iter()
+            .map(|t| t.resource.clone())
+            .chain([request.plan.expected.resource.clone()])
+            .collect(),
+        _ => Vec::new(),
+    };
     // A recovery lookup, and whether core asked to close an absent action.
     let lookup = match &request {
         Request::RestartReceipt {
@@ -487,10 +507,21 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
             *faults.effects.entry(action).or_default() += world.effects() - effects;
         }
         if let Some(code) = response.error {
-            *faults
-                .refused
-                .entry((what, format!("{code:?}")))
-                .or_default() += 1;
+            // A refusal core hears; one whose answer is lost below is a lost
+            // answer to core, counted as such. (Only the effect budget's
+            // refusals meet an armed answer fault often: the storm's.)
+            if matches!(after, After::Write | After::StopUntil(_)) {
+                *faults
+                    .refused
+                    .entry((what, format!("{code:?}")))
+                    .or_default() += 1;
+            }
+            if code == limeos_domain::ErrorCode::RateLimited {
+                faults.rate_limited.push(now);
+                for resource in charged {
+                    faults.refused_resources.insert(resource, now);
+                }
+            }
             // `BeyondReceiptHistory` included: the soak never steps the clock
             // back, and a replaced store has pruned nothing it could refuse by.
             if LIFETIME.contains(&code) {
