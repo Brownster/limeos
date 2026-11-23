@@ -16,7 +16,7 @@ plus the states normal traffic never reaches, built directly.
 | Core (`Core`) | Real: the dispatcher tick is `Core::dispatcher_pass` (resolution retries, stack and container dispatch and recovery, storage listings); proposals, approvals, queueing, cancellation, progress and dashboard polls and logouts are core's handlers (`propose_action`, `approve_container`, `submit`, `cancel_restart`, `restart_progress`, `observations`, `logout`, and the stack ones); the operator decides through `rpc_resolution_view` and `rpc_resolve` | `now()` and `monotonic()` read the simulated clock on the soak's thread and the store's writer thread (`test_clock`, `cfg(test)` only) |
 | Core store (`Database`, `Store`) | Real: opened with `test_support::open`, the writer thread, queues and all; core's code reaches it through `Database::call` | The writer's retention gate reads the simulated clock (`SimClock`, `test-support` only) |
 | Core retention | Real: the writer thread's own schedule, a pass at startup and one whenever the clock has passed a minute since the last; the harness only advances the clock, at least once a simulated minute, and judges the passes the writer reports | Simulated |
-| Container executor | Real request handling: `limeos_executor::container_requests::answer` behind the ceiling's `validate`, around the real `ReceiptStore` (opened with `open_at`), on a real Unix socket with the protocol's framing; the harness supplies the accept loop and the faults | The store's own `clock`/`now` parameters |
+| Container executor | Real request handling: `limeos_executor::container_requests::answer` behind the ceiling's `validate`, around the real `ReceiptStore` (opened with `open`, which reads no clock), on a real Unix socket with the protocol's framing; the harness supplies the accept loop and the faults | The store's own `clock`/`now` parameters |
 | Docker Engine | Simulated container state behind the `Engine` trait (`engine.rs`): the reference host's 18 containers in four Compose stacks | Simulated |
 | `metrics.sqlite` (`limeos_observations::telemetry`) | Real `Telemetry`, writer thread and all (`metrics.rs`) | Sample times from the simulated clock |
 
@@ -146,9 +146,10 @@ A replaced receipt store loses receipts the jobs core holds were executed
 under, and every executor start draws a new store epoch anyway. Every job
 core holds when the executor starts (dispatched under an earlier epoch) is
 recorded, and the executor records every job it answers a recovery lookup for
-with a closure. A plan expiring within `PLAN_TTL_SECONDS` of a replacement may
-be refused `BeyondReceiptHistory` by the new store (it cannot prove an older
-plan's action never ran); only then is that refusal not a lifetime refusal.
+with a closure. A replaced store has pruned nothing (its watermark is only
+ever an expiry it pruned, never a clock reading), so it refuses no plan with
+`BeyondReceiptHistory`; the soak never steps the clock back, so that refusal
+is always a lifetime refusal.
 
 The held-open resolution makes retention's rule for open resolution requests
 observable, which ordinary traffic almost never does: a job is settled while
@@ -433,7 +434,7 @@ CI (not re-measured this round).
 
 | Check | What it catches |
 |---|---|
-| no lifetime or unexpected refusal | `StateNotDurable`, `Overloaded`, `BeyondReceiptHistory` (but within a plan's lifetime after a receipt-store replacement) from any store call or executor answer or in anything core logs, a failed retention rule, and any refusal a call site does not list as legitimate |
+| no lifetime or unexpected refusal | `StateNotDurable`, `Overloaded`, `BeyondReceiptHistory` from any store call or executor answer or in anything core logs, a failed retention rule, and any refusal a call site does not list as legitimate |
 | core logs only the warnings it is expected to | every warning or error core logs must match an entry of `EXPECTED_LOGS` (its exact message, level and codes, with the reason the soak provokes it): the dispatcher's two "remains pending" lines (`Conflict`, `Unavailable`), the execute that failed after it was written (`Unavailable` only), the execute never sent, the execute refused before any row after a replacement, and the held-open resolution that stays pending (`Unavailable`). Nothing may carry `InvalidInput` |
 | every lost executor answer is logged once, as unavailable | every execute answer the executor never wrote (lost, or the process dead with the request unread or inside the Engine call) is logged by core exactly once, at its execute site, with `Unavailable`, and every other code there is a refusal the executor answered, one for one; every lost container recovery lookup is logged as that job's failure with `Unavailable` in the same dispatcher pass, one for one, whenever the executor ran throughout the pass (a lost stack lookup is `release_if_unsent`'s, which holds the job without a log, and the stack site logs none); every executes refused before any row matches its log line |
 | no job dispatched before a receipt-store change is released on a closure alone | every job core held when the executor started (a new store epoch; with a replaced store, receipts lost) and that the new store answered with a closure ends in any state but `precondition_changed`; the replacements happened and such jobs were seen |

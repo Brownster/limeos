@@ -356,9 +356,6 @@ pub struct Sim {
     /// keeps, and the highest prune watermark seen.
     pub receipts_reached: (bool, bool),
     pub last_watermark: i64,
-    /// The receipt store's creation floor: its first watermark (a new store
-    /// treats every plan expiring before it as pruned history).
-    pub receipt_creation: i64,
     /// Authority events at the last checkpoint: they never decrease.
     pub authority_seen: i64,
     /// Jobs the writer thread's job-row retention reported removing.
@@ -476,7 +473,6 @@ impl Sim {
             core_restarts_until: core_restarts_until.map_or(i64::MAX, |day| START + day * DAY),
             receipts_reached: (false, false),
             last_watermark: i64::MIN,
-            receipt_creation: START + limeos_domain::PLAN_TTL_SECONDS,
             authority_seen: 0,
             pruned: Default::default(),
             last_state: Default::default(),
@@ -740,7 +736,7 @@ impl Sim {
         }
         let now = self.now();
         let (file, wal) = sizes(&self.exec.dir.join("receipts.sqlite"));
-        match self.exec.start(now) {
+        match self.exec.start() {
             Ok(opened) => self.executor_starts.push(Startup {
                 at: now,
                 reason,
@@ -887,10 +883,6 @@ impl Sim {
         }
         self.receipts_reached = (false, false);
         self.last_watermark = i64::MIN;
-        if !(older && snapshot.exists()) {
-            self.receipt_creation = self.now() + limeos_domain::PLAN_TTL_SECONDS;
-        }
-        self.exec.faults().replaced_at = Some(self.now());
     }
     fn older_receipts(&self) -> PathBuf {
         self._dir.path().join("receipts-older.sqlite")

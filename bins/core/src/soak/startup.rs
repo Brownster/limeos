@@ -10,7 +10,7 @@
 //!
 //! The unit: SQLite page reads, one `pread` of one page per fetch that
 //! misses the open's page cache (the default, as `Store::open` and
-//! `ReceiptStore::open_at` leave it), counted as the thread's `syscr`
+//! `ReceiptStore::open` leave it), counted as the thread's `syscr`
 //! (`/proc/thread-self/io`). The open runs in a child process (this test
 //! binary, re-run on `measure_in_child`), alone: the bundled SQLite is built
 //! with `SQLITE_ENABLE_MEMORY_MANAGEMENT`, so every connection of a process
@@ -78,7 +78,7 @@ pub fn core(sim: &mut Sim) {
     let path = dir.join("core.sqlite");
     copy(&sim.core_path, &path);
     let (file, wal) = sizes(&path);
-    let child = in_child("core", &path, sim.now());
+    let child = in_child("core", &path);
     if let Some(refused) = &child.refused {
         sim.violation(
             super::checks::STARTUP,
@@ -152,7 +152,7 @@ pub fn core_crash(sim: &mut Sim) {
     copy(&sim.core_path, &cold);
     let committed = Durable::read(&super::checks::reader(&sim.core_path).unwrap(), None);
     let (file, wal) = sizes(&path);
-    let child = in_child_with("core", &path, Some((&cold, committed.last)), sim.now());
+    let child = in_child_with("core", &path, Some((&cold, committed.last)));
     if let Some(refused) = &child.refused {
         sim.violation(
             super::checks::STARTUP,
@@ -362,7 +362,7 @@ pub fn lost_in_crash(committed: &Durable, reopened: &Durable) -> Vec<String> {
     lost
 }
 
-/// `ReceiptStore::open_at` on a copy of the live receipt store, measured
+/// `ReceiptStore::open` on a copy of the live receipt store, measured
 /// alone in a child process.
 pub fn receipts(sim: &mut Sim) {
     let dir = scratch(sim, "startup-receipts");
@@ -370,7 +370,7 @@ pub fn receipts(sim: &mut Sim) {
     copy(&sim.exec.dir.join("receipts.sqlite"), &path);
     let (file, wal) = sizes(&path);
     let now = sim.now();
-    let child = in_child("receipts", &path, now);
+    let child = in_child("receipts", &path);
     if let Some(refused) = &child.refused {
         sim.violation(
             super::checks::STARTUP,
@@ -514,14 +514,14 @@ struct Child {
 const MEASURE: &str = "LIMEOS_SOAK_MEASURE";
 
 /// Runs `measure_in_child` in a new process of this binary on `path`.
-fn in_child(store: &str, path: &Path, now: i64) -> Child {
-    in_child_with(store, path, None, now)
+fn in_child(store: &str, path: &Path) -> Child {
+    in_child_with(store, path, None)
 }
 /// `in_child`, with each statement run cold on `cold` (a consistent copy of
 /// the same content) rather than on a copy of `path` the child makes, and
 /// the events after the given cursor (the last committed) read back apart.
-fn in_child_with(store: &str, path: &Path, cold: Option<(&Path, i64)>, now: i64) -> Child {
-    let mut request = format!("{store}\n{now}\n{}", path.display());
+fn in_child_with(store: &str, path: &Path, cold: Option<(&Path, i64)>) -> Child {
+    let mut request = format!("{store}\n{}", path.display());
     if let Some((cold, last)) = cold {
         request.push_str(&format!("\n{last}\n{}", cold.display()));
     }
@@ -873,10 +873,9 @@ fn measure_in_child() {
         return;
     };
     let request = request.into_string().unwrap();
-    let mut parts = request.splitn(5, '\n');
-    let (store, now, path, last, consistent) = (
+    let mut parts = request.splitn(4, '\n');
+    let (store, path, last, consistent) = (
         parts.next().unwrap(),
-        parts.next().unwrap().parse::<i64>().unwrap(),
         PathBuf::from(parts.next().unwrap()),
         parts.next().map(|last| last.parse::<i64>().unwrap()),
         parts.next().map(PathBuf::from),
@@ -947,7 +946,7 @@ fn measure_in_child() {
     } else {
         let dir = path.parent().unwrap().to_path_buf();
         let (io, at) = (Io::now(), Instant::now());
-        let opened = ReceiptStore::open_at(&dir, now).map(drop);
+        let opened = ReceiptStore::open(&dir).map(drop);
         let (io, elapsed) = (Io::now().since(io), at.elapsed());
         json!({
             "syscr": io.syscr,

@@ -147,7 +147,7 @@ fn raise_watermark(store: &ReceiptStore, to: i64) {
 #[tokio::test]
 async fn a_closed_stack_action_refuses_a_late_execute_whatever_the_clock_says() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let request = stack_request(&"d".repeat(64));
     let Lookup::Receipt { receipt, closed } = close_stack(&mut store, &request, ASKED) else {
         panic!("a never-recorded action is answered with its closure receipt");
@@ -177,7 +177,7 @@ async fn a_closed_stack_action_refuses_a_late_execute_whatever_the_clock_says() 
     assert!(engine.calls().is_empty());
     // A reopened store keeps the action taken.
     drop(store);
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let late = store
         .execute_stack(&engine, &ceiling(), 1001, &request, || STEPPED_BACK)
         .await
@@ -189,7 +189,7 @@ async fn a_closed_stack_action_refuses_a_late_execute_whatever_the_clock_says() 
 #[tokio::test]
 async fn a_closed_container_action_refuses_a_late_execute_whatever_the_clock_says() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let request = container_request(&"d".repeat(64), EXPIRES);
     let Lookup::Receipt { receipt, closed } = close(&mut store, &request, ASKED) else {
         panic!("a never-recorded action is answered with its closure receipt");
@@ -220,7 +220,7 @@ async fn a_closed_container_action_refuses_a_late_execute_whatever_the_clock_say
 #[tokio::test]
 async fn a_status_read_without_the_close_intent_records_nothing() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let stack = stack_request(&"d".repeat(64));
     let single = container_request(&"e".repeat(64), EXPIRES);
     for _ in 0..2 {
@@ -276,7 +276,7 @@ async fn a_status_read_without_the_close_intent_records_nothing() {
 async fn an_execute_that_prepared_first_is_reported_and_a_closure_first_is_returned() {
     // Execute first: the lookup reports its receipt and closes nothing.
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = Recorder::default();
     let stack = stack_request(&"d".repeat(64));
     let ran = store
@@ -340,7 +340,7 @@ async fn an_execute_that_prepared_first_is_reported_and_a_closure_first_is_retur
 #[tokio::test]
 async fn a_no_longer_held_action_is_closed_but_still_answered_as_no_longer_held() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     // A receipt for a plan expiring this late may have been pruned.
     raise_watermark(&store, EXPIRES);
     let stack = stack_request(&"d".repeat(64));
@@ -422,7 +422,7 @@ async fn resolve_stack(
 #[tokio::test]
 async fn resolving_an_absent_action_closes_it_and_a_closure_row_is_answered_as_absent() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = Recorder::default();
     let stack = stack_request(&"d".repeat(64));
     for _ in 0..2 {
@@ -495,7 +495,7 @@ async fn resolve_as(
 async fn a_never_recorded_closure_refuses_a_verified_done_declaration() {
     use limeos_domain::ResolveRefusal;
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = Recorder::default();
     let stack = stack_request(&"d".repeat(64));
     let single = container_request(&"e".repeat(64), EXPIRES);
@@ -574,7 +574,7 @@ async fn a_never_recorded_closure_refuses_a_verified_done_declaration() {
 #[tokio::test]
 async fn a_disputed_never_recorded_closure_leaves_every_declaration_to_the_operator() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = Recorder::default();
     let stack = stack_request(&"d".repeat(64));
     let single = container_request(&"e".repeat(64), EXPIRES);
@@ -638,7 +638,7 @@ async fn a_disputed_never_recorded_closure_leaves_every_declaration_to_the_opera
 #[tokio::test]
 async fn a_no_longer_held_closure_leaves_every_declaration_to_the_operator() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     raise_watermark(&store, EXPIRES);
     let engine = Recorder::default();
     let stack = stack_request(&"d".repeat(64));
@@ -667,7 +667,7 @@ async fn a_no_longer_held_closure_leaves_every_declaration_to_the_operator() {
 #[test]
 fn closure_rows_are_pruned_like_settled_history_and_never_while_the_plan_is_valid() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     // A full standalone budget whose plans stay valid throughout.
     for i in 0..RETAINED_ACTIONS {
         store
@@ -720,7 +720,7 @@ fn closure_rows_are_pruned_like_settled_history_and_never_while_the_plan_is_vali
 #[test]
 fn a_stack_closure_is_pruned_whole_with_its_member_rows() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     for i in 0..RETAINED_STACKS {
         store
             .conn
@@ -758,7 +758,7 @@ fn a_stack_closure_is_pruned_whole_with_its_member_rows() {
 #[tokio::test]
 async fn a_pruned_closure_refuses_a_delayed_execute_after_the_clock_steps_back() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     for i in 0..RETAINED_ACTIONS {
         store
             .conn
@@ -817,7 +817,7 @@ async fn a_pruned_closure_refuses_a_delayed_execute_after_the_clock_steps_back()
 #[tokio::test]
 async fn a_pruned_stack_closure_refuses_a_delayed_execute_after_the_clock_steps_back() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     for i in 0..RETAINED_STACKS {
         store
             .conn
@@ -854,7 +854,7 @@ async fn a_pruned_stack_closure_refuses_a_delayed_execute_after_the_clock_steps_
 #[tokio::test]
 async fn the_execute_barrier_uses_the_watermark_as_absence_does() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     raise_watermark(&store, EXPIRES);
     let engine = Recorder::default();
     let at = container_request(&"d".repeat(64), EXPIRES);
@@ -917,8 +917,7 @@ fn closure_kill_helper() {
     let Some(directory) = std::env::var_os("LIMEOS_CLOSURE_KILL_FIXTURE") else {
         return;
     };
-    let mut store =
-        ReceiptStore::open_at(std::path::Path::new(&directory), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(std::path::Path::new(&directory)).unwrap();
     close_stack(&mut store, &stack_request(&"d".repeat(64)), ASKED);
     // Killed after the closure is durable and before any answer is sent.
     std::process::exit(86);
@@ -937,7 +936,7 @@ async fn a_process_killed_between_closing_and_answering_leaves_the_closure_and_t
         .status()
         .unwrap();
     assert_eq!(status.code(), Some(86));
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let request = stack_request(&"d".repeat(64));
     assert_eq!(
         store.closure(ResolveKind::Stack, &request.action).unwrap(),
@@ -976,7 +975,7 @@ async fn a_process_killed_between_closing_and_answering_leaves_the_closure_and_t
 #[test]
 fn schema_seven_upgrade_adds_the_closure_column_and_keeps_every_row() {
     let dir = private_dir();
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     store
         .conn
         .execute(
@@ -991,7 +990,7 @@ fn schema_seven_upgrade_adds_the_closure_column_and_keeps_every_row() {
         )
         .unwrap();
     drop(store);
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     let version: u32 = store
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
@@ -1035,79 +1034,113 @@ fn remove_store_files(dir: &std::path::Path) {
     }
 }
 
-/// A store created at `created` cannot know what ran before it existed. Any
-/// plan that could predate it (created no later than `created`, so expiring
-/// no later than `created + PLAN_TTL_SECONDS`) is answered `no_longer_held`
-/// and refused at execute; a plan created afterwards is never recorded and
-/// runs.
+/// The prune watermark is only ever the greatest expiry the store actually
+/// pruned, never a clock reading. A store created now has pruned nothing:
+/// the first action after the write ceiling is enabled and the executor
+/// restarted, approved in the same second as the store or shortly before
+/// it, runs, and so does one after a reopen. Only a plan expiring at or
+/// below an expiry that was really pruned is refused, whatever the clock.
 #[tokio::test]
-async fn a_new_store_claims_no_knowledge_of_plans_that_could_predate_it() {
-    let created = 1_000_000;
-    let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), created).unwrap();
-    let floor = created + limeos_domain::PLAN_TTL_SECONDS;
-    assert_eq!(crate::retention::watermark(&store.conn).unwrap(), floor);
-    let engine = Recorder::default();
-    let older = container_request(&"d".repeat(64), floor);
-    assert_eq!(
-        close(&mut store, &older, created + 1),
-        Lookup::Absent {
-            absence: ReceiptAbsence::NoLongerHeld,
-            closed: true
-        }
-    );
-    let unknown = container_request(&"e".repeat(64), floor);
-    assert_eq!(
-        store
-            .execute(&engine, &ceiling(), 1001, &unknown, || created + 1)
-            .await
-            .unwrap_err()
-            .0,
-        ErrorCode::BeyondReceiptHistory
-    );
-    assert!(engine.calls().is_empty());
-    // A plan approved a second after the store was created is unknown to
-    // every earlier store: closing it says so, and executing it runs.
-    let newer = container_request(&"f".repeat(64), floor + 1);
-    assert!(matches!(
-        close(&mut store, &newer, created + 2),
-        Lookup::Receipt { closed: true, .. }
-    ));
-    let fresh = container_request_on('b', &"0".repeat(64), floor + 1);
-    assert_eq!(
-        store
-            .execute(&engine, &ceiling(), 1001, &fresh, || created + 2)
-            .await
-            .unwrap()
-            .state,
-        ExecutionState::EffectAccepted
-    );
-    // The floor is set once, at creation: reopening keeps it.
-    drop(store);
-    let store = ReceiptStore::open_at(dir.path(), created + 10_000).unwrap();
-    assert_eq!(crate::retention::watermark(&store.conn).unwrap(), floor);
-    // The executor's `open` takes the creation time from the system clock.
-    let other = private_dir();
-    let before = std::time::SystemTime::now()
+async fn a_new_store_has_pruned_nothing_and_refuses_only_at_or_below_a_real_pruned_expiry() {
+    use limeos_domain::PLAN_TTL_SECONDS;
+    let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    let store = ReceiptStore::open(other.path()).unwrap();
-    let floor = crate::retention::watermark(&store.conn).unwrap();
-    assert!(
-        (before + limeos_domain::PLAN_TTL_SECONDS..=before + limeos_domain::PLAN_TTL_SECONDS + 60)
-            .contains(&floor)
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let engine = Recorder::default();
+    for (target, action, created) in [('a', 'd', now), ('b', 'e', now - 10)] {
+        let request = container_request_on(
+            target,
+            &action.to_string().repeat(64),
+            created + PLAN_TTL_SECONDS,
+        );
+        assert_eq!(
+            store
+                .execute(&engine, &ceiling(), 1001, &request, || now)
+                .await
+                .map(|r| r.state),
+            Ok(ExecutionState::EffectAccepted)
+        );
+    }
+    assert_eq!(crate::retention::watermark(&store.conn).unwrap(), i64::MIN);
+    // A restart reopens the store, with nothing pruned still.
+    drop(store);
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    assert_eq!(crate::retention::watermark(&store.conn).unwrap(), i64::MIN);
+    let reopened = container_request_on('c', &"f".repeat(64), now + 1 + PLAN_TTL_SECONDS);
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &reopened, || now + 1)
+            .await
+            .map(|r| r.state),
+        Ok(ExecutionState::EffectAccepted)
+    );
+    assert_eq!(engine.calls(), ["inspect", "restart"].repeat(3));
+    // Now a real prune: a closure for a plan expiring at `expires`, pruned
+    // once that plan has been expired for the retention period.
+    for i in 0..RETAINED_ACTIONS {
+        store
+            .conn
+            .execute(
+                "INSERT INTO actions(action,digest,resource,state,receipt,operation,expires_at) VALUES(?1,?1,?1,'verified','{}','restart',?2)",
+                params![format!("filler{i}"), i64::MAX / 2],
+            )
+            .unwrap();
+    }
+    let expires = now + 2 + PLAN_TTL_SECONDS;
+    let pruned = container_request(&"1".repeat(64), expires);
+    close(&mut store, &pruned, expires + 60);
+    let pruned_at = expires + RETAIN_AFTER_EXPIRY;
+    close(
+        &mut store,
+        &container_request(&"2".repeat(64), pruned_at + 100),
+        pruned_at,
+    );
+    assert_eq!(crate::retention::watermark(&store.conn).unwrap(), expires);
+    // After a backward step to before that expiry, the pruned action and any
+    // other plan expiring at it are refused before prepare; one a second
+    // later is unknown to every pruned receipt.
+    let same = container_request(&"3".repeat(64), expires);
+    for request in [&pruned, &same] {
+        assert_eq!(
+            store
+                .execute(&engine, &ceiling(), 1001, request, || expires - 1)
+                .await
+                .unwrap_err()
+                .0,
+            ErrorCode::BeyondReceiptHistory
+        );
+    }
+    assert_eq!(engine.calls().len(), 6);
+    let later = container_request(&"4".repeat(64), expires + 1);
+    assert_eq!(
+        store
+            .receipt_absence(
+                &later.action,
+                &later.plan_digest,
+                &ActionPlan::Container(later.plan.clone())
+            )
+            .unwrap(),
+        ReceiptAbsence::NeverRecorded
     );
 }
 
 /// The receipt store is lost between an executed action and core's
-/// recovery lookup, and a new one is created: it must not certify the action
-/// as never recorded.
+/// recovery lookup, and a new one is created. The new store did not see the
+/// action and has pruned nothing, so its closure says the action was never
+/// recorded: what keeps core from taking that answer for the past is the new
+/// epoch, which marks every job core held under the old one, and core never
+/// releases a marked job on a `never_recorded` closure (core's
+/// `a_container_job_dispatched_under_an_earlier_store_epoch_is_held_on_a_closure`,
+/// `a_recreated_store_never_releases_a_container_job_core_holds_a_result_for`
+/// and its stack twin). The store makes no claim about an earlier store.
 #[tokio::test]
-async fn a_recreated_store_never_certifies_an_executed_action_as_never_recorded() {
+async fn a_recreated_store_is_told_apart_by_its_epoch_not_by_its_watermark() {
     let ran_at = 1_000_000;
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), ran_at - 1_000).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = Recorder::default();
     let stack = stack_request(&"d".repeat(64));
     let request = container_request_on(
@@ -1130,33 +1163,34 @@ async fn a_recreated_store_never_certifies_an_executed_action_as_never_recorded(
     let before = store.epoch().to_owned();
     drop(store);
     remove_store_files(dir.path());
-    let mut store = ReceiptStore::open_at(dir.path(), ran_at + 5).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     assert_ne!(store.epoch(), before);
-    fn gone<R>() -> Lookup<R> {
-        Lookup::Absent {
-            absence: ReceiptAbsence::NoLongerHeld,
-            closed: true,
-        }
-    }
-    assert_eq!(close(&mut store, &request, ran_at + 6), gone());
-    assert_eq!(close_stack(&mut store, &stack_late, ran_at + 6), gone());
+    assert_eq!(crate::retention::watermark(&store.conn).unwrap(), i64::MIN);
+    assert!(matches!(
+        close(&mut store, &request, ran_at + 6),
+        Lookup::Receipt { closed: true, .. }
+    ));
+    assert!(matches!(
+        close_stack(&mut store, &stack_late, ran_at + 6),
+        Lookup::Receipt { closed: true, .. }
+    ));
 }
 
-/// Every open of a store has a new epoch. A floor cannot see a store
-/// restored from an earlier copy (its watermark is the copy's), and an
-/// epoch fixed at creation would be the copy's too; a new epoch per open
+/// Every open of a store has a new epoch. The watermark cannot see a store
+/// restored from an earlier copy (it is the copy's), and an epoch fixed at
+/// creation would be the copy's too; a new epoch per open
 /// lets core tell that the store it talks to is not the one it dispatched
 /// under.
 #[tokio::test]
 async fn every_open_has_a_new_epoch_so_a_restored_copy_is_told_apart() {
     let created = 1_000_000;
     let dir = private_dir();
-    let store = ReceiptStore::open_at(dir.path(), created).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     let first = store.epoch().to_owned();
     assert!(limeos_domain::opaque_id(&first));
     drop(store);
     let copy = store_files(dir.path());
-    let mut store = ReceiptStore::open_at(dir.path(), created + 100).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let dispatched = store.epoch().to_owned();
     assert_ne!(dispatched, first);
     let engine = Recorder::default();
@@ -1175,7 +1209,7 @@ async fn every_open_has_a_new_epoch_so_a_restored_copy_is_told_apart() {
         )
         .unwrap();
     }
-    let mut store = ReceiptStore::open_at(dir.path(), created + 300).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     assert!(![first.as_str(), dispatched.as_str()].contains(&store.epoch()));
     // The restored copy has no row for the action and its watermark cannot
     // cover it: only the epoch shows core that this is not the store the

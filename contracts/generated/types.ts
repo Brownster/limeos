@@ -471,9 +471,10 @@ absence?: ReceiptAbsence | null,
  * Set by a receipt lookup or `ResolveAction` when the executor holds a
  * closure for the action, recorded now or earlier: no execute request
  * for it can run any more. Without it an absence proves nothing about an
- * execute request still on its way.
+ * execute request still on its way. Sent only when set, like every
+ * other optional answer, so a refusal stays version, `ready` and error.
  */
-closed: boolean,
+closed?: boolean,
 /**
  * Set by `ResolveAction` when a terminal receipt's recorded outcome
  * contradicts the declaration; nothing changed.

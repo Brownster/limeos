@@ -237,7 +237,7 @@ async fn resolve(
 #[tokio::test]
 async fn resolved_container_action_frees_the_index_keeps_the_receipt_and_sends_nothing() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(true);
     let first = single('d', 'a');
     let receipt = store
@@ -316,7 +316,7 @@ async fn resolved_container_action_frees_the_index_keeps_the_receipt_and_sends_n
         ErrorCode::Conflict
     );
     drop(store);
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     assert!(
         store
             .resolution(ResolveKind::Container, &first.action)
@@ -328,7 +328,7 @@ async fn resolved_container_action_frees_the_index_keeps_the_receipt_and_sends_n
 #[tokio::test]
 async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_change_nothing() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(true);
     let first = single('d', 'a');
     store
@@ -494,7 +494,7 @@ async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_c
 #[tokio::test]
 async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(true);
     let first = single('d', 'a');
     store
@@ -573,7 +573,7 @@ async fn repeating_a_resolution_is_idempotent_and_a_different_one_is_refused() {
 #[tokio::test]
 async fn a_retried_resolution_gets_its_confirmation_until_pruning_then_no_longer_held() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(true);
     let first = single('d', 'a');
     store
@@ -695,7 +695,7 @@ impl Terminal {
 /// receipt left `verified`, `precondition_changed` or `partly_done`.
 async fn terminal(kind: ResolveKind, recorded: ExecutionState) -> Terminal {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(false);
     if kind == ResolveKind::Container {
         let request = single('d', 'a');
@@ -958,7 +958,7 @@ async fn a_terminal_receipt_still_needs_fresh_matching_evidence_and_the_peer_cei
 #[tokio::test]
 async fn kind_and_table_must_agree() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(false);
     let first = single('d', 'a');
     store
@@ -1003,7 +1003,7 @@ async fn kind_and_table_must_agree() {
 #[tokio::test]
 async fn a_resolved_stack_frees_the_stack_and_every_active_member_row() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(true);
     let request = stack_request();
     let receipt = store
@@ -1119,7 +1119,7 @@ fn evidence_snapshots(engine: &RecordingEngine) -> Vec<ContainerSnapshot> {
 #[tokio::test]
 async fn a_prepared_stack_left_by_a_crash_can_be_resolved_and_a_vanished_member_is_divergence() {
     let dir = private_dir();
-    let mut store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
     let engine = RecordingEngine::new(false);
     let request = stack_request();
     // Simulate a crash after the Prepared transaction and before any effect.
@@ -1198,7 +1198,7 @@ async fn a_prepared_stack_left_by_a_crash_can_be_resolved_and_a_vanished_member_
 #[test]
 fn resolved_stays_out_of_both_unique_index_lists_and_inside_both_state_checks() {
     let dir = private_dir();
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     for (index, table) in [
         ("actions_resource_lock", "actions"),
         ("stack_actions_lock", "stack_actions"),
@@ -1236,12 +1236,12 @@ fn resolved_stays_out_of_both_unique_index_lists_and_inside_both_state_checks() 
 #[test]
 fn schema_four_upgrade_keeps_rows_and_adds_the_resolved_state() {
     let dir = private_dir();
-    drop(ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap());
+    drop(ReceiptStore::open(dir.path()).unwrap());
     {
         let conn = Connection::open(dir.path().join("receipts.sqlite")).unwrap();
         conn.execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_resource_lock; DROP INDEX stack_actions_lock; DROP TABLE actions; DROP TABLE stack_actions; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); INSERT INTO actions VALUES('a1','d','container:r','outcome_unknown','{}','restart'); PRAGMA user_version=4;").unwrap();
     }
-    let store = ReceiptStore::open_at(dir.path(), crate::TEST_STORE_CREATED).unwrap();
+    let store = ReceiptStore::open(dir.path()).unwrap();
     let version: u32 = store
         .conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))

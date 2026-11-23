@@ -174,22 +174,9 @@ fn durable(_: rusqlite::Error) -> Error {
 impl ReceiptStore {
     /// The packaging layer supplies a fixed private directory owned by this
     /// executor. Core's account must not be able to read or write it. A store
-    /// created now gets its creation floor from the system clock
-    /// (`open_at`).
+    /// created now starts with nothing pruned (`retention::initial_watermark`);
+    /// opening reads no clock. Every open draws a new random epoch (`epoch`).
     pub fn open(directory: &Path) -> Result<Self> {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| Error(ErrorCode::Unavailable))?
-            .as_secs();
-        Self::open_at(directory, i64::try_from(now).unwrap_or(i64::MAX))
-    }
-
-    /// As `open`. `now` is the executor clock, read only if the store does not
-    /// exist yet: a new store cannot know what ran before it, so its prune
-    /// watermark starts at the creation floor (`retention::initial_watermark`)
-    /// and every plan that could predate it is answered `no_longer_held`.
-    /// Every open draws a new random epoch (`epoch`).
-    pub fn open_at(directory: &Path, now: i64) -> Result<Self> {
         let uid = std::fs::metadata("/proc/self")
             .map_err(|_| Error(ErrorCode::Unavailable))?
             .uid();
@@ -272,7 +259,7 @@ impl ReceiptStore {
             // Every row present now is legacy: its `expires_at` may be a
             // back-filled estimate, not its plan's. A store already at 6 may
             // have pruned without a watermark, so its history is unknown.
-            let watermark = retention::initial_watermark(version, now);
+            let watermark = retention::initial_watermark(version);
             conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); ALTER TABLE stack_actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); UPDATE actions SET legacy=1; UPDATE stack_actions SET legacy=1; CREATE TABLE retention(id INTEGER PRIMARY KEY CHECK(id=1),watermark INTEGER NOT NULL); INSERT INTO retention(id,watermark) VALUES(1,{watermark}); CREATE TABLE pruned_legacy(action TEXT PRIMARY KEY) WITHOUT ROWID; PRAGMA user_version=7; COMMIT;")).map_err(durable)?;
         }
         if version < 8 {
@@ -604,12 +591,6 @@ impl ReceiptStore {
 fn encode(value: &impl Serialize) -> Result<String> {
     serde_json::to_string(value).map_err(|_| Error(ErrorCode::InvalidInput))
 }
-
-/// When the crate's tests create their stores: long before any timestamp
-/// they use, so the creation floor stays out of their way (tests of the
-/// floor pick their own creation time).
-#[cfg(test)]
-pub(crate) const TEST_STORE_CREATED: i64 = -1_000_000;
 
 #[cfg(test)]
 mod tests;

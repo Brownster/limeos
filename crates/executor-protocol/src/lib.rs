@@ -256,8 +256,10 @@ pub struct Receipt {
     /// Set by a receipt lookup or `ResolveAction` when the executor holds a
     /// closure for the action, recorded now or earlier: no execute request
     /// for it can run any more. Without it an absence proves nothing about an
-    /// execute request still on its way.
-    #[serde(default)]
+    /// execute request still on its way. Sent only when set, like every
+    /// other optional answer, so a refusal stays version, `ready` and error.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
     pub closed: bool,
     /// Set by `ResolveAction` when a terminal receipt's recorded outcome
     /// contradicts the declaration; nothing changed.
@@ -714,6 +716,27 @@ impl Receipt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// A refusal (a peer that is not core, a malformed request) carries the
+    /// version, `ready: false` and the error, and nothing else: no field an
+    /// answer would set, not even a false `closed`.
+    #[test]
+    fn a_refusal_is_version_ready_and_error_only_and_closed_is_sent_only_when_set() {
+        let mut refusal = Receipt::empty();
+        refusal.ready = false;
+        refusal.error = Some(ErrorCode::Forbidden);
+        assert_eq!(
+            serde_json::to_string(&refusal).unwrap(),
+            r#"{"version":1,"ready":false,"error":"forbidden"}"#
+        );
+        let mut lookup = Receipt::empty();
+        lookup.closed = true;
+        let wire = serde_json::to_value(&lookup).unwrap();
+        assert_eq!(wire["closed"], true);
+        assert!(serde_json::from_value::<Receipt>(wire).unwrap().closed);
+        // An answer without the field is not closed.
+        let open: Receipt = serde_json::from_str(r#"{"version":1,"ready":true}"#).unwrap();
+        assert!(!open.closed);
+    }
     #[test]
     fn stack_cache_read_is_closed_and_independent_from_other_read_and_effect_roles() {
         let mut c: Ceiling = serde_json::from_str(

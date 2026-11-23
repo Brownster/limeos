@@ -92,15 +92,6 @@ pub const EXPECTED_LOGS: &[ExpectedLog] = &[
               the harness releases it (`release_held`)",
     },
     ExpectedLog {
-        message: BEYOND_HISTORY,
-        error: false,
-        codes: &[],
-        why: "only within a plan's lifetime after the executor's receipt store was replaced \
-              (`JobFault::ReceiptStoreLost`): the new store cannot prove an action of an older \
-              plan never ran, so it refuses it before any row (counted exactly, `lost_answers`; \
-              any other `BeyondReceiptHistory` is a lifetime refusal)",
-    },
-    ExpectedLog {
         message: "the container executor could not be reached; the execute request was never sent, and the job is released without effect",
         error: false,
         codes: &[],
@@ -558,8 +549,8 @@ pub fn core_accounting(sim: &mut Sim, when: &str) {
 /// checkpoint and before every executor restart: standalone and stack
 /// receipts never fall below what retention keeps once reached; the prune
 /// watermark never decreases, and never passes the oldest expiry the rule
-/// may prune (`now - RECEIPT_RETAIN_AFTER_EXPIRY`) unless it is the store's
-/// creation floor.
+/// may prune (`now - RECEIPT_RETAIN_AFTER_EXPIRY`): it is only ever an
+/// expiry that was really pruned, never a clock reading.
 pub fn receipt_accounting(sim: &mut Sim, when: &str) {
     let Ok(conn) = reader(&receipts_path(sim)) else {
         return;
@@ -594,25 +585,34 @@ pub fn receipt_accounting(sim: &mut Sim, when: &str) {
             ));
         }
     }
-    let creation = sim.receipt_creation;
     let cutoff = sim.now() - limeos_domain::RECEIPT_RETAIN_AFTER_EXPIRY;
     if watermark < sim.last_watermark {
         problems.push(format!(
-            "{when}: the prune watermark went back from day {:.3} to day {:.3}",
-            (sim.last_watermark - START) as f64 / DAY as f64,
-            (watermark - START) as f64 / DAY as f64
+            "{when}: the prune watermark went back from {} to {}",
+            watermark_day(sim.last_watermark),
+            watermark_day(watermark)
         ));
     }
-    if watermark > cutoff && watermark != creation {
+    if watermark > cutoff {
         problems.push(format!(
-            "{when}: the prune watermark (day {:.3}) is past the youngest expiry retention may prune (day {:.3}): a receipt was pruned too early",
-            (watermark - START) as f64 / DAY as f64,
+            "{when}: the prune watermark ({}) is past the youngest expiry retention may prune (day {:.3}): a receipt was pruned too early",
+            watermark_day(watermark),
             (cutoff - START) as f64 / DAY as f64
         ));
     }
     sim.last_watermark = sim.last_watermark.max(watermark);
     for problem in problems {
         sim.violation(ACCOUNTING, problem);
+    }
+}
+
+/// A prune watermark as a simulated day, or "nothing pruned" for a store that
+/// has pruned nothing yet (its watermark below every expiry).
+fn watermark_day(watermark: i64) -> String {
+    if watermark == i64::MIN {
+        "nothing pruned".into()
+    } else {
+        format!("day {:.3}", (watermark - START) as f64 / DAY as f64)
     }
 }
 
@@ -1909,8 +1909,8 @@ fn report(sim: &Sim, profile: &Profile) {
         let executed = sim.exec.faults().effects.len();
         let _ = writeln!(
             p,
-            "receipt store: {actions} action rows and {stacks} stack rows kept of {executed} executes; prune watermark at day {:.2}",
-            (watermark - START) as f64 / DAY as f64
+            "receipt store: {actions} action rows and {stacks} stack rows kept of {executed} executes; prune watermark: {}",
+            watermark_day(watermark)
         );
     }
     let _ = writeln!(p, "faults: {:?}", sim.faults());
