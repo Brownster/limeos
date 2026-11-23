@@ -21,6 +21,7 @@ serde.workspace = true
 sha2.workspace = true
 hex.workspace = true
 rustix.workspace = true
+rusqlite.workspace = true
 
 [dev-dependencies]
 limeos-executor-container = { path = "../../crates/executor-container", version = "=0.2.0" }
