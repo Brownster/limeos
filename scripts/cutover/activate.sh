@@ -95,9 +95,10 @@ fct_abort() {
     exit 1
 }
 
-# Any exit while armed (set -e, fct_die, a stray failure) rolls back too.
-fct_on_exit() {
-    local status=$?
+# Any exit while armed (set -e, fct_die, a stray failure) rolls back too. Run by lib.sh's EXIT
+# trap, after it has named an unexpected failure.
+fct_on_exit() { # status
+    local status="${1}"
     if (( ARMED )); then fct_abort "exited with status ${status} before activation completed"; fi
 }
 
@@ -579,7 +580,6 @@ fct_main() {
     fct_log "activate complete: ${site}"
 }
 
-trap fct_on_exit EXIT
 trap 'fct_on_signal INT' INT
 trap 'fct_on_signal TERM' TERM
 trap 'fct_on_signal HUP' HUP

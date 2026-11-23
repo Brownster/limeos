@@ -51,6 +51,50 @@ fct_log() { printf '%s\n' "$*"; }
 fct_warn() { printf 'WARN: %s\n' "$*" >&2; }
 fct_die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+# No script stops with a non-zero status without saying what failed and where. set -e ends a
+# script silently, and bash 5.2 (Debian 12) can end one without running its ERR trap at all
+# (a failed command substitution of a bare redirection, guarded or not). So the ERR trap only
+# records the failing command and its place (it also fires, harmlessly, inside command
+# substitutions whose failure is handled), and the EXIT trap reports: that record, or, when no
+# ERR trap ran, the command bash was running and the functions it was in. A deliberate exit
+# (exit N, as fct_die does, after its own message) is not reported again. Installed below for
+# every script that sources this library; a script that needs more at exit defines
+# fct_on_exit STATUS, which runs after the report.
+FCT_ERR_REPORT=''
+
+# Sets FCT_CHAIN to ", called from FILE:LINE in FUNC" for each caller of the function its caller
+# was called from (where the failure was), out to the script's top level.
+fct_call_chain() {
+    local -i i
+    FCT_CHAIN=''
+    for (( i = 2; i < ${#FUNCNAME[@]} - 1; i++ )); do
+        FCT_CHAIN+=", called from ${BASH_SOURCE[i + 1]##*/}:${BASH_LINENO[i]} in ${FUNCNAME[i + 1]}"
+    done
+}
+
+fct_on_err() { # status command
+    [[ "$-" == *e* ]] || return 0
+    fct_call_chain
+    FCT_ERR_REPORT="'${2}' failed with status ${1} at ${BASH_SOURCE[1]##*/}:${BASH_LINENO[0]} in ${FUNCNAME[1]:-main}${FCT_CHAIN}"
+}
+
+fct_exit_trap() { # status command
+    local status="${1}" command="${2}" what
+    if (( status != 0 )) && [[ "${command}" != exit && "${command}" != 'exit '* ]]; then
+        if [[ -n "${FCT_ERR_REPORT}" ]]; then
+            what="${FCT_ERR_REPORT}"
+        else
+            # Bash names no line here: give the function the command was in and its callers.
+            fct_call_chain
+            what="'${command}' failed with status ${status} in ${FUNCNAME[1]:-main} (bash gives no line)${FCT_CHAIN}"
+        fi
+        printf 'ERROR: %s stopped unexpectedly (exit %s): %s\n' "${0##*/}" "${status}" "${what}" >&2 || true
+    fi
+    if declare -F fct_on_exit >/dev/null; then fct_on_exit "${status}"; fi
+}
+trap 'fct_on_err "$?" "${BASH_COMMAND}"' ERR
+trap 'fct_exit_trap "$?" "${BASH_COMMAND}"' EXIT
+
 fct_require_root() {
     if [[ "${CUTOVER_ALLOW_NONROOT:-0}" != 1 && "${EUID}" -ne 0 ]]; then
         fct_die 'run as root (needed to read the frozen app state and manage units)'

@@ -305,7 +305,8 @@ fct_scope_cgroup() { # unit
 # cgroup is empty, and a kill never stops it early), and its cgroup, when known, is gone or
 # unpopulated. Fails with 1 while it has processes, 2 when systemd did not answer.
 fct_scope_empty() { # unit [cgroup]
-    local state='' events=''
+    local state=''
+    local -a events=()
     state="$(fct_unit_active "${1}")"
     case "${state}" in
         unknown) return 2 ;;
@@ -313,8 +314,12 @@ fct_scope_empty() { # unit [cgroup]
         *) return 1 ;;
     esac
     [[ -n "${2:-}" ]] || return 0
-    { events="$(<"${CUTOVER_ROOT}/sys/fs/cgroup${2}/cgroup.events")"; } 2>/dev/null || return 0
-    [[ "${events}" != *'populated 1'* ]]
+    # systemd removes the scope's cgroup once it has emptied, so the file is usually gone here.
+    # Read with mapfile, never with a command substitution of a bare redirection: under set -e,
+    # bash 5.2 (Debian 12) ends the whole script when that file cannot be opened, whatever
+    # guards it (no || or if helps, and the ERR trap does not run).
+    { mapfile -t events <"${CUTOVER_ROOT}/sys/fs/cgroup${2}/cgroup.events"; } 2>/dev/null || return 0
+    [[ "${events[*]}" != *'populated 1'* ]]
 }
 
 # "  PID STAT ARGS" for each process still in the scope. Every read tolerates a process (or the
