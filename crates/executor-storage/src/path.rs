@@ -27,6 +27,22 @@ pub(crate) fn stat(fd: &OwnedFd) -> Result<Statx> {
 }
 
 pub(crate) fn open(path: &Path, directory: bool, protected_leaf: bool) -> Result<OwnedFd> {
+    open_beneath(Path::new("/"), path, 0, directory, protected_leaf)
+}
+
+/// The walk of [`open`], from `anchor` instead of `/` and with `owner` in
+/// place of root: `path` is still written as an absolute path, but is
+/// resolved beneath `anchor`. The anchor itself is opened by name (it is
+/// trusted) and must pass the same ownership and mode check as every
+/// component below it. Production callers walk from `/` as root; tests,
+/// which cannot create root-owned files, use their own directory and UID.
+pub(crate) fn open_beneath(
+    anchor: &Path,
+    path: &Path,
+    owner: u32,
+    directory: bool,
+    protected_leaf: bool,
+) -> Result<OwnedFd> {
     let text = path.to_str().ok_or(Failure::InvalidPlan)?;
     if !text.starts_with('/')
         || text.len() > 512
@@ -36,12 +52,12 @@ pub(crate) fn open(path: &Path, directory: bool, protected_leaf: bool) -> Result
         return Err(Failure::InvalidPlan);
     }
     let mut fd = rustix::fs::open(
-        "/",
+        anchor,
         OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
         Mode::empty(),
     )
     .map_err(|_| Failure::Unavailable)?;
-    protected(&stat(&fd)?)?;
+    protected(&stat(&fd)?, owner)?;
     let parts: Vec<_> = path
         .components()
         .filter_map(|c| match c {
@@ -71,14 +87,14 @@ pub(crate) fn open(path: &Path, directory: bool, protected_leaf: bool) -> Result
         })?;
         let s = stat(&fd)?;
         if !leaf || protected_leaf {
-            protected(&s)?;
+            protected(&s, owner)?;
         }
     }
     Ok(fd)
 }
 
-fn protected(s: &Statx) -> Result<()> {
-    if s.stx_uid != 0 || s.stx_mode & 0o022 != 0 {
+fn protected(s: &Statx, owner: u32) -> Result<()> {
+    if s.stx_uid != owner || s.stx_mode & 0o022 != 0 {
         Err(Failure::UnsafePath)
     } else {
         Ok(())

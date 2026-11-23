@@ -41,9 +41,32 @@ fn root() -> Result<()> {
     }
     Ok(())
 }
+/// A root-owned JSON file read by a root service: [`read_root_owned_json`],
+/// refused unless this process runs as root.
 pub fn read_protected_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
     root()?;
-    let fd = path::open(file, false, true)?;
+    read_root_owned_json(file)
+}
+/// A root-owned JSON file, for any reader. Every component from `/` is
+/// opened without following symlinks and must be root-owned and not group-
+/// or world-writable; the file must be a regular file with one link and at
+/// most 64 KiB. Missing is `NotReady`, a symlink or unsafe owner or mode is
+/// `UnsafePath`, a wrong type, size, link count or parse is `InvalidPlan`.
+/// The unprivileged executors read their ceilings through this.
+pub fn read_root_owned_json<T: DeserializeOwned>(file: &Path) -> Result<T> {
+    read_owned_json_beneath(Path::new("/"), file, 0)
+}
+/// [`read_root_owned_json`] walked from `anchor` with `owner` in place of
+/// root, `file` written as an absolute path beneath it. Production passes
+/// `/` and 0; tests, which cannot create root-owned files, pass their own
+/// directory and UID so the same walk and checks run.
+#[doc(hidden)]
+pub fn read_owned_json_beneath<T: DeserializeOwned>(
+    anchor: &Path,
+    file: &Path,
+    owner: u32,
+) -> Result<T> {
+    let fd = path::open_beneath(anchor, file, owner, false, true)?;
     let s = path::stat(&fd)?;
     if s.stx_mode & 0o170000 != 0o100000 || s.stx_nlink != 1 || s.stx_size > 65536 {
         return Err(Failure::InvalidPlan);

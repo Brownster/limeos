@@ -43,8 +43,9 @@ use std::{
 };
 pub use targets::{
     PreparationState, TargetPreparationPlan, TargetPreparationReceipt, prepare_targets,
-    read_contract, read_protected_json, read_target_plan, reconcile_target_plan, reconcile_targets,
-    target_plan, target_receipt, target_snapshot,
+    read_contract, read_owned_json_beneath, read_protected_json, read_root_owned_json,
+    read_target_plan, reconcile_target_plan, reconcile_targets, target_plan, target_receipt,
+    target_snapshot,
 };
 use tokio::io::AsyncReadExt;
 pub use topology::DeviceNumber;
