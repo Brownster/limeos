@@ -1062,6 +1062,13 @@ class ActivateTests(Harness):
         self.assert_rolled_back(result)
         self.assertIn("before activation completed", result.stderr)
         self.assertEqual(result.stderr.count("ROLLBACK: running return.sh"), 1)
+        # The report names the failed command and its line, before the rollback starts.
+        match = re.search(r"^ERROR: activate\.sh stopped unexpectedly \(exit 1\): 'fct_state_hashes strict "
+                          r".*state\.poststop\.sha256\S*' failed with status 1 at activate\.sh:(\d+) in fct_main, "
+                          r"called from activate\.sh:\d+ in main$", result.stderr, re.MULTILINE)
+        self.assertIsNotNone(match, result.stderr)
+        self.assertIn("fct_state_hashes strict >", script_line("activate.sh", int(match.group(1))))
+        self.assertLess(match.start(), result.stderr.index("ROLLBACK: running return.sh"))
 
     def block_at_core_start(self):
         """Hold the run inside `systemctl start limeos-core.service` until the test releases it."""
@@ -2011,6 +2018,22 @@ class ReturnTests(Harness):
         self.assertEqual(self.do_return().returncode, 0)
         self.assertNotIn(f"systemctl stop {READER}", self.calls())
 
+    def test_an_unexpected_failure_is_named_with_its_command_and_line(self):
+        # A tool that fails where return.sh does not expect it ends the run under set -e; the run
+        # must say which command failed, on which line, and how it got there.
+        self.activated()
+        (self.bin / "paste").write_text("#!/bin/sh\nexit 1\n")
+        (self.bin / "paste").chmod(0o755)
+        result = self.do_return()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        match = re.search(r"^ERROR: return\.sh stopped unexpectedly \(exit 1\): 'ids=.*paste -sd ' ' -\)\"' "
+                          r"failed with status 1 at return\.sh:(\d+) in fct_verify_docker, "
+                          r"called from return\.sh:(\d+) in fct_main, called from return\.sh:\d+ in main$",
+                          result.stderr, re.MULTILINE)
+        self.assertIsNotNone(match, result.stderr)
+        self.assertIn('ids="$(fct_docker_diff_names', script_line("return.sh", int(match.group(1))))
+        self.assertIn('fct_verify_docker "${snap}"', script_line("return.sh", int(match.group(2))))
+
     def test_idempotent(self):
         self.activated()
         self.assertEqual(self.do_return().returncode, 0)
@@ -2604,6 +2627,84 @@ class LintTests(unittest.TestCase):
         scripts = sorted(str(p.relative_to(REPO)) for p in SCRIPTS.glob("*.sh"))
         result = subprocess.run(["shellcheck", *scripts], cwd=REPO, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+    def test_no_command_substitution_of_a_bare_redirection(self):
+        # Under set -e, bash 5.2 (Debian 12, the production OS) ends the whole script when the
+        # file of a $(<FILE) cannot be opened, whatever guards it (|| and if do not help, and the
+        # ERR trap does not run): return.sh --force died silently that way once the scope it had
+        # just killed was removed. bash 5.3 handles it, so only this check fails there.
+        pattern = re.compile(r"\$\(\s*<")
+        found = [f"{path.name}:{number}: {line.strip()}"
+                 for path in sorted(SCRIPTS.glob("*.sh"))
+                 for number, line in enumerate(path.read_text().splitlines(), 1)
+                 if pattern.search(line) and not line.lstrip().startswith("#")]
+        self.assertEqual(found, [], "read files with mapfile or read instead")
+
+
+def script_line(name, number):
+    """Line NUMBER (from 1) of scripts/cutover/NAME."""
+    return (SCRIPTS / name).read_text().splitlines()[number - 1]
+
+
+class ErrorReportTests(unittest.TestCase):
+    """No cutover script stops with a non-zero status without naming what failed and where."""
+
+    def run_bash(self, body, *args):
+        with tempfile.TemporaryDirectory(prefix="cutover-err-") as tmp:
+            script = Path(tmp) / "probe.sh"
+            script.write_text("set -Eeuo pipefail\n"
+                              f"source '{SCRIPTS / 'lib.sh'}'\n" + body)
+            return subprocess.run(["bash", str(script), *args], capture_output=True, text=True, timeout=30)
+
+    def test_every_script_reports_through_the_library(self):
+        for path in sorted(SCRIPTS.glob("*.sh")):
+            if path.name == "lib.sh":
+                continue
+            with self.subTest(script=path.name):
+                text = path.read_text()
+                self.assertIn("\nset -Eeuo pipefail\n", text)
+                self.assertRegex(text, r'\nsource "\$\{SCRIPT_DIR\}/lib\.sh"\n')
+                # Its own EXIT or ERR trap would replace the report.
+                self.assertIsNone(re.search(r"^\s*trap\s.*\s(EXIT|ERR)\s*$", text, re.MULTILINE))
+        lib = (SCRIPTS / "lib.sh").read_text()
+        self.assertIn("""trap 'fct_on_err "$?" "${BASH_COMMAND}"' ERR""", lib)
+        self.assertIn("""trap 'fct_exit_trap "$?" "${BASH_COMMAND}"' EXIT""", lib)
+
+    def test_a_failure_under_set_e_is_named_with_its_line_and_callers(self):
+        result = self.run_bash("inner() {\n    false\n}\nouter() {\n    inner\n}\nouter\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr,
+                         "ERROR: probe.sh stopped unexpectedly (exit 1): 'false' failed with status 1 at probe.sh:4 "
+                         "in inner, called from probe.sh:7 in outer, called from probe.sh:9 in main\n")
+
+    def test_an_exit_that_skips_the_err_trap_is_still_named(self):
+        # bash ends a script without running its ERR trap in some cases (an unset variable under
+        # set -u, or on bash 5.2 a failed $(<FILE)); the report then names the command, the
+        # function it was in and its callers.
+        result = self.run_bash("inner() {\n    : \"${UNSET_FOR_TEST}\"\n}\nouter() {\n    inner\n}\nouter\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("ERROR: probe.sh stopped unexpectedly (exit 1): ': \"${UNSET_FOR_TEST}\"' failed with "
+                      "status 1 in inner (bash gives no line), called from probe.sh:7 in outer, "
+                      "called from probe.sh:9 in main\n", result.stderr)
+
+    def test_a_deliberate_exit_is_not_reported_again(self):
+        for body, status in (("fct_die 'named by the script'\n", 1), ("exit 2\n", 2)):
+            with self.subTest(body=body):
+                result = self.run_bash(body)
+                self.assertEqual(result.returncode, status)
+                self.assertNotIn("stopped unexpectedly", result.stderr)
+
+    def test_handled_failures_report_nothing(self):
+        result = self.run_bash("a=$(false; true)\nb=$(false) || true\nif ! c=$(exit 3); then :; fi\n"
+                               "f() { return 4; }\nf || true\n")
+        self.assertEqual((result.returncode, result.stderr), (0, ""))
+
+    def test_a_script_exit_hook_runs_after_the_report(self):
+        result = self.run_bash("fct_on_exit() { printf 'hook %s\\n' \"${1}\" >&2; }\nfalse\n")
+        self.assertEqual(result.returncode, 1)
+        self.assertRegex(result.stderr, r"^ERROR: probe\.sh stopped unexpectedly \(exit 1\): 'false' failed "
+                                        r"with status 1 at probe\.sh:4 in main\nhook 1\n$")
 
 
 class ProxyKeepAliveTests(unittest.TestCase):

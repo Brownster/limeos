@@ -295,6 +295,12 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    from the baseline is not excused when whether the frozen writers were running
    could not be determined.
 
+   Any of the four scripts that stops on a failure it did not expect names it:
+   `ERROR: return.sh stopped unexpectedly (exit 1): 'COMMAND' failed with status
+   N at FILE:LINE in FUNCTION, called from ...`; `activate.sh` then rolls back
+   whatever it had changed.
+   Keep that line for the fix; `return.sh` is safe to run again.
+
    A snapshot from an older preflight may hold a blank unit state; `return.sh`
    refuses it before any change, naming the record. Write the state the unit had
    before the cutover into `SNAP/units.txt` (for example `managed

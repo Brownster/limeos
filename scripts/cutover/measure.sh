@@ -479,7 +479,7 @@ print(f"verdict: {verdict}")
 sys.exit(0 if verdict == "pass" else 2)
 PY
     fct_log "report: ${out#"${CUTOVER_ROOT}"}/report.json"
-    if (( code == 2 )); then fct_warn 'targets missed, unmeasured or unknown; nothing was rolled back, the operator decides'; return 2; fi
+    if (( code == 2 )); then fct_warn 'targets missed, unmeasured or unknown; nothing was rolled back, the operator decides'; exit 2; fi
     (( code == 0 )) || fct_die "report generation failed (python3 exit ${code})"
 }
 
