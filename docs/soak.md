@@ -180,8 +180,34 @@ against full tables:
 
 - Day 20, 06:00 to 16:00: a runaway client logs in and out twice a second (the
   two password workers cap logins near four a second on a Pi): 144,000 events.
-- Day 25, 08:00 to 20:00: a scripted client proposes a container action every
-  40 s and a stack action every 45 s.
+- Days 25 to 28, 08:00 to 20:00: a scripted client proposes a container
+  action every 40 s and a stack action every 45 s, on whatever the job list
+  does not show busy. One day of that is more than the container executor's
+  effect budget admits (10 effects per container in ten minutes, 60 a day, a
+  stack action charging each target; ADR 0013): a stack action every 45 s
+  over four stacks charges each stacked container about 25 effects an hour.
+  So the storm meets the budget on purpose: refused jobs are settled as
+  refused, and, like a person reading the job list, the script leaves a
+  refused container (and its stack) alone for a day. That is also why it
+  runs four days: one day within the budget no longer fills the receipt
+  store's 256 stack receipts. The run asserts that nothing else meets the
+  budget (`BUDGET`).
+
+  Measured on 23 November with the budget (debug, x86-64, tmpfs, the
+  ignored set together in 10 min 25 s): the budget refused 68 executes in
+  the long profile and 59 with restarts, all during the storm; the stores
+  saturate by day 36 instead of 27; at the end core.sqlite is 35.2 MiB (33.1
+  with restarts; 31.4 before) and receipts.sqlite 3.51 MiB (3.54; 2.35
+  before; the action log's share was not measured separately), the receipt store's open
+  reads about 1,590 pages (697 before), 2,974 jobs and 2,789 executes (2,495
+  and 2,348; 2,058 and 1,928 before), `soak_ninety_days` takes 600 s alone
+  (437 s before), and the per-job tables grow 43 KiB beyond the jobs
+  retention keeps over the last third (-41 with restarts; -65 before) against
+  the 64 KiB bound. A first version, a one-day storm whose script kept
+  trying refused containers, was refused 790 times and failed that bound
+  (117 KiB): its many small refused jobs, kept by the per-family floor of
+  the rarer job kinds, were replaced through the last third by full-size
+  household jobs.
 
 ## Measuring startup
 
@@ -547,8 +573,9 @@ CI (not re-measured this round).
 | Check | What it catches |
 |---|---|
 | no lifetime or unexpected refusal | `StateNotDurable`, `Overloaded`, `BeyondReceiptHistory` from any store call or executor answer or in anything core logs, a failed retention rule, and any refusal a call site does not list as legitimate |
-| core logs only the warnings it is expected to | every warning or error core logs must match an entry of `EXPECTED_LOGS` (its exact message, level and codes, with the reason the soak provokes it): the dispatcher's two "remains pending" lines (`Conflict`, `Unavailable`), the execute that failed after it was written (`Unavailable` only), the execute never sent, the execute refused before any row after a replacement, and the held-open resolution that stays pending (`Unavailable`). Nothing may carry `InvalidInput` |
+| core logs only the warnings it is expected to | every warning or error core logs must match an entry of `EXPECTED_LOGS` (its exact message, level and codes, with the reason the soak provokes it): the dispatcher's two "remains pending" lines (`Conflict`, `Unavailable`), the execute that failed after it was written (`Unavailable` only), the execute never sent, the execute refused before any row after a replacement, the execute refused by the executor's effect budget, the executor's own journal line for a refusal row of its action log, and the held-open resolution that stays pending (`Unavailable`). Nothing may carry `InvalidInput` |
 | every lost executor answer is logged once, as unavailable | every execute answer the executor never wrote (lost, or the process dead with the request unread or inside the Engine call) is logged by core exactly once, at its execute site, with `Unavailable`, and every other code there is a refusal the executor answered, one for one; every lost container recovery lookup is logged as that job's failure with `Unavailable` in the same dispatcher pass, one for one, whenever the executor ran throughout the pass (a lost stack lookup is `release_if_unsent`'s, which holds the job without a log, and the stack site logs none); every executes refused before any row matches its log line |
+| the executor's effect budget refuses only the action storm, which it does refuse | every execute the executor refused `RateLimited` was answered between the storm's first minute and a day and an hour after its last proposal (the storm's charges count for a day, so a household job on a container the storm spent is refused too); a storm of six hours or more was refused at least once; core logs each heard refusal with its own line, one for one (`lost_answers`); a refusal whose answer is lost counts as a lost answer |
 | no job dispatched before a receipt-store change is released on a closure alone | every job core held when the executor started (a new store epoch; with a replaced store, receipts lost) and that the new store answered with a closure ends in any state but `precondition_changed`; the replacements happened and such jobs were seen |
 | every time core stores is on the simulated clock | at every checkpoint, no event's `created`, job's `settled`, result's `recorded` or resolution's `completed` after the simulated now: job-row retention ages jobs by them, on the writer's clock (`Store::open` once dated startup recovery's events by the system clock, months ahead, which kept every job they name for the whole run; it now takes the time `Database::open` opens at, the writer's clock) |
 | a job's history stays while its resolution request is open | the held-open job, settled with its request open, keeps its `job_queued` event while retention prunes every older prunable event and once more; the window must be decisive (nothing prunable older than the job left, something pruned) |
