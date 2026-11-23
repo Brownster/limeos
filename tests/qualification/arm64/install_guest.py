@@ -50,6 +50,8 @@ def run(*args, check=True, input=None, timeout=600):
     if check and result.returncode != 0:
         raise RuntimeError(
             f"{args} failed ({result.returncode}): {result.stderr[-3000:]}"
+            # apt shows dpkg and maintainer-script output on stdout.
+            f"\nstdout: {result.stdout[-3000:]}"
         )
     return result
 

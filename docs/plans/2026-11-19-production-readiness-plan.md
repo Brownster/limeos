@@ -81,7 +81,7 @@ batches, at most once a minute, and writes nothing when there is nothing to prun
 | Id | Change | Done when |
 |---|---|---|
 | PR-30 | ADR: state plainly that the executor trusts core within the root-owned ceiling and does not verify approvals. Add what the executor can enforce alone: a per-resource action rate limit and an executor-side append-only action log core cannot rewrite. | ADR merged; tests for the rate limit; the threat model says what a compromised core can do. |
-| PR-31 | All ceilings load through `read_protected_json` (no-follow walk, reread per request) and reject `core_uid == 0`. Decide whether ceilings key on container names or IDs, since IDs change on every recreate. | Revoking a container takes effect without a restart. |
+| PR-31 | Every ceiling loads through the no-follow walk behind `read_protected_json` (each path component opened without following symlinks, root-owned, not group- or world-writable) and is reread per request: at accept, as a peer gate before any frame, and after the frame, which alone authorizes the request; a request already authorized runs to its end. Every ceiling rejects `core_uid == 0`; a ceiling that cannot be read or admitted answers `Unavailable`, never `Forbidden`, so a half-written file cannot withdraw an operator's resolve request. `limeosctl check-ceiling FILE CORE_UID ROLE` runs the executor's walk and role check. Before: the shared host, container and reader ceiling was read once at start with an lstat of the final component only and accepted `core_uid` 0; the target ceiling was walked but read once at start; the mount ceiling already met this. Container ceilings already key on full container IDs, which change on every recreate; whether to key on names instead is an operator decision (below). | Revoking a container takes effect without a restart. Code and tests on branch `pr-ceilings`, 23 November; the names-or-IDs decision is still open, and so is whether lookup, verification and resolution of an existing receipt should keep checking the managed list (a revocation strands open actions; ADR 0013). |
 | PR-32 | systemd: `limeos-storaged` and the storage reader run as a dedicated user with only the capabilities they use; add `ProtectHome` and `PrivateTmp` where mount identity allows. For the dormant mounts unit, hold `CAP_SYS_ADMIN` only in the helper. | `systemd-analyze security` score recorded per unit and gated in CI. |
 | PR-33 | Log redaction: add cookies, bearer and JWT shapes and cloud key prefixes; match `token`/`secret` as keys, not substrings. | Table-driven tests for both leaks and over-redaction. |
 | PR-34 | `limeosctl job resolve` requires `--evidence-digest` or an interactive confirmation; `--help`/`--version` are parsed only as the first argument. | CLI tests. |
@@ -136,7 +136,9 @@ PR-30 written, PR-41 green, and one Pi night on that exact candidate.
 
 - PR-30: accept "executor trusts core within the ceiling" as the documented model,
   or require an independent approval path before any storage effect ships.
-- PR-31: ceilings keyed on container names or IDs.
+- PR-31: ceilings keyed on container names or IDs. They key on IDs today; an edit
+  to the list now takes effect on the next request, so a recreate costs an edit,
+  not a restart.
 - PR-40: whether deferred code is feature-gated in place or moved out of the
   workspace.
 - PR-44: whether raw evidence may leave git.

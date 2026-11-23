@@ -32,7 +32,10 @@ def run(*args, input=None, check=True, timeout=None):
         args, input=input, text=True, capture_output=True, check=False, timeout=timeout
     )
     if check and result.returncode:
-        raise RuntimeError(f"{args[0]} failed: {result.stderr[-2000:]}")
+        # apt shows dpkg and maintainer-script output on stdout.
+        raise RuntimeError(
+            f"{args[0]} failed: {result.stderr[-3000:]}\nstdout: {result.stdout[-3000:]}"
+        )
     return result
 
 
@@ -757,6 +760,7 @@ def main():
         == 201
     )
     shadow_policy = Path("/etc/limeos-shadow/system-policy/container.json")
+    shadow_original = shadow_policy.read_bytes()
     value = json.loads(shadow_policy.read_text())
     value.update(allow_restart=True, managed_containers=[ids[0]])
     shadow_policy.write_text(json.dumps(value))
@@ -783,6 +787,10 @@ def main():
     standard_pid = run(
         "systemctl", "show", "limeos-core", "-p", "MainPID", "--value"
     ).stdout
+    # Restore the package's ceiling before removing the package: remove keeps
+    # /etc, and a later install checks the kept file for the read-only shadow
+    # role (a write-enabled one is refused, and its executor is not started).
+    shadow_policy.write_bytes(shadow_original)
     run("apt-get", "remove", "-y", "limeos-shadow")
     assert (
         run("systemctl", "show", "limeos-core", "-p", "MainPID", "--value").stdout

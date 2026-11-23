@@ -790,6 +790,67 @@ class PostinstTests(SandboxTest):
         self.assertOk(box.run("postinst", "configure"))
         self.assertEqual(box.manager(), CONFIGURE_TAIL)
 
+    def check_ceiling(self, box, target, role=None):
+        policy = box.root / f"etc/limeos/system-policy/{target}.json"
+        return policy, f"limeosctl check-ceiling {policy} 150 {role or target}"
+
+    def test_a_refused_ceiling_warns_once_keeps_the_file_and_starts_everything_else(self):
+        """Configure must not fail: prerm stopped every unit, and a failed
+        configure would leave core down and apt blocked for a file the
+        executor refuses anyway."""
+        for target, unit in (("container", EXECUTORS[0]), ("host", EXECUTORS[1])):
+            with self.subTest(target=target):
+                box = self.sandbox()
+                box.installed(running=[*ENABLED, READER])
+                self.assertOk(box.run("prerm", "upgrade", "1.0"))
+                policy, check = self.check_ceiling(box, target)
+                before = policy.read_bytes(), policy.stat().st_mode
+                box.fail(check)
+                box.clear()
+                result = box.run("postinst", "configure")
+                self.assertOk(result)
+                warnings = [line for line in result.stderr.splitlines() if "LimeOS warning" in line]
+                self.assertEqual(len(warnings), 1, result.stderr)
+                for part in (
+                    str(policy),
+                    f"refused for the {target} executor role",
+                    f"stub: injected failure: {check}",
+                    f"{unit} is not (re)started",
+                    f"check-ceiling {policy} 150 {target}",
+                    f"then run: systemctl restart {unit}",
+                ):
+                    self.assertIn(part, warnings[0])
+                self.assertEqual((policy.read_bytes(), policy.stat().st_mode), before)
+                others = [u for u in EXECUTORS[::-1] if u != unit]
+                self.assertEqual(
+                    box.manager(),
+                    ["daemon-reload", f"enable {' '.join(ENABLED)}",
+                     f"restart {' '.join(others)} {CORE}", f"start {READER}"],
+                )
+                self.assertStates(box, [CORE, *others, READER])
+                self.assertNotIn(f"chown root:limeos-host-access {policy}", box.calls())
+                self.assertFalse(box.record_exists())
+
+    def test_a_refused_reader_ceiling_keeps_the_reader_stopped(self):
+        box = self.sandbox()
+        box.installed(running=[*ENABLED, READER])
+        self.assertOk(box.run("prerm", "upgrade", "1.0"))
+        _, check = self.check_ceiling(box, "storage")
+        box.fail(check)
+        box.clear()
+        result = box.run("postinst", "configure")
+        self.assertOk(result)
+        self.assertIn(f"{READER} is not (re)started", result.stderr)
+        self.assertEqual(box.manager(), CONFIGURE_TAIL)
+        self.assertStates(box, ENABLED)
+
+    def test_the_shadow_postinst_checks_its_container_ceiling_as_read_only(self):
+        script = load_build().maintainer_script("postinst", True)
+        self.assertIn('role="${target}"; [[ "${target}" != container ]] || role=container-read-only', script)
+        self.assertIn('check-ceiling "/etc/limeos-shadow/system-policy/${target}.json" "${core_uid}" "${role}"', script)
+        standard = load_build().maintainer_script("postinst", False)
+        self.assertNotIn("container-read-only", standard)
+
     def test_an_unsafe_record_is_ignored_with_a_warning(self):
         def symlinked(box):
             elsewhere = box.root / "elsewhere"

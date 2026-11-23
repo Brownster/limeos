@@ -1,7 +1,6 @@
 use limeos_executor::{storage_mount_admission, storage_mount_supervision};
-use limeos_executor_container::{ReceiptStore, RestartCeiling, docker::Docker};
-use limeos_executor_protocol::{Ceiling, Request};
-use std::{os::unix::fs::MetadataExt, path::Path, sync::Arc};
+use limeos_executor_container::{ReceiptStore, docker::Docker};
+use std::{path::Path, sync::Arc};
 use tokio::{
     net::UnixListener,
     sync::{Mutex, Semaphore},
@@ -48,8 +47,8 @@ async fn async_main() {
         return;
     }
     tracing_subscriber::fmt().json().with_target(false).init();
-    if run().await.is_err() {
-        tracing::error!("executor configuration or runtime failure");
+    if let Err(error) = run().await {
+        tracing::error!(%error, "executor configuration or runtime failure");
         std::process::exit(1);
     }
 }
@@ -183,56 +182,39 @@ async fn run() -> std::io::Result<()> {
             "usage: limeos-executor POLICY SOCKET host|container|storage [RECEIPT_DIRECTORY [read-only]]",
         ));
     }
-    let policy = Path::new(&args[1]);
-    let meta = std::fs::symlink_metadata(policy)?;
-    if !meta.is_file() || meta.uid() != 0 || meta.mode() & 0o022 != 0 || meta.len() > 65536 {
-        return Err(std::io::Error::other("unsafe ceiling"));
+    use limeos_executor_protocol::CeilingRole;
+    let read_only = args.len() == 6;
+    if read_only && args[5] != "read-only" {
+        return Err(std::io::Error::other(
+            "invalid executor arguments for this role",
+        ));
     }
-    let ceiling: Ceiling =
-        serde_json::from_slice(&std::fs::read(policy)?).map_err(std::io::Error::other)?;
-    if !ceiling.configuration_valid()
-        || (args.len() == 6 && (args[5] != "read-only" || ceiling.can_write()))
-    {
-        return Err(std::io::Error::other("invalid or writable shadow ceiling"));
-    }
-    let ceiling = Arc::new(ceiling);
-    let source = match args[3].as_str() {
-        "host" | "storage" => limeos_contracts::Source::Host,
-        "container" => limeos_contracts::Source::Docker,
+    let role = match args[3].as_str() {
+        "host" => CeilingRole::Host,
+        "container" if read_only => CeilingRole::ContainerReadOnly,
+        "container" => CeilingRole::Container,
+        "storage" if args.len() == 4 => CeilingRole::StorageReader,
+        "storage" => {
+            return Err(std::io::Error::other(
+                "invalid executor arguments for this role",
+            ));
+        }
         _ => return Err(std::io::Error::other("invalid executor kind")),
     };
-    let storage_reader = args[3] == "storage";
-    if (storage_reader
-        && (!(ceiling.allow_storage_read
-            || ceiling.allow_stack_read
-            || ceiling.allow_container_health_read)
-            || args.len() != 4))
-        || (!storage_reader
-            && (ceiling.allow_storage_read
-                || ceiling.allow_stack_read
-                || ceiling.allow_container_health_read))
-    {
-        return Err(std::io::Error::other(
-            "storage reader requires a dedicated read-only ceiling",
-        ));
-    }
-    if source != limeos_contracts::Source::Docker
-        && (ceiling.can_write() || ceiling.allow_container_logs)
-    {
-        return Err(std::io::Error::other(
-            "host executor cannot mutate containers",
-        ));
-    }
-    let restart_ceiling = Arc::new(RestartCeiling {
-        version: ceiling.version,
-        core_uid: ceiling.core_uid,
-        allow_restart: ceiling.allow_restart,
-        allow_start: ceiling.allow_start,
-        allow_stop: ceiling.allow_stop,
-        allow_stack: ceiling.allow_stack,
-        managed_containers: ceiling.managed_containers.clone(),
-        managed_stacks: ceiling.managed_stacks.clone(),
-    });
+    // Read again twice for every request (`ceiling.rs`); this first read only
+    // decides what the process sets up, and refuses to start on a bad file.
+    let ceilings = Arc::new(limeos_executor::ceiling::CeilingFile::installed(
+        Path::new(&args[1]),
+        role,
+    ));
+    let ceiling = ceilings
+        .load()
+        .map_err(|refusal| std::io::Error::other(format!("ceiling {}: {refusal}", args[1])))?;
+    let storage_reader = role == CeilingRole::StorageReader;
+    let source = match role {
+        CeilingRole::Host | CeilingRole::StorageReader => limeos_contracts::Source::Host,
+        CeilingRole::Container | CeilingRole::ContainerReadOnly => limeos_contracts::Source::Docker,
+    };
     let (receipts, epoch) = if ceiling.can_write() {
         let directory = args
             .get(4)
@@ -251,18 +233,18 @@ async fn run() -> std::io::Result<()> {
         engine: Docker::new("/var/run/docker.sock".into()),
         receipts,
         epoch,
-        ceiling: restart_ceiling,
         docker: source == limeos_contracts::Source::Docker,
     });
     // An independent ceiling can disable collection entirely.
-    let observations = match source {
+    let (observations, collecting) = match source {
         limeos_contracts::Source::Host if ceiling.allow_host_read => {
-            limeos_observations::start_host()
+            (limeos_observations::start_host(), true)
         }
-        limeos_contracts::Source::Docker if ceiling.allow_container_read => {
-            limeos_observations::start_docker("/var/run/docker.sock".into())
-        }
-        _ => limeos_observations::Cache::new(vec![source]),
+        limeos_contracts::Source::Docker if ceiling.allow_container_read => (
+            limeos_observations::start_docker("/var/run/docker.sock".into()),
+            true,
+        ),
+        _ => (limeos_observations::Cache::new(vec![source]), false),
     };
     let path = Path::new(&args[2]);
     if let Ok(meta) = std::fs::symlink_metadata(path) {
@@ -278,15 +260,23 @@ async fn run() -> std::io::Result<()> {
     let storage_permit = limeos_executor::read_gate::Gate::default();
     let read_supervisor = Arc::new(limeos_executor::read_supervision::Supervisor::default());
     let stacks = limeos_observations::stacks::Cache::new();
-    if storage_reader && ceiling.allow_stack_read {
+    let stack_scan = storage_reader && ceiling.allow_stack_read;
+    if stack_scan {
         let writer = stacks.clone();
         let gate = storage_permit.clone();
         let manager = read_supervisor.clone();
+        let ceilings = ceilings.clone();
         let selection = limeos_executor::read_launch::StackSelection::installed()
             .map_err(|_| std::io::Error::other("invalid stack configuration selection"))?;
         tokio::spawn(async move {
             use limeos_executor::read_gate;
             loop {
+                // A revoked or unreadable ceiling stops the root scan too,
+                // not only the answers.
+                if !ceilings.load().is_ok_and(|c| c.allow_stack_read) {
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    continue;
+                }
                 let manager = manager.clone();
                 let selection = selection.clone();
                 read_gate::refresh_stacks(&gate, read_gate::PERIODIC_WAIT, &writer, move |guard| {
@@ -303,6 +293,19 @@ async fn run() -> std::io::Result<()> {
     // would abort the healthy reads in flight), and reports the stuck read in
     // its health answer, which core lists as degraded.
     let inventory_reads = Arc::new(limeos_executor::blocking_read::BlockingReads::new(1));
+    let shared = Arc::new(limeos_executor::shared_role::SharedRole {
+        ceilings,
+        source,
+        storage_reader,
+        observations,
+        collecting,
+        containers,
+        storage_permit,
+        read_supervisor,
+        stacks,
+        stack_scan,
+        inventory_reads,
+    });
     // The container executor's receipt-store fsyncs run on this loop's thread
     // and can legitimately outlast any keep-alive interval, so it never takes
     // part in the watchdog (limeos-containerd.service says why).
@@ -312,167 +315,16 @@ async fn run() -> std::io::Result<()> {
         limeos_contracts::Watchdog::from_env()
     };
     loop {
-        let mut stream =
-            limeos_executor::service::next_connection(&listener, &mut watchdog).await?;
+        let stream = limeos_executor::service::next_connection(&listener, &mut watchdog).await?;
         let Ok(permit) = permits.clone().try_acquire_owned() else {
             continue;
         };
-        let inventory_reads = inventory_reads.clone();
-        let ceiling = ceiling.clone();
-        let observations = observations.clone();
-        let containers = containers.clone();
-        let storage_permit = storage_permit.clone();
-        let read_supervisor = read_supervisor.clone();
-        let stacks = stacks.clone();
+        let shared = shared.clone();
         tokio::spawn(async move {
             let _permit = permit;
-            let result = async {
-                let peer = stream
-                    .peer_cred()
-                    .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Forbidden))?;
-                // Reject unauthenticated peers before parsing or allocating a frame.
-                if peer.uid() != ceiling.core_uid {
-                    return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden));
-                }
-                let request: Request = tokio::time::timeout(
-                    limeos_contracts::RPC_DEADLINE,
-                    limeos_contracts::read_frame(&mut stream),
-                )
-                .await
-                .map_err(|_| limeos_domain::Error(limeos_domain::ErrorCode::Unavailable))??;
-                let mut receipt = ceiling.validate(peer.uid(), &request)?;
-                match request {
-                    Request::ContainerHealth { nonce, .. } if storage_reader => {
-                        let guard = storage_permit
-                            .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
-                            .await
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
-                        let manager = read_supervisor.clone();
-                        receipt.container_health = Some(
-                            tokio::task::spawn_blocking(move || {
-                                limeos_executor::health_read::refresh(&nonce, &manager, guard)
-                            })
-                            .await
-                            .map_err(|_| {
-                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                            })??,
-                        );
-                    }
-                    Request::StackInventory { .. } if storage_reader => {
-                        receipt.stack_cohort = Some(stacks.cohort()?);
-                    }
-                    Request::ContainerStorageInventory { .. }
-                        if source == limeos_contracts::Source::Docker =>
-                    {
-                        let _single_flight = storage_permit
-                            .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
-                            .await
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
-                        receipt.container_storage =
-                            Some(containers.engine.storage_inventory().await?);
-                    }
-                    Request::StorageInventory { .. } if storage_reader => {
-                        let _single_flight = storage_permit
-                            .request(limeos_executor::read_gate::INTERACTIVE_WAIT)
-                            .await
-                            .ok_or(limeos_domain::Error(limeos_domain::ErrorCode::Overloaded))?;
-                        read_supervisor.ensure_not_poisoned().map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                        })?;
-                        // Sysfs, block-device and blkid reads run on their own
-                        // thread and runtime: a read stuck in the kernel cannot
-                        // stall this accept loop, and the deadline is real.
-                        let inventory = inventory_reads
-                            .run("storage-inventory", INVENTORY_DEADLINE, || {
-                                tokio::runtime::Builder::new_current_thread()
-                                    .enable_all()
-                                    .build()
-                                    .map_err(|_| limeos_executor_storage::Failure::Unavailable)?
-                                    .block_on(limeos_executor_storage::inventory())
-                            })
-                            .await
-                            .map_err(|refusal| {
-                                note_inventory_refusal(refusal);
-                                limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                            })?;
-                        receipt.storage = Some(inventory.map_err(|_| {
-                            limeos_domain::Error(limeos_domain::ErrorCode::Unavailable)
-                        })?);
-                    }
-                    Request::Observe {
-                        source: requested,
-                        active,
-                        ..
-                    } => {
-                        if requested != source {
-                            return Err(limeos_domain::Error(limeos_domain::ErrorCode::Forbidden));
-                        }
-                        if active {
-                            observations.demand();
-                        }
-                        let value = observations.snapshot();
-                        receipt.observations = Some(limeos_contracts::ObservationBatch {
-                            host: value.host,
-                            resources: value.resources,
-                            sources: value.sources,
-                        });
-                    }
-                    Request::ContainerLogs {
-                        resource, options, ..
-                    } if source == limeos_contracts::Source::Docker => {
-                        receipt.logs = Some(containers.engine.logs(&resource, options).await?);
-                    }
-                    Request::Health { .. } => {
-                        if storage_reader {
-                            limeos_executor::service::health_answer(&mut receipt, &inventory_reads);
-                        }
-                    }
-                    // Inspection, the receipt epoch and every receipt-store
-                    // request; anything else is refused there.
-                    request => {
-                        limeos_executor::container_requests::answer(
-                            &containers,
-                            peer.uid(),
-                            request,
-                            &mut receipt,
-                            &clock,
-                        )
-                        .await?
-                    }
-                }
-                Ok::<_, limeos_domain::Error>(receipt)
-            }
-            .await;
-            let receipt = result.unwrap_or_else(limeos_executor::container_requests::refusal);
-            // Responses are bounded even if the caller stops reading.
-            let _ = tokio::time::timeout(
-                limeos_contracts::RPC_DEADLINE,
-                limeos_contracts::write_frame(&mut stream, &receipt),
-            )
-            .await;
+            shared.serve(stream).await;
         });
     }
-}
-/// How long a storage inventory may take before it is abandoned.
-const INVENTORY_DEADLINE: std::time::Duration = std::time::Duration::from_secs(4);
-fn note_inventory_refusal(refusal: limeos_executor::blocking_read::Refusal) {
-    use limeos_executor::blocking_read::Refusal;
-    match refusal {
-        Refusal::Deadline => tracing::warn!(
-            "storage inventory missed its 4 s deadline and was abandoned; a disk may be failing (its read is left to finish)"
-        ),
-        Refusal::Stranded => tracing::warn!(
-            "storage inventory refused: an earlier read is still stuck in the kernel; inventories stay refused until it returns, and core reports the storage reader degraded"
-        ),
-        Refusal::Unavailable => tracing::warn!("storage inventory could not start"),
-    }
-}
-fn clock() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .min(i64::MAX as u64) as i64
 }
 
 #[cfg(test)]

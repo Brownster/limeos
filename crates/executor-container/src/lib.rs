@@ -81,6 +81,7 @@ impl ContainerCeiling {
     ) -> Result<()> {
         let id = resource.strip_prefix("container:").unwrap_or_default();
         if self.version != 1
+            || self.core_uid == 0
             || peer_uid != self.core_uid
             || !match operation {
                 ContainerAction::Restart => self.allow_restart,
@@ -109,6 +110,8 @@ impl ContainerCeiling {
         expected.validate_for(operation)?;
         let project = expected.project()?;
         if !self.allow_stack
+            || self.core_uid == 0
+            || peer_uid != self.core_uid
             || self.managed_stacks.len() > 16
             || self
                 .managed_stacks

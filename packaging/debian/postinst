@@ -120,6 +120,24 @@ fct_restore_units() {
     done
     (( failed == 0 ))
 }
+# The unit that serves each shared ceiling.
+fct_ceiling_unit() {
+    case "${1}" in
+        host) printf '%s\n' limeos-storaged.service ;;
+        container) printf '%s\n' limeos-containerd.service ;;
+        storage) printf '%s\n' limeos-storage-reader.service ;;
+    esac
+}
+# An existing ceiling its executor would refuse: configure goes on, keeps the
+# file and does not start that executor, and says so in one line. Failing
+# configure instead would leave the package half-configured with every unit
+# stopped by prerm (core included), and would block every later apt run, for
+# a file the executor refuses anyway; the executor fails closed either way.
+fct_ceiling_refused() {
+    local file="${1}" role="${2}" reason="${3}" uid="${4}" unit="${5}"
+    printf 'LimeOS warning: %s is refused for the %s executor role: %s The file is kept unchanged and %s is not (re)started; while the file is refused that executor serves nothing. Fix the file, check it with: /usr/lib/limeos/limeosctl check-ceiling %s %s %s, then run: systemctl restart %s\n' \
+        "${file}" "${role}" "${reason//$'\n'/ }" "${unit}" "${file}" "${uid}" "${role}" "${unit}" >&2
+}
 fct_execute_this() {
     # This configure ends the package change: the record is read and deleted
     # before anything here can fail, so a failed configure leaves none behind.
@@ -140,10 +158,18 @@ fct_execute_this() {
     fct_directory /var/lib/limeos/executors/container limeos-containerd 0700
     fct_directory /etc/limeos/system-policy root 0755
     core_uid="$(id -u limeos-core)"
-    local target temporary
+    local target temporary role reason unit
+    local -a refused=() restart=()
     for target in host container storage; do
         if [[ -e "/etc/limeos/system-policy/${target}.json" || -L "/etc/limeos/system-policy/${target}.json" ]]; then
-            /usr/lib/limeos/limeosctl check-ceiling "/etc/limeos/system-policy/${target}.json" "${core_uid}"
+            # The executor role that reads the file; the shadow package's
+            # container executor runs read-only (packaging/build.py).
+            role="${target}"
+            if ! reason="$(/usr/lib/limeos/limeosctl check-ceiling "/etc/limeos/system-policy/${target}.json" "${core_uid}" "${role}" 2>&1)"; then
+                unit="$(fct_ceiling_unit "${target}")"
+                fct_ceiling_refused "/etc/limeos/system-policy/${target}.json" "${role}" "${reason}" "${core_uid}" "${unit}"
+                refused+=("${unit}")
+            fi
             continue
         fi
         temporary="$(mktemp "/etc/limeos/system-policy/.${target}.XXXXXX")"
@@ -165,16 +191,23 @@ fct_execute_this() {
     # the role, owned by it with group limeos-host-access, which core holds as
     # a supplementary group; it has no state directory. container.json and
     # storage.json keep their owners: their readers never changed.
-    fct_reader_access /etc/limeos/system-policy/host.json limeos-host-access
+    # A refused host.json is left exactly as the operator wrote it.
+    if [[ " ${refused[*]-} " != *" limeos-storaged.service "* ]]; then
+        fct_reader_access /etc/limeos/system-policy/host.json limeos-host-access
+    fi
+    for unit in limeos-storaged.service limeos-containerd.service; do
+        [[ " ${refused[*]-} " == *" ${unit} "* ]] || restart+=("${unit}")
+    done
     if fct_systemd_running; then
         systemctl daemon-reload
         systemctl enable limeos-core.service limeos-containerd.service limeos-storaged.service
-        systemctl restart limeos-storaged.service limeos-containerd.service limeos-core.service
-        # Optional units that were running before an upgrade start again.
+        systemctl restart "${restart[@]+"${restart[@]}"}" limeos-core.service
+        # Optional units that were running before an upgrade start again,
+        # except an executor whose ceiling was refused.
         local attempt restored=0
-        fct_restore_units limeos-core.service limeos-containerd.service limeos-storaged.service || restored=1
+        fct_restore_units limeos-core.service limeos-containerd.service limeos-storaged.service "${refused[@]+"${refused[@]}"}" || restored=1
         for (( attempt=0; attempt<75; attempt++ )); do
-            if systemctl is-active --quiet limeos-core.service limeos-containerd.service limeos-storaged.service && /usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock status >/dev/null 2>&1; then
+            if systemctl is-active --quiet limeos-core.service "${restart[@]+"${restart[@]}"}" && /usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock status >/dev/null 2>&1; then
                 (( restored == 0 )) || return 1
                 return 0
             fi
