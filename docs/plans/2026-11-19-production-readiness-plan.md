@@ -112,7 +112,7 @@ the installed VM in CI, with the Pi night as confirmation.
 | Core plus base executors, idle PSS | 30 MiB | 10.44 MiB (Pi guest, 7 Oct); 13.2–13.5 MiB (amd64 guest, 23 Nov) | **Gated at 15 MiB** (below). |
 | Idle CPU | 0.1% of a core | 0.051% earlier; 0.203–0.205% (amd64 guest with the stack reader, 23 Nov) — **budget not met** | **Gated at a 0.4% regression ceiling**, not the budget (below). Re-measure with the 1 Hz automation pass enabled. |
 | Resident disk writes | 20 MB/day | 4.72 MB/day; 4.72 (amd64 guest, 23 Nov) | **Gated at 10 MB/day** (below). |
-| Cold readiness | 1 s | 457 ms; 111–167 ms (amd64 guest, 23 Nov) | **Gated at 1 s** (below); repeat at the PR-13 database size. |
+| Cold readiness | 1 s | 457 ms; 111–167 ms (amd64 guest, 23 Nov) | **Gated at 1 s** as readiness after `systemctl restart` (warm cache, the stop included; below); a true cold start is not measured. Repeat at the PR-13 database size. |
 | Cached overview p95 | 20 ms | 0.83 ms (AMD64) | Not gated in CI: gate on the Pi figure. |
 | Storage inventory p95 | 20 ms | 61.4 ms — fails | Not gated. Profile; cache topology between udev events, or set a separate reasoned budget. |
 | Mount admission | 4 s window | 3.0–4.6 s — fails | Not gated; deferred with the feature; do not widen the window without a profile. |
@@ -130,29 +130,59 @@ candidate installed from the signed test repository with one enrolled account,
 the management catalog from `limeosctl migrate propose-catalog --install`, and
 the stack reader started, not enabled. After 90 s to settle, the unchanged
 `scripts/cutover/measure.sh` runs three consecutive 200 s idle windows, then three
-`--measure-core-restart` runs. The gates read measure.sh's report rows:
+`--measure-core-restart` runs. The gated figures are measure.sh's own row values:
+PSS per window, and CPU and disk writes as each window's row weighted by its
+elapsed time:
 
-| Gate | Threshold | Statistic | Local guest runs 1 / 2 / 3 |
+| Gate | Threshold | Statistic | Local guest runs 1 / 2 / 3 / 4 (4 on the final suite) |
 |---|---|---|---|
-| Core plus base executors, idle PSS | ≤ 15 MiB | every window | 13.48 / 13.24 / 13.48 MiB |
-| Resident disk writes | < 10 MB/day | all 600 s together | 4.716 / 4.716 / 4.715 MB/day |
-| Idle CPU | < 0.4% of a core | all 600 s together | 0.2032 / 0.2032 / 0.2049 % |
-| Core ready after a restart | < 1000 ms | median of three (includes the stop) | 122 / 124 / 133 ms |
+| Core plus base executors, idle PSS | ≤ 15 MiB | every window | 13.48 / 13.24 / 13.48 / 13.32 MiB |
+| Resident disk writes | < 10 MB/day | all 600 s together | 4.716 / 4.716 / 4.715 / 4.716 MB/day |
+| Idle CPU | < 0.4% of a core | all 600 s together | 0.2032 / 0.2032 / 0.2049 / 0.2049 % |
+| Core ready after a restart | < 1000 ms | median of three (includes the stop) | 122 / 124 / 133 / 129 ms |
 
 Figures over the whole 600 s, not per window: core's metrics store flushes every
 five minutes, so a 200 s window holds zero or one flush (the windows read 0.0,
-7.07 and 7.07 MB/day each run) while 600 s holds two. The local runs were on a
-2-vCPU, 1 GiB KVM guest on an i5-10310U laptop; the suite adds about 13 minutes to
-the job (fixture 30 s, settle 90 s, windows 600 s, restarts 50 s, plus boot), so
-its limit went from 30 to 45 minutes.
+7.07 and 7.07 MB/day each run) while the three windows normally hold two flushes
+(4.72 MB/day). About 2% of runs, by estimate, the flush timing puts a third flush
+inside them (7.07 MB/day): today that is still well under the gate, but a future
+increase in flush size would first show as an intermittent failure, not a steady
+one.
+
+A row value alone could pass vacuously, because measure.sh sums only the
+processes it found. So every window must also show each base unit (lib.sh's
+`RUST_UNITS`, the list measure.sh uses) and the stack reader with its systemd
+main process measured at both ends (PSS above zero, readable CPU and write
+deltas), and the per-process sums must equal the rows. `systemctl show MainPID
+NRestarts` is taken before and after each window, and a changed main process or
+restart count fails the run. A process that comes or goes during a window fails
+it unless it is a helper of the stack reader, not its main process, which the
+reader starts for its 30 s stack refresh. A helper's CPU is not lost: the reader
+waits for it, so its whole CPU time joins the reader's cutime and cstime, which
+measure.sh counts, in the window where it ends. Only a helper still running at
+the last sample is left out, and the result records its ticks. Over the whole
+run, core and the reader must have used CPU and core must have written something.
+`tests/reference/test_footprint_guest.py` checks all of this offline against
+synthetic measure.sh reports, and it runs under Debian 12 too.
+
+Every guest call has a bound (a window 380 s, a restart run 120 s, the apt steps
+120 to 300 s), and the suite has a 20-minute budget of its own. A hang therefore
+ends the suite with its result written, not the job by cancellation. The suite
+prints a line per window and per restart, and its result, pass or fail, carries
+per-window and per-unit CPU, writes and PSS. The local runs were on a 2-vCPU,
+1 GiB KVM guest on an i5-10310U laptop. The suite adds about 13 minutes to the
+job (fixture 30 s, settle 90 s, windows 600 s, restarts 50 s, plus boot), so the
+job's limit went from 30 to 45 minutes.
 
 - **The idle CPU budget is not met.** 0.203 to 0.205% of a core against 0.1%, in every run
-  and every window (0.18 to 0.225%). The stack reader takes 0.12% of it, which
+  and every window (0.18 to 0.225%). No reader helper was caught at a window
+  boundary in the twelve windows. The stack reader takes 0.12% of it, which
   confirms the attribution, core 0.07%, storaged 0.01%, containerd 0.003%.
   The gate is a regression ceiling at twice today's figure, which leaves room for
   a slower or busier runner and still fails if idle CPU doubles; it is not a
-  widened budget. Once CI has recorded a few runner figures, tighten it towards
-  1.5 times theirs. The suite's result says `budget_met: false`.
+  widened budget. No runner figure is behind it yet: the first CI runs record
+  one (per window and per unit), and the ceiling should then move towards 1.5
+  times the runner's figure. The suite's result says `budget_met: false`.
 - **PSS has 1.5 MiB of headroom here,** not the 4.5 MiB the Pi figure suggests:
   core alone is 10.2 MiB in this guest and each executor 1.6 MiB, steady to
   within 0.05 MiB across windows. Growth past 15 MiB fails the job, as intended.
@@ -173,7 +203,7 @@ The `debian12-suites` job runs `scripts/debian12_suites.sh` in a `debian:12`
 container pinned by digest, and publishing needs it. It runs shellcheck over
 `scripts/cutover/*.sh` and the maintainer scripts, then, as an unprivileged user,
 `tests/cutover` (169 tests), `tests/repository/test_maintainer_scripts.py` (63)
-and `tests/reference` (136) under Debian's bash 5.2, mawk, coreutils, procps and
+and `tests/reference` (162, with the footprint suite's offline tests) under Debian's bash 5.2, mawk, coreutils, procps and
 Python 3.11, with en_GB.UTF-8 generated so the collation case runs. All passed,
 none skipped, on the second laptop's Docker (about nine and a half minutes).
 None needs root, systemd or git history; git is installed only for a test that
