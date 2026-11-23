@@ -80,6 +80,7 @@ rusqlite's `trace`. Three things keep them out of shipped binaries:
 | `writer_thread_works_off_a_backlog_on_its_own` | The writer thread's periodic passes on simulated time, with nothing but the clock moving; every `cargo test` | <1 s |
 | `walks_are_read_from_bytecode_under_any_alias` | The bytecode reader the startup checks rely on: a walk under an alias and `NOT INDEXED`, an index walk told from a table walk, no walk in a seek, an error (not "no walks") for an unreadable program; every `cargo test` | <1 s |
 | `automation_limit_at_minimum_interval` | The known automation limit, measured; not a gate (about 14 minutes) | — |
+| `startup_at_high_retained_job_count` | Core's open at several thousand retained jobs (a four-day hammering storm), measured; not a gate (about 8.5 minutes); see "Core startup at high job counts" | — |
 
 The ordinary `cargo test` runs the smoke, the backlog, receipt-cap and writer
 tests, the bytecode reader's and the generator's own tests: 11 to 14 s together (the smoke about 9 s
@@ -188,7 +189,7 @@ against full tables:
   stacks charges each stacked container about 25 effects an hour. The
   script reads no job history, so it keeps hammering spent containers, and
   those jobs are refused `RateLimited` and settled as refused: the case the
-  budget exists for (the run requires at least 100 such refusals). People do
+  budget exists for (the run requires that the script's client see at least 100 of its own jobs settled as refused by the budget, from the jobs' progress; a refusal whose answer was lost settles otherwise and is not counted). People do
   read job histories: a container or stack whose history says its budget is
   spent until a time still to come counts as busy for the household until
   then (one time in twenty they act anyway, as they do on a lock). The
@@ -203,24 +204,72 @@ against full tables:
   retention kept them core's open read up to 3.45 pages per page of file
   against the 3.2 its startup bound allows (in the restart scenario; a
   property of core's startup scans at that job count, retained 30 days, not
-  of the budget, and left for core's own work). The run asserts that only
+  of the budget; see "Core startup at high job counts"). The run asserts that only
   the storm and the day its charges still count meet the budget (`BUDGET`).
 
-  Measured on 23 November with the budget (debug, x86-64, tmpfs, the
-  ignored set together in 8 min 59 s): the budget refused 815 executes in
-  the long profile (814 while the storm's script hammered, one household
-  job the next morning on a container the storm had spent) and 943 with
-  restarts; the stack receipts fill on day 25, as before. At the end
-  core.sqlite is 33.8 MiB (33.0 with restarts; 31.4 and 29.0 before),
-  receipts.sqlite 2.92 MiB (2.86; 2.35 before), the receipt store's open
-  reads about 1,250 pages (697 before), 1,623 jobs on day 54 (1,453 before)
-  and 2,133 executes (1,928 before), and each 90-day run takes 539 s alone
-  (437 s before). The per-job tables grow -37 KiB beyond the rows of the
-  jobs retention keeps over the last third (-96 with restarts) against the
-  64 KiB bound; counted by jobs alone they read +42 and +100 KiB, while the
-  settled jobs without a result in the tables went from 63 to 24 (86 to 29)
-  over the same days: the storm's refused jobs leaving the stack family's
-  floor of 128, replaced by full-size household jobs.
+  Measured on 24 November with the budget (debug, x86-64, tmpfs, the
+  ignored set together in 9 min 6 s): the budget refused 815 executes in
+  the long profile and 943 with restarts; the storm's client saw 788 and 912
+  of its own jobs settled as refused (the rest had their answers lost and
+  settled by closure, or were not polled to the end); one household job the
+  next morning met a container the storm had spent. The stack receipts
+  fill on day 25, as before. At the end core.sqlite is 33.9 MiB (33.4 with
+  restarts; 31.4 and 29.0 before), receipts.sqlite 2.91 MiB (2.86; 2.35
+  before), the receipt store's open reads about 1,240 pages (697 before),
+  1,623 jobs on day 54 (1,453 before) and 2,133 executes (1,928 before), and
+  each 90-day run takes 545 s alone (437 s before). Over the per-job tail of
+  the last third the per-job tables grow -41 KiB beyond the rows accounted
+  for (-80 with restarts) against the 64 KiB bound, and their retained rows
+  -24 rows beyond what the retained jobs explain (-7) against 64; counted by
+  jobs alone they read +38 and +116 KiB. The composition explains that
+  difference and the numbers close: over the tail the settled jobs without a
+  result went from 63 to 24 (86 to 29), and of those, the jobs the budget
+  refused from 37 to 0 (57 to 1), so the budget-refused jobs leaving the
+  stack family's floor are 37 of the 39 resultless jobs that left (56 of
+  57), the rest cancellations and stale-plan refusals.
+
+## Core startup at high job counts (open, not fixed here)
+
+Core's open reads more pages per page of its store as the retained jobs grow,
+and past about 2,700 retained jobs its startup statements read more than the
+3.2 pages per page of file and WAL the startup bound allows. That many jobs
+is reachable in production: job-row retention keeps every settled job for 30
+days (the floor of 128 newest per family is a minimum, not a cap), so 2,700
+jobs is 90 a day and 5,100 is 170 a day, a busy or scripted household, and
+jobs refused by the executor's effect budget count too. Found while trying a
+four-day storm for PR-30; `startup_at_high_retained_job_count`
+(`--ignored`, not part of CI's soak job, about 8.5 minutes) reproduces it:
+the restart scenario with a four-day storm hammering throughout, 40 days.
+Measured on 24 November (debug, x86-64, tmpfs), core's open on the nightly
+copies:
+
+| Retained jobs | Pages of file and WAL | Cold startup reads | Per page (bound 3.2) | Open, ms |
+|---:|---:|---:|---:|---:|
+| 257 | 5,872 | 12,906 | 2.20 | 70 |
+| 1,073 | 7,228 | 18,961 | 2.62 | 90 |
+| 2,191 | 9,007 | 27,513 | 3.05 | 131 |
+| 2,718 | 10,322 | 33,200 | 3.22 | 139 |
+| 3,852 | 11,683 | 41,291 | 3.53 | 173 |
+| 5,113 | 13,890 | 53,384 | 3.84 | 210 |
+
+(2,718 is from the same profile with the storm backing off after its first
+day; the other rows are from the hammering one.) The statements whose reads
+grow with the jobs, at 5,113 jobs, by cold page reads: the lock and resource
+invariants (`SELECT EXISTS(SELECT 1 FROM jobs j WHERE NOT EXISTS(SELECT 1 FROM
+job_resources ...`), 14,075, a walk of every job with a probe of its
+resources; the automation, storage target and mount, and backup-preparation
+checks that pick jobs by `json_extract(intent,'$.operation')`, about 2,050 to
+2,690 each, eight of them, each a full walk of `jobs` (5,108 full-scan steps)
+because the operation is inside the intent's JSON; and `PRAGMA quick_check`
+(22,680) and `PRAGMA foreign_key_check` (8,944), which read every page and
+grow with the file. The quick_check and foreign-key reads are a fixed
+multiple of the file; the job walks are what push the ratio up, roughly 2,000
+pages per walk at 5,100 jobs. The open still took a fifth of a second in a
+debug build; on the Pi in release it was not measured. Likely remedies, for a
+follow-up: an index on the operation (a generated column, or the operation
+stored beside the intent), or one walk of `jobs` that serves every check;
+or a bound stated in jobs rather than pages for these statements. The plan
+row PR-41 records it as open.
 
 ## Measuring startup
 
@@ -588,7 +637,7 @@ CI (not re-measured this round).
 | no lifetime or unexpected refusal | `StateNotDurable`, `Overloaded`, `BeyondReceiptHistory` from any store call or executor answer or in anything core logs, a failed retention rule, and any refusal a call site does not list as legitimate |
 | core logs only the warnings it is expected to | every warning or error core logs must match an entry of `EXPECTED_LOGS` (its exact message, level and codes, with the reason the soak provokes it): the dispatcher's two "remains pending" lines (`Conflict`, `Unavailable`), the execute that failed after it was written (`Unavailable` only), the execute never sent, the execute refused before any row after a replacement, the execute refused by the executor's effect budget, the executor's own journal line for a refusal row of its action log, and the held-open resolution that stays pending (`Unavailable`). Nothing may carry `InvalidInput` |
 | every lost executor answer is logged once, as unavailable | every execute answer the executor never wrote (lost, or the process dead with the request unread or inside the Engine call) is logged by core exactly once, at its execute site, with `Unavailable`, and every other code there is a refusal the executor answered, one for one; every lost container recovery lookup is logged as that job's failure with `Unavailable` in the same dispatcher pass, one for one, whenever the executor ran throughout the pass (a lost stack lookup is `release_if_unsent`'s, which holds the job without a log, and the stack site logs none); every executes refused before any row matches its log line |
-| the executor's effect budget refuses only the action storm, which it does refuse | every execute the executor refused `RateLimited` was answered between the storm's first minute and a day and an hour after its last proposal (the storm's charges count for a day, so a household job on a container the storm spent is refused too); a storm of six hours or more was refused at least once; core logs each heard refusal with its own line, one for one (`lost_answers`); a refusal whose answer is lost counts as a lost answer |
+| the executor's effect budget refuses only the action storm, which it does refuse | every execute the executor refused `RateLimited` was answered between the storm's first minute and a day and an hour after its last proposal (the storm's charges count for a day, so a household job on a container the storm spent is refused too); a storm of six hours or more saw at least 100 of its own jobs settled as refused by the budget, counted from their progress as its client sees them; core logs each heard refusal with its own line, one for one (`lost_answers`); a refusal whose answer is lost counts as a lost answer |
 | no job dispatched before a receipt-store change is released on a closure alone | every job core held when the executor started (a new store epoch; with a replaced store, receipts lost) and that the new store answered with a closure ends in any state but `precondition_changed`; the replacements happened and such jobs were seen |
 | every time core stores is on the simulated clock | at every checkpoint, no event's `created`, job's `settled`, result's `recorded` or resolution's `completed` after the simulated now: job-row retention ages jobs by them, on the writer's clock (`Store::open` once dated startup recovery's events by the system clock, months ahead, which kept every job they name for the whole run; it now takes the time `Database::open` opens at, the writer's clock) |
 | a job's history stays while its resolution request is open | the held-open job, settled with its request open, keeps its `job_queued` event while retention prunes every older prunable event and once more; the window must be decisive (nothing prunable older than the job left, something pruned) |
@@ -597,7 +646,7 @@ CI (not re-measured this round).
 | every retention batch within its rule's limit | every batch the writer thread reports, one transaction, removes at most its rule's limit |
 | database files under their bounds | core file 80 MiB and WAL 8 MiB; receipt file half its page cap and WAL 2 MiB, every checkpoint |
 | every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor (the newest 128 by settlement) with nothing that keeps it (no open request, no authority event, nothing newer, its settlement time included), counted by the soak's own query |
-| sizes and bounded tables flat across the last third | over days 60 to 90, every b-tree on its own (each table's and each index's bytes) and each row-budgeted table's rows: every b-tree outside the events table, fitted growth under 2% of its size or its floor (192 KiB for the per-job tables', 32 KiB for core's others, 256 KiB for the receipt store's); each events b-tree, fitted growth under the leaf cells of the rows appended to it (counted from the rows) at 90% fill for the table and 75% for an index, plus 16 KiB; the cells of a row appended in the third's second half at most 1.2 times the first half's; while the events table regains rows (no events or authority rule removal in the third, fitted rows up by 256 or more), every other b-tree at the end with the events table at its row budget at the bytes it gained per row kept (or its average, if more) within the 80 MiB file bound; the file's growth under 1 MiB beyond the events b-trees' ceilings (see "Fixed: the flatness check mis-modelled the events refill" for what this catches and what not); and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), each table net of its rows that belong to jobs the rule keeps (every row but those of the jobs the soak's own query finds removable at that moment) at that table's bytes a row, fitted growth under 64 KiB; jobs are not all one size (a job refused before any effect has no result row), and the per-family floor of 128 newest jobs keeps the storm's refused stack jobs into the last third, where household jobs replace them one for one; counted by jobs alone at the average size, that replacement read as 117 KiB of growth (`PER_JOB_NET_JOBS`, reported, with the settled jobs without a result at both ends of the tail) |
+| sizes and bounded tables flat across the last third | over days 60 to 90, every b-tree on its own (each table's and each index's bytes) and each row-budgeted table's rows: every b-tree outside the events table, fitted growth under 2% of its size or its floor (192 KiB for the per-job tables', 32 KiB for core's others, 256 KiB for the receipt store's); each events b-tree, fitted growth under the leaf cells of the rows appended to it (counted from the rows) at 90% fill for the table and 75% for an index, plus 16 KiB; the cells of a row appended in the third's second half at most 1.2 times the first half's; while the events table regains rows (no events or authority rule removal in the third, fitted rows up by 256 or more), every other b-tree at the end with the events table at its row budget at the bytes it gained per row kept (or its average, if more) within the 80 MiB file bound; the file's growth under 1 MiB beyond the events b-trees' ceilings (see "Fixed: the flatness check mis-modelled the events refill" for what this catches and what not); and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), each table net of its rows that are accounted for (every row but those of the jobs the soak's own query finds removable at that moment and, in a plan table, unqueued plans already expired) at that table's bytes a row, fitted growth under 64 KiB; those rows in all may grow only as the retained jobs do, at the starting rows a job, plus one result row for each resultless job that left, fitted growth beyond that under 64 rows; no job owns more rows of a table than one job can (17 resources, one plan, result and resolution), and no unqueued plan outlives the next plan creation of its table, which removes every expired one (also asserted at every checkpoint, `BUDGETS`); unit tests show an accumulation of expired unqueued plans and growing rows per job both fail (`per_job_model_tests`); jobs are not all one size (a job refused before any effect has no result row), and the per-family floor of 128 newest jobs keeps the storm's refused stack jobs into the last third, where household jobs replace them one for one; counted by jobs alone at the average size, that replacement read as 117 KiB of growth (`PER_JOB_NET_JOBS`, reported, with the settled jobs without a result at both ends of the tail) |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound |
 | startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.2 per page of file and WAL, the receipt store's open at most 2.0; every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
 | core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps (but such a proof check's) at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |

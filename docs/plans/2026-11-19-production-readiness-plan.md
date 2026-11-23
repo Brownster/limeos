@@ -136,6 +136,15 @@ users (the restore procedure relies on plan expiry instead). Operator steps:
 | PR-43 | One receipt-journal implementation shared by container actions, storage targets and mounts; one private-object-tree implementation in `backup-archive`. | Duplicates deleted; existing crash tests pass unchanged. |
 | PR-44 | Evidence policy: keep summaries and hashes in git; move raw logs and archives (80 MB today) to release assets. Replace the roadmap's status header with a link to the latest status file. | Tracked `docs/` under 10 MB going forward. |
 
+**Open from PR-30 (core startup at high job counts):** past about 2,700
+retained jobs core's startup statements read more than the soak's 3.2 pages
+per page of file (3.84 at 5,113 jobs, 210 ms in a debug build); job-row
+retention keeps 30 days of settled jobs, so 90 to 170 jobs a day reaches it.
+The job walks by `json_extract(intent,'$.operation')` (eight of them) and
+the lock and resource invariants scale with the jobs. Measured and
+reproducible with `startup_at_high_retained_job_count` (`docs/soak.md`,
+"Core startup at high job counts"); not fixed.
+
 ## Phase 4 — Footprint gates
 
 Budgets are the architecture document's targets; the gate is `measure.sh` run in
