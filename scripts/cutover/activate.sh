@@ -536,6 +536,10 @@ fct_main() {
     fi
     fct_do systemctl daemon-reload
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl enable "${unit}"; done
+    # Every start of core counts against its start limit (ten in six hours), successful ones
+    # included: a deliberate start begins from a clear count. Nothing reads core's failed
+    # state or Result before this.
+    fct_do systemctl reset-failed limeos-core.service
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl start "${unit}"; done
     fct_retry 'Rust services active' fct_units_active "${RUST_UNITS[@]}"
     # Stack status and whole-stack actions stay unavailable until the reader runs. It has no

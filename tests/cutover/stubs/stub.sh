@@ -232,7 +232,7 @@ case "${tool}" in
                     LoadState) printf '%s\n' "$(get_unit "${args[-1]}" loadstate loaded)" ;;
                     *) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
                 esac ;;
-            daemon-reload|reload) ;;
+            daemon-reload|reload|reset-failed) ;;
             *) printf 'stub systemctl: unsupported %s\n' "${verb}" >&2; exit 99 ;;
         esac ;;
     docker)

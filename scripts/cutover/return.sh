@@ -145,7 +145,12 @@ fct_restore_rust() {
     for unit in "${RUST_UNITS[@]}"; do
         fct_snapshot_unit "${snap}" "${unit}"
         if [[ "${SNAP_ENABLED}" == enabled ]]; then fct_step systemctl enable "${unit}"; fi
-        if [[ "${SNAP_ACTIVE}" == active ]]; then fct_step systemctl start "${unit}"; fi
+        if [[ "${SNAP_ACTIVE}" == active ]]; then
+            # Core's start limit (ten starts in six hours) counts successful starts too; a
+            # deliberate start begins from a clear count. Nothing here reads its failed state.
+            if [[ "${unit}" == limeos-core.service ]]; then fct_step systemctl reset-failed "${unit}"; fi
+            fct_step systemctl start "${unit}"
+        fi
     done
 }
 
