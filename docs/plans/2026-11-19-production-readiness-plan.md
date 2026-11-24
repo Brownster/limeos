@@ -162,18 +162,23 @@ the gain there is CPU and system calls (estimated 0.1 to 0.3 s a start at
 record decoding, NOT NULL, CHECK, STRICT types and the entry count of every
 non-partial index; it does not check that each row has an entry with the
 same key and rowid, UNIQUE, partial indexes, or non-BINARY collation
-values, so a count-preserving disagreement or any disagreement in a partial
-index survives it: what a lost write on an SD card leaves. Startup reads
+values, nor key order inside an index (only in table b-trees), so a
+count-preserving disagreement, an entry out of place, or any disagreement in
+a partial index survives it: what a lost write on an SD card leaves. Startup reads
 through indexes for locks (the lock invariants), recovery (the interrupted
 jobs) and dispatch (the queued jobs, the idempotency key, the lock tables),
 so it now holds each such index to its table's content
 (`resources/accounting.rs`): the primary key, idempotency key, `jobs_state`
 and partial `jobs_resource_lock` of `jobs` against the walk; the unsettled
 jobs' `job_resources` rows against their index; `integrity_check` of
-`resource_locks` and `job_resolutions`. Before it, a job the table said was
+`resource_locks` and `job_resolutions`; and it reads each index it reads
+whole in stored order, refusing any entry not after the one before (and, in
+a unique index, any key not after the one before). Before it, a job the table said was
 `verifying` while `jobs_state` still filed it as settled was accepted, never
 marked for intervention, and its resources were open to another dispatch;
-a primary key held twice let the occurrence check pass. Known limits of
+a primary key held twice let the occurrence check pass; and (second review)
+a running job without locks whose `jobs_state` entry was moved out of place
+on its page passed every tally while no `state=?` search found it. Known limits of
 relying on `quick_check` (not accounted): settled jobs' `job_resources`,
 `jobs_retention`, the owners' event proofs (`events_job`, `events_kind`,
 `events_notification`) and the automation tables' indexes, and the session,

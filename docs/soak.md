@@ -316,21 +316,32 @@ The walk of `jobs` returns every row as the table holds it; each accounted
 index is read on its own (covering, the table never touched) and compared
 with the table's rows as a count and a sum of keyed hashes of each row's
 values and rowid (a disagreement passes with probability 2^-64; the keys
-are drawn afresh at every open), and a unique index is read in key order,
-so a key held twice shows as two equal neighbours. Which statement refuses
-which disagreement:
+are drawn afresh at every open). And each index read whole is read as
+stored, a plain scan with no sorter, and must be in order: `quick_check`
+checks key order in table b-trees only (3.54.1: the "Rowid out of order"
+check is under `if( pPage->intKey )`), never in an index, and an entry out
+of place keeps the multiset, so every tally passes, while a search, which
+binary-searches the index, misses it. Every entry (key, then rowid) must
+come strictly after the one before under SQLite's ordering of the types the
+columns hold (integers, then text by its bytes; any other type refuses),
+and in a unique index every key strictly after the one before, which also
+refuses a key held twice, adjacent or not. An index read in order has
+every entry where every search looks for it. Which statement refuses which
+disagreement:
 
 | Disagreement | Refused by |
 |---|---|
-| `jobs`: a row its primary key's index lacks, files under another id, or that an entry leads to from another id; an entry leading to another row | the primary key's accounting (and `LISTED_BY_KEY`, exact, for the jobs the owners read) |
-| `jobs`: an id held by two rows (in the table only, or in its index too) | the primary key's accounting (table only), the key read in order (both) |
-| `jobs`: any disagreement in the idempotency key's index, or a key held twice | its accounting, read in order |
-| `jobs`: a state `jobs_state` does not hold (a job in flight filed as settled, or the reverse), or a deadline | `jobs_state`'s accounting |
-| `jobs`: a lock-holding job the partial `jobs_resource_lock` lacks, or an entry for a job that holds no lock, or a primary resource held twice | its accounting, read in order |
-| `job_resources` of a job not yet settled: a row its index lacks or files under another resource, or an entry leading elsewhere | the unsettled jobs' resource rows read from the table, against the index |
-| `resource_locks` or `job_resolutions`: any disagreement with any of their indexes, UNIQUE included | `PRAGMA integrity_check` of each table |
+| `jobs`: a row its primary key's index lacks, files under another id, or that an entry leads to from another id; an entry leading to another row | the primary key's tally (and `LISTED_BY_KEY`, exact, for the jobs the owners read) |
+| `jobs`: an id held by two rows, in the table only | the primary key's tally |
+| `jobs`: an id held twice in the index too, adjacent or not, or any primary-key entry out of place | the primary key's order (the foreign-key check, whose parent lookups search this index, often refuses an entry out of place as well) |
+| `jobs`: an idempotency entry under another key, or out of place, or a key held twice | that index's tally; its order |
+| `jobs`: a state or deadline `jobs_state` holds differently (a job in flight filed as settled, a queued one filed as failed) | `jobs_state`'s tally |
+| `jobs`: a `jobs_state` entry out of place (a running job no `state=?` search finds) | `jobs_state`'s order |
+| `jobs`: an entry of the partial `jobs_resource_lock` for a job that holds no lock, or under another job's primary resource, or a lock-holding job it lacks | its tally (and its order, for a resource held twice) |
+| `job_resources` of a job not yet settled: a row its index lacks, files under another resource, or holds out of place, or an entry leading elsewhere | the unsettled jobs' resource rows read from the table, against the entries found by seeking each job (a misplaced entry is not found) |
+| `resource_locks` or `job_resolutions`: any disagreement with any of their indexes, order and UNIQUE included | `PRAGMA integrity_check` of each table (it seeks every row's entry in every index) |
 | any index entry leading to no row, where a statement follows it | that statement (SQLite reports the store corrupt) |
-| an occurrence naming an ordinary job | the occurrence check, which reads the occurrences table (`NOT INDEXED`) and the walk's list |
+| an occurrence naming an ordinary job on its table page | the occurrence check, which reads the occurrences table (`NOT INDEXED`) and the walk's list |
 
 Startup recovery (the interrupted jobs it marks `needs_intervention`) and
 the lock invariants run after this, through `jobs_state`, the primary keys
@@ -354,33 +365,54 @@ would have to keep its index's count, or be in a partial index):
 - `sessions`, `task_tokens` and the plan tables' indexes: authentication
   and plan lookups, not locks, recovery or dispatch.
 
-The alternative considered was SQLite's own check, targeted. On a
-synthetic 50 MiB store (5,120 jobs, about 170,000 events, x86, page cache
-warm) `quick_check` took 78 ms, the full `integrity_check` 550 ms
+The alternative considered was SQLite's own check, targeted. On a synthetic
+50 MiB store (5,120 jobs, about 170,000 events, x86, page cache warm)
+`quick_check` took 78 ms, the full `integrity_check` 550 ms
 (`integrity_check(events)` alone 439 ms), `integrity_check(jobs)` 41 ms and
 `integrity_check(job_resources)` 21 ms: those two with the lock tables cost
 about 0.8 of a `quick_check`, which would put the open past the 3.0 factor
-at 5,113 jobs. The accounting read about 800 pages at 5,113 jobs (0.06 a
-page: the 40-day run's copies read 2.14, 2.29, 2.44, 2.64 and 2.79 pages a
-page at 257, 1,073, 2,191, 3,852 and 5,102 jobs, against 2.10 to 2.72
-without it; the CI store 2.67 against 2.62), most of it the walk of the
-`job_resources` table for the unsettled jobs (586 pages there), and keeps
-no more in memory than its tallies and the unsettled jobs' ids, at 5,000
-jobs as at 50,000. For the two small
-lock tables `integrity_check` is the simplest sound check, and is what runs.
+at 5,113 jobs. For the two small lock tables `integrity_check` is the
+simplest sound check, and is what runs. The accounting read about 800 pages
+at 5,113 jobs while any job was unsettled, most of it the walk of the
+`job_resources` table for those jobs (586 pages in the CI store, which keeps
+two jobs queued). With none unsettled, the usual case on the Pi, that walk
+is skipped: both sides are then empty, which is known without reading.
+Measured after merging the job-admin work (whose operator, with its own
+random draws, changes the household's jobs): the 40-day run's copies read
+2.11, 2.30, 2.40, 2.63 and 2.74 pages a page at 266, 1,382, 2,092, 3,495 and
+5,100 jobs (2.72 at 5,113 before the accounting, 2.79 with it before the
+skip), the CI store 2.67, and the household runs at most 2.31 and 2.39.
+
+What the accounting keeps in memory grows with the unsettled jobs (their
+ids, for the `job_resources` comparison: in the shipped scope a few at a
+time, at most those queued or in flight) and with the jobs of the checked
+operations (their ids and the JSON `LISTED_BY_KEY` takes, about 100 bytes a
+job: none in the shipped scope, and at most the observation jobs, which
+retention never removes, 4,096 of them about 0.4 MB), not with the retained
+jobs: the walk streams, and every tally is two integers.
 
 Tests build each disagreement by rewriting bytes on the pages of one b-tree
-(`rewrite_in` in `resources/tests.rs`), confirm that `quick_check` and the
-foreign-key check pass on the result, and that the open refuses: a forged
-job of each checked operation (and of an operation nobody checks) the key
-does not find or leads to another row; an id held twice, in the table only
-and in its index too; a settled job the table says is `verifying`; a
-running job's resource renamed in `job_resources`, and two of its locks'
-resources swapped in `resource_locks` (which the lock invariants accept).
-With the accounting disabled, the open accepted the stale state, the id
-held twice, the renamed resource and the swapped locks, and the forged
-jobs' stores only for the operation nobody checks (`LISTED_BY_KEY` still
-refused the others).
+(`rewrite_in` in `resources/tests.rs`) or by moving one entry's cell
+pointer to the front of its page (`move_entry_first`: the entries and the
+count unchanged, only their order), confirm that `quick_check` and the
+foreign-key check pass on the result (`quick_check` only, for a misplaced
+primary-key entry), and that the open refuses; then each part of the
+accounting was removed in turn and the tests run again (24 November):
+
+| Part removed | Test that then fails (the store opened) |
+|---|---|
+| primary key's tally | `a_primary_key_the_table_holds_twice_refuses_startup` (the table-only duplicate); the two `a_listed_job_…` tests (for the operation nobody checks) |
+| primary key's order | `a_primary_key_the_table_holds_twice_refuses_startup` (the duplicate in the index too, adjacent; apart, the foreign-key check refuses it as well) |
+| idempotency key's tally | `an_idempotency_entry_that_disagrees_or_is_out_of_order_refuses_startup` (the key rewritten) |
+| idempotency key's order | the same (the entry moved) |
+| `jobs_state`'s tally | `a_state_or_deadline_jobs_state_does_not_hold_refuses_startup` (`failed` filed, `queued` in the table; a deadline) |
+| `jobs_state`'s order | `a_jobs_state_entry_out_of_order_refuses_startup` (the reviewer's running job without locks) |
+| `jobs_resource_lock`'s tally | `a_lock_index_entry_that_disagrees_refuses_startup` (an entry for a job holding no lock) |
+| `jobs_resource_lock`'s order | none alone: its only case, an entry under another job's primary resource, is refused by the tally too, and a resource held twice in the table never reaches it (the resource-set check, the lock invariants or the lock table's check refuses first) |
+| the unsettled jobs' `job_resources` | `a_running_jobs_resources_or_locks_their_index_disagrees_with_refuse_startup` (a resource renamed on the table page) |
+| `integrity_check(resource_locks)` | the same (two locks' resources swapped) |
+| `integrity_check(job_resolutions)` | `resolutions_their_index_disagrees_with_refuse_startup` |
+| `NOT INDEXED` in the occurrence check | `an_occurrence_naming_an_ordinary_job_on_its_table_page_refuses_startup` |
 
 **What remains job-scaled, and why.** The walk: one read of every page of
 `jobs` (2,054 at 5,113 jobs) plus a probe of each job's resource set in
