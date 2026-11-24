@@ -32,7 +32,10 @@ pub fn refresh(
     let report = launch
         .start_with(manager, gate)
         .and_then(|ticket| ticket.wait())
-        .map_err(|_| unavailable())?;
+        .map_err(|refusal| {
+            crate::read_supervision::note_refusal(&refusal);
+            unavailable()
+        })?;
     let cohort = ContainerHealthCohort::decode(report.as_bytes())?;
     if cohort.nonce() != nonce {
         return Err(Error(ErrorCode::Conflict));

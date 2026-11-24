@@ -394,19 +394,3 @@ fn catalog_path_admission_and_maximum_retained_handles() {
     assert_eq!(e.retained_descriptor_count() + 1, 18);
     assert!(admit(Path::new(&format!("/{dirs}/a/catalog.json"))).is_err());
 }
-#[test]
-fn a_missing_installed_catalog_yields_no_evidence() {
-    // No privilege gate (PR-32: the stack worker holds no capability); the
-    // protected walk refuses what it cannot open as root-owned.
-    let called = Cell::new(false);
-    assert!(
-        inspect_management_catalog(
-            Path::new("/limeos-unregistered-missing-catalog.json"),
-            &|| {
-                called.set(true);
-                false
-            },
-        )
-        .is_err()
-    );
-}

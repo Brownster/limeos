@@ -95,7 +95,10 @@ pub fn refresh(
     let report = launch
         .start_with(manager, shared_gate)
         .and_then(|ticket| ticket.wait())
-        .map_err(|_| unavailable())?;
+        .map_err(|refusal| {
+            crate::read_supervision::note_refusal(&refusal);
+            unavailable()
+        })?;
     let cohort = DiscoveryCohort::decode(report.as_bytes())?;
     let elapsed = started.elapsed().as_millis().min(90_000) as u32;
     let (c, e) = cohort.remaining_millis();

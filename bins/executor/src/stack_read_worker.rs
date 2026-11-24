@@ -29,7 +29,7 @@ fn run() -> Result<(), ()> {
             .ok_or(())?;
         let boot = WorkerBootstrap::establish(parent).map_err(|_| ())?;
         if !read_supervision::worker_holds_no_capability() {
-            return Err(());
+            return read_supervision::write_worker_capability_refusal().map_err(|_| ());
         }
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -57,7 +57,7 @@ fn run() -> Result<(), ()> {
                 .ok_or(())?;
             let boot = WorkerBootstrap::establish(parent).map_err(|_| ())?;
             if !read_supervision::worker_holds_no_capability() {
-                return Err(());
+                return read_supervision::write_worker_capability_refusal().map_err(|_| ());
             }
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()

@@ -57,6 +57,21 @@ fn whole_json_and_exact_body_bound_are_required() {
     ));
 }
 #[test]
+fn a_worker_refusing_for_a_held_capability_reaches_the_manager_as_such() {
+    // Worker to guardian, then guardian (code 7) to manager.
+    for worker in [true, false] {
+        assert_eq!(
+            frame(7, b"").finish(worker).unwrap().result().err(),
+            Some(Refusal::WorkerCapability)
+        );
+    }
+    // Any other worker status but a plain refusal stays forged output.
+    assert!(matches!(
+        frame(5, b"").finish(true),
+        Err(Refusal::InvalidOutput)
+    ));
+}
+#[test]
 fn worker_status_cannot_forge_a_guardian_cleanup_refusal() {
     assert!(matches!(
         frame(4, b"").finish(true),
@@ -66,7 +81,7 @@ fn worker_status_cannot_forge_a_guardian_cleanup_refusal() {
         frame(4, b"").finish(false).unwrap().result(),
         Err(Refusal::InvalidOutput)
     ));
-    for status in [7, 255] {
+    for status in [8, 255] {
         assert!(matches!(
             frame(status, b"").finish(false),
             Err(Refusal::InvalidOutput)

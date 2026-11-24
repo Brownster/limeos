@@ -2,7 +2,10 @@
 //! A guardian acknowledgment proves cleanup, never retained storage authority.
 mod guardian;
 use crate::read_budget::{FlightGuard, SingleFlight};
-pub use guardian::{WorkerBootstrap, guardian, write_worker_refusal, write_worker_report};
+pub use guardian::{
+    WorkerBootstrap, guardian, write_worker_capability_refusal, write_worker_refusal,
+    write_worker_report,
+};
 use rustix::{fd::AsFd, fs::OFlags};
 use serde::Deserialize;
 use std::{
@@ -30,6 +33,16 @@ use std::{
 pub fn clear_ambient_capabilities() -> io::Result<()> {
     rustix::thread::clear_ambient_capability_set().map_err(io::Error::from)
 }
+/// Logs, once per process, a read that failed because its worker held a
+/// capability; every other refusal is reported as the read being unavailable.
+pub fn note_refusal(refusal: &Refusal) {
+    static LOGGED: AtomicBool = AtomicBool::new(false);
+    if *refusal == Refusal::WorkerCapability && !LOGGED.swap(true, Ordering::Relaxed) {
+        tracing::warn!(
+            "a storage-reader worker refused to collect because it holds a capability (its guardian did not clear the ambient set); stack and container-health reads are unavailable until that is fixed"
+        );
+    }
+}
 /// Whether a worker may collect: as any account but root it must hold no
 /// capability at all (root's are not reduced by this design and root is not
 /// how the reader runs).
@@ -56,6 +69,9 @@ pub enum Refusal {
     InvalidOutput,
     WorkerExit,
     CleanupUnconfirmed,
+    /// The worker refused to collect because it held a capability
+    /// (`worker_holds_no_capability`): its guardian did not clear it.
+    WorkerCapability,
 }
 pub type Result<T> = std::result::Result<T, Refusal>;
 
@@ -390,7 +406,8 @@ impl Capture {
             self.bytes.copy_within(HEADER.., 0);
             self.bytes.truncate(length);
             Ok(Frame::Report(SupervisedReport(self.bytes)))
-        } else if length != 0 || (worker && status != 1) || !(1..=6).contains(&status) {
+        } else if length != 0 || (worker && !matches!(status, 1 | 7)) || !(1..=7).contains(&status)
+        {
             Err(Refusal::InvalidOutput)
         } else {
             Ok(Frame::Refused(match status {
@@ -399,6 +416,7 @@ impl Capture {
                 3 => Refusal::Cancelled,
                 4 => Refusal::InvalidOutput,
                 5 => Refusal::WorkerExit,
+                7 => Refusal::WorkerCapability,
                 _ => Refusal::Unavailable,
             }))
         }
