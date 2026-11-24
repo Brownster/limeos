@@ -32,6 +32,7 @@
 //! | Stack actions | 2 a day over 4 Compose stacks | Restart 80% / stop 20%; a stack with stopped members is started next |
 //! | Faults per dispatched job | about 6% in all (`arm_fault`) | Lost answers, executor and core deaths at each awkward step, Engine errors |
 //! | Operator reviews | 08:30, 12:30, 18:30, 22:30 | Every `needs_intervention` job is resolved on fresh evidence |
+//! | Administrative cancels | 3.5% of household jobs queued without a fault, a few a week | Someone asks the host operator to stop an action they queued; as root the operator looks the job up and cancels it on their behalf before core's next pass (`limeosctl job cancel --yes`: `rpc_list_jobs`, then `rpc_cancel_job`) |
 //! | External restarts | 2 a day | An update tool or crash loop: plans go stale (`Conflict`) |
 //! | Restarts | both daemons daily at 04:00 (measured), plus every fault above | |
 //!
@@ -787,6 +788,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
         }
         _ => arm_fault(sim, &id, &resource),
     };
+    let unfaulted = fault.is_none();
     sim.ledger.insert(
         id.clone(),
         JobRecord {
@@ -800,7 +802,51 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
         },
     );
     sim.next_pass = sim.next_pass.min(sim.now() + 1);
-    agenda.at(sim.now() + 2, Step::Progress { job: id, left: 15 });
+    agenda.at(
+        sim.now() + 2,
+        Step::Progress {
+            job: id.clone(),
+            left: 15,
+        },
+    );
+    if fate == Fate::Normal && unfaulted && sim.operator_rng.per_mille(OPERATOR_CANCEL_PER_MILLE) {
+        operator_cancel(sim, id).await;
+    }
+}
+
+/// Household jobs, in thousandths, that the host operator cancels on their
+/// owner's behalf right after they are queued.
+const OPERATOR_CANCEL_PER_MILLE: u64 = 35;
+
+/// What `limeosctl job cancel JOB --admin marc --yes` does: look the job up
+/// (`rpc_list_jobs` with the job as filter), then cancel it through core
+/// (`rpc_cancel_job`). Core's next pass has not run, so the job is still
+/// queued and is cancelled; the ledger then requires that it never ran
+/// (`checks::settled`: a canceled job with no Engine effect).
+async fn operator_cancel(sim: &mut Sim, job: String) {
+    let core = sim.core();
+    let filter = limeos_domain::OperatorJobFilter {
+        states: vec![JobState::Queued],
+        owner: None,
+        family: None,
+        job: Some(job.clone()),
+        after: None,
+    };
+    let listed = core.rpc_list_jobs(filter, 1).await;
+    sim.absorb().await;
+    let Some(page) = sim.judge("operator: job list", listed, &[ErrorCode::Unavailable]) else {
+        return;
+    };
+    if page.jobs.len() != 1 {
+        sim.stats.op("administrative cancel: no longer queued");
+        return;
+    }
+    let canceled = core.rpc_cancel_job("marc".into(), job).await;
+    sim.absorb().await;
+    if let Some(answer) = sim.judge("operator: job cancel", canceled, &[ErrorCode::Unavailable]) {
+        sim.stats
+            .op(&format!("administrative cancel: {:?}", answer.outcome));
+    }
 }
 
 async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {

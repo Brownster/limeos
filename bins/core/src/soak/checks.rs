@@ -758,7 +758,8 @@ pub fn checkpoint(sim: &mut Sim) {
 /// removed a day ago (`retention/jobs.rs`, rules 1 to 6, read independently
 /// of its query): settled, and unchanged since, a day before the horizon, past the newest
 /// `JOB_FLOOR` of their family (by settlement), with no open resolution
-/// request and no authority event. A day is 1,440 passes of up to 64 jobs,
+/// request and no authority event (a resolution request, withdrawal or
+/// supersession, or an administrator's cancellation). A day is 1,440 passes of up to 64 jobs,
 /// and 24 starts of the rule's scan over the jobs a reference kept. With
 /// `allowance` 0, the jobs the rule may remove right now.
 const FAMILIES: [&str; 2] = [
@@ -773,7 +774,7 @@ fn overdue_sql(family: &str) -> String {
     );
     format!(
         "SELECT j.id FROM jobs j WHERE {settled} AND j.id NOT IN (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.settled DESC,j.rowid DESC LIMIT ?2) AND j.settled<?1 AND j.deadline<?1 \
-         AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') GLOB 'job_resolution_*')) \
+         AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') IN ('job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded','job_canceled_by_administrator'))) \
          AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) \
          AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) \
          AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1)"
@@ -2944,7 +2945,7 @@ fn report(sim: &Sim, profile: &Profile) {
             }
             let (settled, resolution): (Option<i64>, bool) = core
                 .query_row(
-                    "SELECT settled,EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND json_extract(e.kind,'$.kind') GLOB 'job_resolution_*') FROM jobs j WHERE id=?",
+                    "SELECT settled,EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND json_extract(e.kind,'$.kind') IN ('job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded','job_canceled_by_administrator')) FROM jobs j WHERE id=?",
                     [job],
                     |r| Ok((r.get(0)?, r.get(1)?)),
                 )

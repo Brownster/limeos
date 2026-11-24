@@ -307,6 +307,10 @@ pub struct Sim {
     pub name: &'static str,
     pub clock: Clock,
     pub rng: Rng,
+    /// The host operator's own decisions (`workload::operator_cancel`), drawn
+    /// apart from `rng` so that adding them left the household's stream, and
+    /// so its jobs, faults and timings, as they were.
+    pub operator_rng: Rng,
     /// Holds both stores; removed with the run.
     pub _dir: tempfile::TempDir,
     pub core_path: PathBuf,
@@ -454,6 +458,7 @@ impl Sim {
             name,
             clock,
             rng: Rng::new(seed),
+            operator_rng: Rng::new(seed ^ 0x6f70_6572_6174_6f72),
             _dir: dir,
             core_path,
             core: None,
