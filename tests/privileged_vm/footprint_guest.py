@@ -523,39 +523,82 @@ def fixture(repository, package_version):
 
 
 def reader_serves_core():
-    """PR-32: the reader runs as its own account with CAP_DAC_READ_SEARCH alone, and
-    core takes its answers: the stack status turns fresh from both the catalog and the
-    Engine (read over the docker group) through core's socket rule for the reader."""
+    """PR-32, gating: the reader runs as its own account with exactly its capability sets and
+    groups, is dumpable (its /proc entry is the account's), and core takes its answers. Core's
+    stack status turns fresh from both the catalog and the Engine (the stack worker reads the
+    Engine over the docker group with no capability); core's storage inventory names this guest's
+    disk with its filesystem identified by blkid through /proc/PID/fd (the reason the capability is
+    ambient); and a container-health read as core's account answers for this guest's containers
+    (the health worker, again with no capability)."""
+    import secrets
+
+    from guest import executor_probe_code
     from p04_fixture_readiness import READER_ACCOUNT, reader_confined, reader_status
 
+    account = pwd.getpwnam(READER_ACCOUNT).pw_uid
     pid = int(sh(f"systemctl show {READER} -p MainPID --value", 30)[1])
     if not reader_confined(reader_status(pid)):
-        raise RuntimeError(f"{READER} is not {READER_ACCOUNT} with CAP_DAC_READ_SEARCH alone: {reader_status(pid)}")
-    if READER_SOCKET.lstat().st_uid != pwd.getpwnam(READER_ACCOUNT).pw_uid:
+        raise RuntimeError(f"{READER} is not {READER_ACCOUNT} with exactly CAP_DAC_READ_SEARCH: {reader_status(pid)}")
+    if Path(f"/proc/{pid}").stat().st_uid != account:
+        raise RuntimeError(f"{READER} is not dumpable: its /proc entry is not owned by {READER_ACCOUNT}")
+    if READER_SOCKET.lstat().st_uid != account:
         raise RuntimeError(f"{READER_SOCKET} is not owned by {READER_ACCOUNT}")
     status, headers = request("POST", "/api/v1/auth/login", LOGIN)
     if status != 200:
         raise RuntimeError(f"login for the reader check failed: {status}")
     cookie = headers["set-cookie"].split(";")[0]
-    seen = {}
 
-    def fresh():
+    def get(path):
         connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=10)
         try:
-            connection.request("GET", "/api/v1/deployment/stacks", headers={"Cookie": cookie})
+            connection.request("GET", path, headers={"Cookie": cookie, "Origin": "https://localhost"})
             response = connection.getresponse()
             body = response.read()
         finally:
             connection.close()
-        if response.status != 200:
+        return response.status, (json.loads(body) if body else None)
+
+    seen = {}
+
+    def fresh():
+        code, value = get("/api/v1/deployment/stacks")
+        if code != 200:
             return False
-        value = json.loads(body)
         seen.update(catalog=value["catalog"]["state"], engine=value["engine"]["state"])
         return seen == {"catalog": "fresh", "engine": "fresh"} and any(s["project"] == "media" for s in value["stacks"])
 
     eventually(fresh, 75, f"core's stack status from {READER}")
-    return {"account": READER_ACCOUNT, "stacks": seen}
+    devices = []
 
+    def inventory():
+        code, value = get("/api/v1/storage/inventory")
+        if code != 200:
+            return False
+        devices[:] = value["inventory"]["devices"]
+        return True
+
+    eventually(inventory, 60, f"core's storage inventory from {READER}")
+    identified = [d for d in devices if d["filesystem"] and d["filesystem_uuid"]]
+    if not any(d["boot_backing"] and d["filesystem"] == "ext4" for d in identified):
+        raise RuntimeError(f"the storage inventory names no ext4 root filesystem identified by blkid: {devices}")
+    nonce = secrets.token_hex(32)
+    reply = subprocess.run(
+        ["runuser", "-u", "limeos-core", "-g", "limeos-host-access", "--", "python3", "-c",
+         executor_probe_code(), str(READER_SOCKET),
+         json.dumps({"operation": "container_health", "version": 1, "nonce": nonce})],
+        capture_output=True, text=True, timeout=remaining(30), check=False,
+    )
+    health = json.loads(reply.stdout) if reply.stdout.strip() else {}
+    cohort = health.get("container_health") or {}
+    if health.get("ready") is not True or health.get("error") is not None or cohort.get("nonce") != nonce \
+            or len(cohort.get("members", [])) < 6:
+        raise RuntimeError(f"container-health read from {READER} failed: {reply.stdout[-1500:]}{reply.stderr[-500:]}")
+    return {
+        "account": READER_ACCOUNT,
+        "stacks": seen,
+        "filesystems": sorted({(d["filesystem"], d["boot_backing"]) for d in identified}),
+        "health_members": len(cohort["members"]),
+    }
 
 def measure(name, bound, *extra):
     out = OUT / name

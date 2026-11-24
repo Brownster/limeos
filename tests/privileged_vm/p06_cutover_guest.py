@@ -1365,6 +1365,97 @@ def package_lifecycle():
     return {"stops": stops, "second_remove": out2.strip().splitlines()[-2:], "dpkg_second_remove": out3.strip().splitlines()[-2:], "after_upgrade": after, "seconds": {k: state["timings"].get(k) for k in ("activate-snapP", "return-after-package")}}
 
 
+@case("23 PR-32: a reader run as root by a leftover drop-in is refused by core (reader-status, degraded, journal); with the drop-in removed, a package upgrade brings it back as limeos-storage-reader and core's reads turn fresh; activation itself refuses a root reader and rolls back")
+def reader_root_dropin():
+    """The production host's earlier package ran the reader as root. A real upgrade from that package
+    is not available in this guest (one candidate and its relabelled second build are), so the root
+    reader is reproduced with a drop-in on the candidate: what the upgrade must cope with is the same
+    (a running root reader that prerm stops, its root-owned runtime directory, a postinst that starts
+    it again as the account). What it cannot reproduce is the old package's own prerm and binaries."""
+    from p04_fixture_readiness import READER_ACCOUNT, READER_SOCKET, reader_confined, reader_status
+
+    ctl = "/usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock"
+    reader = "limeos-storage-reader.service"
+    account = pwd.getpwnam(READER_ACCOUNT).pw_uid
+    dropin_dir = Path(f"/etc/systemd/system/{reader}.d")
+    dropin = dropin_dir / "zz-pr32-root.conf"
+    apt = "DEBIAN_FRONTEND=noninteractive apt-get"
+    facts = {}
+
+    def place_dropin():
+        dropin_dir.mkdir(exist_ok=True)
+        dropin.write_text("[Service]\nUser=root\n")
+        sh("systemctl daemon-reload")
+
+    def remove_dropin():
+        dropin.unlink(missing_ok=True)
+        if dropin_dir.exists() and not any(dropin_dir.iterdir()):
+            dropin_dir.rmdir()
+        sh("systemctl daemon-reload")
+
+    def runs_as_account():
+        pid = int(unit(reader)["MainPID"])
+        return (
+            active(reader) == "active"
+            and pid > 1
+            and READER_SOCKET.is_socket()
+            and READER_SOCKET.lstat().st_uid == account
+            and Path(f"/proc/{pid}").stat().st_uid == account
+            and reader_confined(reader_status(pid))
+        )
+
+    snap = activated("snapR")
+    check(runs_as_account(), "the reader is not limeos-storage-reader after activation")
+    try:
+        place_dropin()
+        started = time.strftime("%Y-%m-%d %H:%M:%S")
+        sh(f"systemctl restart {reader}")
+        check(fx.eventually(lambda: READER_SOCKET.is_socket() and READER_SOCKET.lstat().st_uid == 0, timeout=20), "the drop-in did not run the reader as root")
+        rc, out = sh(f"{ctl} reader-status", check_rc=False)
+        check(rc != 0 and '"state":"refused"' in out, "core did not refuse a root-owned reader socket", rc=rc, out=out)
+        facts["refused"] = out.strip()
+
+        def listed():
+            health = json.loads(sh(f"{ctl} status")[1])
+            return any(d["subsystem"] == "storage_reader" and (d.get("detail") or {}).get("code") == "forbidden" for d in health.get("degraded", []))
+
+        check(fx.eventually(listed, timeout=30), "core's health does not list the refused reader")
+        journal = sh(f"journalctl -u limeos-core --since '{started}' --no-pager", check_rc=False)[1]
+        check("core refuses the storage reader's socket" in journal, "core did not log the refusal", journal=journal[-1500:])
+        # The upgrade from a root reader: the drop-in goes, the package is upgraded with the root reader running.
+        remove_dropin()
+        rc, out = sh(f"{apt} install -y --allow-downgrades limeos={UPGRADE_VERSION}", check_rc=False, timeout=600, log="apt-upgrade-root-reader")
+        check(rc == 0, "the upgrade from a root reader failed", out=out[-2500:])
+        check(fx.eventually(runs_as_account, timeout=30), "the reader did not come back as limeos-storage-reader after the upgrade", status=reader_status(int(unit(reader)["MainPID"])) if int(unit(reader)["MainPID"]) > 1 else None)
+        rc, out = sh(f"{ctl} reader-status", check_rc=False)
+        check(rc == 0 and '"state":"accepted"' in out, "core does not accept the reader after the upgrade", out=out)
+        status, headers, view = login("holly")
+        check(status == 200, "login after the upgrade failed", status=status)
+        cookie = headers["set-cookie"].split(";")[0]
+
+        def fresh():
+            code, _, value = https("/api/v1/deployment/stacks", cookie=cookie)
+            return code == 200 and value["catalog"]["state"] == "fresh" and value["engine"]["state"] == "fresh"
+
+        check(fx.eventually(fresh, timeout=90), "core's stack status did not turn fresh from the account reader", stacks=str(https("/api/v1/deployment/stacks", cookie=cookie)[2])[:1000])
+        code, _, inventory = https("/api/v1/storage/inventory", cookie=cookie)
+        check(code == 200 and inventory["inventory"]["devices"], "core's storage inventory from the account reader failed", code=code, body=str(inventory)[:800])
+        facts["devices"] = [(d["filesystem"], d["boot_backing"]) for d in inventory["inventory"]["devices"]]
+    finally:
+        remove_dropin()
+    rc, out = run_script("return.sh", snap, log="return-after-root-reader")
+    check(rc == 0 and "return verified" in out, "return.sh after the root-reader upgrade failed", problems=problems(out), out=out[-1500:])
+    # Activation refuses a reader a drop-in runs as root, names the drop-in, and rolls back.
+    place_dropin()
+    try:
+        facts["failed_activation"] = failed_activation("reader-root", "snapR2", [], "is owned by root, not limeos-storage-reader", version=None)
+        findings = Path("/var/lib/limeos-cutover/snapR2/findings.txt").read_text()
+        check(f"LimeOS unit drop-in" in findings and str(dropin) in findings, "preflight did not name the reader's drop-in", findings=findings[-1200:])
+    finally:
+        remove_dropin()
+    return facts
+
+
 # ---------------------------------------------------------------- driver
 def main(package_version="0.4.17+cutover.1"):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":

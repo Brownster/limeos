@@ -99,6 +99,7 @@ class ReaderResources:
                 "Uid",
                 "Gid",
                 "Groups",
+                "CapInh",
                 "CapEff",
                 "CapPrm",
                 "CapBnd",
@@ -145,9 +146,14 @@ class ReaderResources:
             role = "storage-worker"
         else:
             raise ValueError("unexpected reader process image")
-        # PR-32: every reader process (manager, guardians, workers) runs as
-        # the reader's account with CAP_DAC_READ_SEARCH alone.
-        require(reader_confined(status), "reader process confinement differs")
+        # PR-32: every reader process runs as the reader's account; the
+        # manager holds CAP_DAC_READ_SEARCH, the guardians only until they
+        # exit (ambient cleared), the workers none.
+        require(reader_confined(status, role), "reader process confinement differs")
+        require(
+            (proc).stat().st_uid == int(status["Uid"].split()[0]),
+            "reader process is not dumpable (its /proc entry is root's)",
+        )
         self.value["processes"][identity] = {
             "pid": pid,
             "start_ticks": start,
