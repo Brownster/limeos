@@ -258,7 +258,7 @@ impl ReceiptStore {
         }
         conn.busy_timeout(Duration::from_millis(200))
             .map_err(durable)?;
-        conn.execute_batch(&format!("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA max_page_count={MAX_PAGES}; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;")).map_err(durable)?;
+        conn.execute_batch(&format!("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=OFF; PRAGMA max_page_count={MAX_PAGES}; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;")).map_err(durable)?;
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
@@ -472,14 +472,50 @@ impl ReceiptStore {
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         Ok((closed, seqs))
     }
-    /// The prepared receipt read back exactly as committed, or
-    /// `StateNotDurable` and no effect.
-    fn confirm_prepared(&self, receipt: &RestartReceipt) -> Result<()> {
-        if self
-            .receipt(&receipt.action, &receipt.plan_digest)?
-            .as_ref()
-            != Some(receipt)
-        {
+    /// A row a prepare just committed (`table` is `actions` or
+    /// `stack_actions`), read back before any effect: its digest, resource,
+    /// state column, receipt text, operation and expiry exactly as written,
+    /// not legacy, and no closure or resolution. The row gone, rewritten or
+    /// settled is `StateNotDurable`, and the caller makes no effect. One
+    /// keyed read of a page the commit just wrote.
+    pub(crate) fn confirm_prepared(
+        &self,
+        table: &str,
+        receipt: &impl Serialize,
+        row: Prepared<'_>,
+    ) -> Result<()> {
+        type Stored = (
+            String,
+            String,
+            String,
+            String,
+            String,
+            i64,
+            i64,
+            Option<String>,
+            Option<String>,
+        );
+        let stored: Option<Stored> = self
+            .conn
+            .query_row(
+                &format!("SELECT digest,resource,state,receipt,operation,expires_at,legacy,closed,resolution FROM {table} WHERE action=?"),
+                [row.action],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?)),
+            )
+            .optional()
+            .map_err(durable)?;
+        let expected = (
+            row.digest.to_string(),
+            row.resource.to_string(),
+            row.state.to_string(),
+            encode(receipt)?,
+            row.operation.to_string(),
+            row.expires_at,
+            0,
+            None,
+            None,
+        );
+        if stored != Some(expected) {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         Ok(())
@@ -576,7 +612,18 @@ impl ReceiptStore {
         let seq = self.prepare(&receipt, request.plan.expires_at, now, &entry)?;
         // The prepared row must be there before any effect, whatever the
         // schema did to it (one keyed read of a page the commit just wrote).
-        self.confirm_prepared(&receipt)?;
+        self.confirm_prepared(
+            "actions",
+            &receipt,
+            Prepared {
+                action: &receipt.action,
+                digest: &receipt.plan_digest,
+                resource: &receipt.before.resource,
+                state: receipt.state.as_str(),
+                operation: receipt.operation.as_str(),
+                expires_at: request.plan.expires_at,
+            },
+        )?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             receipt.state = ExecutionState::PreconditionChanged;
@@ -731,6 +778,15 @@ fn steps(conn: &Connection, version: u32, to: u32) -> Result<()> {
         .map_err(durable)?;
     }
     Ok(())
+}
+/// The columns a prepare wrote beside the receipt text (`confirm_prepared`).
+pub(crate) struct Prepared<'a> {
+    pub action: &'a str,
+    pub digest: &'a str,
+    pub resource: &'a str,
+    pub state: &'a str,
+    pub operation: &'a str,
+    pub expires_at: i64,
 }
 fn encode(value: &impl Serialize) -> Result<String> {
     serde_json::to_string(value).map_err(|_| Error(ErrorCode::InvalidInput))

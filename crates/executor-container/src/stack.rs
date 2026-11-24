@@ -423,18 +423,35 @@ impl ReceiptStore {
             }),
             Log::Charge(&entry),
         )?;
-        // The stack row and every member row must be there before any
-        // effect, whatever the schema did to them (keyed reads of pages the
-        // commit just wrote).
-        if self
-            .stack_receipt(&receipt.action, &receipt.plan_digest)?
-            .as_ref()
-            != Some(&receipt)
-        {
-            return Err(Error(ErrorCode::StateNotDurable));
-        }
+        // The stack row and every member row exactly as written before any
+        // effect, whatever the schema did to them (`confirm_prepared`).
+        let expires_at = request.plan.expires_at;
+        self.confirm_prepared(
+            "stack_actions",
+            &receipt,
+            crate::Prepared {
+                action: &receipt.action,
+                digest: &receipt.plan_digest,
+                resource: &receipt.before.resource,
+                state: receipt.state.as_str(),
+                operation: receipt.operation.as_str(),
+                expires_at,
+            },
+        )?;
         for member in &receipt.members {
-            self.confirm_prepared(&member_receipt(&receipt, member)?)?;
+            let row = member_receipt(&receipt, member)?;
+            self.confirm_prepared(
+                "actions",
+                &row,
+                crate::Prepared {
+                    action: &row.action,
+                    digest: &row.plan_digest,
+                    resource: &row.before.resource,
+                    state: row.state.as_str(),
+                    operation: row.operation.as_str(),
+                    expires_at,
+                },
+            )?;
         }
         let receipt = self
             .run_members(engine, request, receipt, &seqs, clock)

@@ -29,14 +29,22 @@
 //! The reference is built once per process; the store's schema pages are
 //! already in the page cache from `quick_check`.
 //!
-//! Migrations run before that comparison, so before any migration runs
-//! `before_migrating` refuses a trigger or view: the migrations are fixed
-//! statements, and a trigger is the only schema object through which they
-//! could change rows they do not name (a missing, extra or altered table or
-//! index makes a step fail and roll back, or is refused after it). A store
-//! refused there keeps its rows and version. It is not left byte-identical:
-//! `open` has already set the file's mode and WAL mode, as it does for any
-//! refusal, including one at the current version.
+//! Migrations run before that comparison. Before any migration runs,
+//! `before_migrating` refuses a trigger or view, and `open` turns foreign-key
+//! enforcement off (no version of the schema has a foreign key): those are
+//! the ways the fixed migration statements could delete or change rows they
+//! do not name (a cascading foreign key, for one, deleted stack receipts
+//! when version 5 dropped the renamed `actions`). What remains: a store
+//! whose older tables were altered (columns reordered, a generated column)
+//! is normalised by the rebuilding steps rather than refused, since only
+//! the result is compared; version 2 copies `actions` by position (`SELECT
+//! *`), version 5 by column name. Comparing the store with its starting
+//! version's own schema before migrating would close that, but existing
+//! tests build older stores by trimming a current one rather than with the
+//! migrations. A store refused before migrating keeps its rows and version.
+//! It is not left byte-identical: `open` has already set the file's mode
+//! and WAL mode, as it does for any refusal, including one at the current
+//! version.
 use crate::{Connection, Error, ErrorCode, Result, migrate};
 use std::sync::OnceLock;
 

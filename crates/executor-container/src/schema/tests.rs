@@ -249,6 +249,8 @@ fn a_store_after_analyze_still_opens() {
 #[test]
 fn a_forged_internal_object_is_still_refused() {
     // `sqlite_` names are reserved; only a forged schema row can carry one.
+    // This also passed before statistics tables were admitted: it guards
+    // that the admission stays exact, not a change it introduced.
     let dir = private_dir();
     drop(ReceiptStore::open(dir.path()).unwrap());
     {
@@ -309,4 +311,51 @@ fn a_trigger_in_an_older_store_is_refused_before_any_migration_runs() {
         .query_row("SELECT count(*) FROM actions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(receipts, 1);
+}
+
+#[test]
+fn a_foreign_key_action_in_an_older_store_cannot_delete_receipts_during_migration() {
+    // A version-4 store whose stack table cascades deletes from `actions`.
+    // Version 5 renames `actions` (SQLite follows the reference), copies it
+    // and drops the old table; with foreign keys enforced that drop deleted
+    // the stack row, and version 5 then rebuilt `stack_actions` from what
+    // was left, so the version-9 comparison saw nothing wrong. The open
+    // turns enforcement off: no version of the schema has a foreign key.
+    let dir = private_dir();
+    let path = dir.path().join("receipts.sqlite");
+    let (action, digest) = ("a".repeat(64), "b".repeat(64));
+    {
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
+            .unwrap();
+        migrate_to(&conn, 0, 3).unwrap();
+        conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE stack_actions(action TEXT PRIMARY KEY REFERENCES actions(action) ON DELETE CASCADE,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=4; COMMIT;").unwrap();
+        conn.execute(
+            "INSERT INTO actions(action,digest,resource,state,receipt) VALUES(?1,?2,'container:x','outcome_unknown','{}')",
+            [&action, &digest],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO stack_actions(action,digest,resource,state,receipt,operation) VALUES(?1,?2,'stack:p','outcome_unknown','{}','restart')",
+            [&action, &digest],
+        )
+        .unwrap();
+    }
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    // Version 5 rebuilds both tables from its own text, so the store opens.
+    let store = ReceiptStore::open_explained(dir.path())
+        .unwrap_or_else(|r| panic!("refused: {:?}", r.schema));
+    for table in ["actions", "stack_actions"] {
+        let kept: u32 = store
+            .conn
+            .query_row(
+                &format!(
+                    "SELECT count(*) FROM {table} WHERE action=?1 AND state='outcome_unknown'"
+                ),
+                [&action],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, 1, "{table}");
+    }
 }
