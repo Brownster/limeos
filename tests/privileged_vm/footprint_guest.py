@@ -38,6 +38,7 @@ normally holds two. The result carries every window's figure and the per-unit sp
 import http.client
 import json
 import os
+import pwd
 import re
 import shutil
 import socket
@@ -517,7 +518,43 @@ def fixture(repository, package_version):
         raise RuntimeError("propose-catalog --install did not install the catalog")
     sh(f"systemctl start {READER}", 60)
     eventually(lambda: active(READER) and READER_SOCKET.is_socket(), 60, "the stack reader")
-    return {"metrics_bytes": seed_metrics(), "use_pass": use_pass()}
+    reader = reader_serves_core()
+    return {"metrics_bytes": seed_metrics(), "use_pass": use_pass(), "reader": reader}
+
+
+def reader_serves_core():
+    """PR-32: the reader runs as its own account with CAP_DAC_READ_SEARCH alone, and
+    core takes its answers: the stack status turns fresh from both the catalog and the
+    Engine (read over the docker group) through core's socket rule for the reader."""
+    from p04_fixture_readiness import READER_ACCOUNT, reader_confined, reader_status
+
+    pid = int(sh(f"systemctl show {READER} -p MainPID --value", 30)[1])
+    if not reader_confined(reader_status(pid)):
+        raise RuntimeError(f"{READER} is not {READER_ACCOUNT} with CAP_DAC_READ_SEARCH alone: {reader_status(pid)}")
+    if READER_SOCKET.lstat().st_uid != pwd.getpwnam(READER_ACCOUNT).pw_uid:
+        raise RuntimeError(f"{READER_SOCKET} is not owned by {READER_ACCOUNT}")
+    status, headers = request("POST", "/api/v1/auth/login", LOGIN)
+    if status != 200:
+        raise RuntimeError(f"login for the reader check failed: {status}")
+    cookie = headers["set-cookie"].split(";")[0]
+    seen = {}
+
+    def fresh():
+        connection = http.client.HTTPConnection("127.0.0.1", 8003, timeout=10)
+        try:
+            connection.request("GET", "/api/v1/deployment/stacks", headers={"Cookie": cookie})
+            response = connection.getresponse()
+            body = response.read()
+        finally:
+            connection.close()
+        if response.status != 200:
+            return False
+        value = json.loads(body)
+        seen.update(catalog=value["catalog"]["state"], engine=value["engine"]["state"])
+        return seen == {"catalog": "fresh", "engine": "fresh"} and any(s["project"] == "media" for s in value["stacks"])
+
+    eventually(fresh, 75, f"core's stack status from {READER}")
+    return {"account": READER_ACCOUNT, "stacks": seen}
 
 
 def measure(name, bound, *extra):

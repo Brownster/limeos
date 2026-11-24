@@ -1,8 +1,10 @@
 """Bounded disposable-guest setup observations, never production admission."""
 
+import grp
 import http.client
 import json
 import os
+import pwd
 import socket
 import struct
 import time
@@ -10,6 +12,39 @@ from pathlib import Path
 
 PROC = Path("/proc")
 READER_SOCKET = Path("/run/limeos-storage-reader/executor.sock")
+# PR-32: the reader runs as its own account with CAP_DAC_READ_SEARCH (bit 2)
+# and nothing else, primary group limeos-host-access, supplementary docker.
+READER_ACCOUNT = "limeos-storage-reader"
+READER_CAPABILITIES = "0000000000000004"
+
+
+def reader_confined(status):
+    """Whether one reader process's /proc/PID/status fields (a dict of the
+    stripped values) show the reader's account, its one capability in every
+    set, its groups and no_new_privs."""
+    uid = str(pwd.getpwnam(READER_ACCOUNT).pw_uid)
+    gid = str(grp.getgrnam("limeos-host-access").gr_gid)
+    docker = str(grp.getgrnam("docker").gr_gid)
+    return (
+        status.get("Uid", "").split() == [uid] * 4
+        and status.get("Gid", "").split() == [gid] * 4
+        and docker in status.get("Groups", "").split()
+        and all(
+            status.get(key) == READER_CAPABILITIES
+            for key in ("CapEff", "CapPrm", "CapBnd", "CapAmb")
+        )
+        and status.get("NoNewPrivs") == "1"
+    )
+
+
+def reader_status(pid):
+    """The fields reader_confined reads, for a live process."""
+    return {
+        key: value.strip()
+        for line in (PROC / str(pid) / "status").read_text().splitlines()
+        if ":" in line
+        for key, value in [line.split(":", 1)]
+    }
 
 
 def _guest():
