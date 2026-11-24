@@ -395,8 +395,20 @@
     {
       "type": "object",
       "properties": {
+        "read": {
+          "description": "The read asked for, if any, and how it went.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderReadOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "reason": {
-          "description": "Why core refused the socket, for `refused`.",
+          "description": "Why core refused the socket (`refused`) or got no answer (`unanswered`).",
           "type": [
             "string",
             "null"
@@ -1099,6 +1111,67 @@
         "udp"
       ]
     },
+    "ReadResult": {
+      "oneOf": [
+        {
+          "description": "Core got a valid, fresh answer.",
+          "type": "string",
+          "const": "accepted"
+        },
+        {
+          "description": "The reader's ceiling does not grant this read.",
+          "type": "string",
+          "const": "not_granted"
+        },
+        {
+          "description": "It failed; `reason` says how.",
+          "type": "string",
+          "const": "failed"
+        }
+      ]
+    },
+    "ReaderRead": {
+      "description": "A read the storage reader serves, made by core through it.",
+      "oneOf": [
+        {
+          "description": "Stack status: the reader's latest stack scan (catalog and Engine,\nthrough its worker), which must be fresh in both.",
+          "type": "string",
+          "const": "stack"
+        },
+        {
+          "description": "A storage inventory (sysfs, block devices, blkid), as core reads it\nfor storage planning.",
+          "type": "string",
+          "const": "storage"
+        },
+        {
+          "description": "A container-health read (Engine, through the health worker).",
+          "type": "string",
+          "const": "container_health"
+        }
+      ]
+    },
+    "ReaderReadOutcome": {
+      "type": "object",
+      "properties": {
+        "read": {
+          "$ref": "#/$defs/ReaderRead"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/ReadResult"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "result"
+      ]
+    },
     "ReaderState": {
       "description": "What happened when core asked the storage reader just now.",
       "oneOf": [
@@ -1108,17 +1181,17 @@
           "const": "accepted"
         },
         {
-          "description": "A socket is there but core refuses it (`reason` says why).",
+          "description": "A socket is there but core refuses it, or may not reach it (`reason`\nsays why).",
           "type": "string",
           "const": "refused"
         },
         {
-          "description": "Core trusted the socket, but no well-formed answer came in time.",
+          "description": "Core could not try (out of descriptors or memory, a system call\nfailed), or trusted the socket but got no well-formed answer in time.",
           "type": "string",
           "const": "unanswered"
         },
         {
-          "description": "No socket: the reader is not running.",
+          "description": "No socket, or nothing listening on it: the reader is not running.",
           "type": "string",
           "const": "unreachable"
         }

@@ -999,15 +999,28 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                     skipped_existing,
                 }
             }
-            CoreRequest::ReaderStatus { version } if version == VERSION && peer.uid() == 0 => {
-                CoreResponse::ReaderStatus(
-                    reader_health::Watcher::new(
-                        (*core.storage_socket).clone(),
-                        core.reader_health.clone(),
-                    )
-                    .check()
-                    .await,
+            CoreRequest::ReaderStatus { version, read }
+                if version == VERSION && peer.uid() == 0 =>
+            {
+                let mut status = reader_health::Watcher::new(
+                    (*core.storage_socket).clone(),
+                    core.reader_health.clone(),
                 )
+                .check()
+                .await;
+                if let Some(read) = read {
+                    status.read =
+                        Some(if status.state == limeos_contracts::ReaderState::Accepted {
+                            reader_health::read_once(&core, read).await
+                        } else {
+                            limeos_contracts::ReaderReadOutcome {
+                                read,
+                                result: limeos_contracts::ReadResult::Failed,
+                                reason: Some("core did not accept the reader's socket".into()),
+                            }
+                        });
+                }
+                CoreResponse::ReaderStatus(status)
             }
             CoreRequest::ReadResolution {
                 version,

@@ -211,9 +211,13 @@ pub enum CoreRequest {
     },
     /// Root-peer only. Asks the storage reader for its health now, under the
     /// rule core trusts its socket by, and says whether core accepted the
-    /// answer. For deployment checks (`scripts/cutover/activate.sh`).
+    /// answer; with `read`, core then also makes that read through the
+    /// reader as it would for a user and says whether it succeeded. For
+    /// deployment checks (`scripts/cutover/activate.sh`).
     ReaderStatus {
         version: u16,
+        #[serde(default)]
+        read: Option<ReaderRead>,
     },
     /// Root-peer only. Read-only evidence for a stuck job, as the named
     /// administrator would see it over HTTP. `admin` is a username; core
@@ -312,18 +316,53 @@ pub enum CoreResponse {
 pub enum ReaderState {
     /// Core trusted the socket and took a well-formed answer.
     Accepted,
-    /// A socket is there but core refuses it (`reason` says why).
+    /// A socket is there but core refuses it, or may not reach it (`reason`
+    /// says why).
     Refused,
-    /// Core trusted the socket, but no well-formed answer came in time.
+    /// Core could not try (out of descriptors or memory, a system call
+    /// failed), or trusted the socket but got no well-formed answer in time.
     Unanswered,
-    /// No socket: the reader is not running.
+    /// No socket, or nothing listening on it: the reader is not running.
     Unreachable,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct ReaderStatus {
     pub state: ReaderState,
-    /// Why core refused the socket, for `refused`.
+    /// Why core refused the socket (`refused`) or got no answer (`unanswered`).
+    pub reason: Option<String>,
+    /// The read asked for, if any, and how it went.
+    #[serde(default)]
+    pub read: Option<ReaderReadOutcome>,
+}
+/// A read the storage reader serves, made by core through it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ReaderRead {
+    /// Stack status: the reader's latest stack scan (catalog and Engine,
+    /// through its worker), which must be fresh in both.
+    Stack,
+    /// A storage inventory (sysfs, block devices, blkid), as core reads it
+    /// for storage planning.
+    Storage,
+    /// A container-health read (Engine, through the health worker).
+    ContainerHealth,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadResult {
+    /// Core got a valid, fresh answer.
+    Accepted,
+    /// The reader's ceiling does not grant this read.
+    NotGranted,
+    /// It failed; `reason` says how.
+    Failed,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ReaderReadOutcome {
+    pub read: ReaderRead,
+    pub result: ReadResult,
     pub reason: Option<String>,
 }
 

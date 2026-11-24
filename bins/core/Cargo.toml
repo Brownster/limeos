@@ -34,6 +34,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+limeos-contracts = { path = "../../crates/contracts", version = "=0.2.0", features = ["test-support"] }
 tempfile.workspace = true
 # `backup`: the soak copies the live stores consistently to measure startup;
 # `trace`: it attributes the startup page reads to the statements that made

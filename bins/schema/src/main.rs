@@ -364,6 +364,9 @@ fn main() {
     ts!(limeos_contracts::Health);
     ts!(limeos_contracts::ReaderState);
     ts!(limeos_contracts::ReaderStatus);
+    ts!(limeos_contracts::ReaderRead);
+    ts!(limeos_contracts::ReadResult);
+    ts!(limeos_contracts::ReaderReadOutcome);
     ts!(limeos_contracts::SessionView);
     ts!(limeos_contracts::ErrorEnvelope);
     ts!(limeos_contracts::CoreRequest);

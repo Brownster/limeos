@@ -9,6 +9,11 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Test-only constructors (`ExecutorOwner::with_anchor_owner`); enabled only by
+# dev-dependencies, never by a shipped binary.
+[features]
+test-support = []
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true

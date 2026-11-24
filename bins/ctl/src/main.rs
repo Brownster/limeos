@@ -28,6 +28,7 @@ enum Route<'a> {
     Migrate(&'a str, &'a [String]),
     Job(&'a str, &'a [String]),
     Core(&'a str, &'a str),
+    ReaderRead(&'a str, limeos_contracts::ReaderRead),
 }
 
 /// `--help`, `-h` and `--version` count only in command position, never as
@@ -69,6 +70,22 @@ fn route(args: &[String]) -> Result<Route<'_>, Usage> {
         {
             Ok(Route::Core(socket, cmd))
         }
+        [cmd, flag, read] if cmd == "reader-status" && flag == "--read" => {
+            use limeos_contracts::ReaderRead;
+            Ok(Route::ReaderRead(
+                socket,
+                match read.as_str() {
+                    "stack" => ReaderRead::Stack,
+                    "storage" => ReaderRead::Storage,
+                    "container-health" => ReaderRead::ContainerHealth,
+                    _ => {
+                        return Err(Usage(
+                            "reader-status --read takes stack, storage or container-health".into(),
+                        ));
+                    }
+                },
+            ))
+        }
         [cmd] if cmd.starts_with('-') => Err(invalid()),
         [_] => Err(Usage("unknown command; run limeosctl --help".into())),
         _ => Err(invalid()),
@@ -84,7 +101,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Route::Help => {
             println!(
-                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll|reader-status\nbootstrap: root-only, one-use token valid for 15 minutes.\nreader-status: root-only; core asks the storage reader now and prints whether it accepted the answer (exit 1 unless accepted).\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}",
+                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll|reader-status\nbootstrap: root-only, one-use token valid for 15 minutes.\nreader-status [--read stack|storage|container-health]: root-only; core asks the storage reader now and prints whether it accepted the answer, and with --read, whether that read through the reader succeeded (exit 1 unless accepted; a read the reader's ceiling does not grant is not_granted and exits 0).\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}",
                 ceiling_check::USAGE,
                 action_log::USAGE,
                 migrate::USAGE,
@@ -105,11 +122,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Route::Migrate(socket, rest) => return migrate::run(socket, rest).await,
         Route::Job(socket, rest) => return job::run(socket, rest).await,
         Route::Core(socket, command) => (socket, command),
+        Route::ReaderRead(socket, read) => {
+            let request = CoreRequest::ReaderStatus {
+                version: VERSION,
+                read: Some(read),
+            };
+            let response = rpc(socket, &request).await?;
+            println!("{}", serde_json::to_string(&response)?);
+            return reader_accepted(&response);
+        }
     };
     let request = match command {
         "status" => CoreRequest::Health { version: VERSION },
         "bootstrap" => CoreRequest::IssueBootstrap { version: VERSION },
-        "reader-status" => CoreRequest::ReaderStatus { version: VERSION },
+        "reader-status" => CoreRequest::ReaderStatus {
+            version: VERSION,
+            read: None,
+        },
         _ => {
             let mut input = String::new();
             std::io::stdin().take(16385).read_to_string(&mut input)?;
@@ -126,9 +155,16 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let response = rpc(socket, &request).await?;
     println!("{}", serde_json::to_string(&response)?);
-    if let CoreResponse::ReaderStatus(status) = &response
-        && status.state != limeos_contracts::ReaderState::Accepted
-    {
+    reader_accepted(&response)
+}
+/// For `reader-status`: an error (exit 1) unless core accepted the reader's
+/// answer and the read asked for, if any, succeeded or is not granted.
+fn reader_accepted(response: &CoreResponse) -> Result<(), Box<dyn std::error::Error>> {
+    use limeos_contracts::{ReadResult, ReaderState};
+    let CoreResponse::ReaderStatus(status) = response else {
+        return Ok(());
+    };
+    if status.state != ReaderState::Accepted {
         return Err(format!(
             "core did not accept an answer from the storage reader ({:?}{})",
             status.state,
@@ -140,7 +176,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
-    Ok(())
+    match &status.read {
+        Some(outcome) if outcome.result == ReadResult::Failed => Err(format!(
+            "core's {:?} read through the storage reader failed{}",
+            outcome.read,
+            outcome
+                .reason
+                .as_deref()
+                .map(|r| format!(": {r}"))
+                .unwrap_or_default()
+        )
+        .into()),
+        _ => Ok(()),
+    }
 }
 const DEFAULT_SOCKET: &str = "/run/limeos-core/core.sock";
 /// The ceiling bytes parse and suit the container role and `core_uid`.
@@ -181,6 +229,39 @@ mod tests {
     }
 
     #[test]
+    fn reader_status_passes_only_an_accepted_reader_whose_read_did_not_fail() {
+        use limeos_contracts::{
+            ReadResult, ReaderRead, ReaderReadOutcome, ReaderState, ReaderStatus,
+        };
+        let status = |state, read: Option<ReadResult>| {
+            CoreResponse::ReaderStatus(ReaderStatus {
+                state,
+                reason: None,
+                read: read.map(|result| ReaderReadOutcome {
+                    read: ReaderRead::Storage,
+                    result,
+                    reason: None,
+                }),
+            })
+        };
+        assert!(reader_accepted(&status(ReaderState::Accepted, None)).is_ok());
+        assert!(
+            reader_accepted(&status(ReaderState::Accepted, Some(ReadResult::Accepted))).is_ok()
+        );
+        assert!(
+            reader_accepted(&status(ReaderState::Accepted, Some(ReadResult::NotGranted))).is_ok()
+        );
+        assert!(reader_accepted(&status(ReaderState::Accepted, Some(ReadResult::Failed))).is_err());
+        for state in [
+            ReaderState::Refused,
+            ReaderState::Unanswered,
+            ReaderState::Unreachable,
+        ] {
+            assert!(reader_accepted(&status(state, None)).is_err());
+        }
+    }
+
+    #[test]
     fn help_and_version_count_only_in_command_position() {
         assert_eq!(route(&args(&["--version"])).unwrap(), Route::Version);
         assert_eq!(route(&args(&["--help"])).unwrap(), Route::Help);
@@ -212,6 +293,15 @@ mod tests {
             Route::Core(DEFAULT_SOCKET, "reader-status")
         );
         assert!(route(&args(&["reader-status", "extra"])).is_err());
+        assert_eq!(
+            route(&args(&["reader-status", "--read", "container-health"])).unwrap(),
+            Route::ReaderRead(
+                DEFAULT_SOCKET,
+                limeos_contracts::ReaderRead::ContainerHealth
+            )
+        );
+        assert!(route(&args(&["reader-status", "--read", "disks"])).is_err());
+        assert!(route(&args(&["reader-status", "--read"])).is_err());
         let ok = args(&["--socket", "/run/x.sock", "status"]);
         assert_eq!(route(&ok).unwrap(), Route::Core("/run/x.sock", "status"));
         assert_eq!(

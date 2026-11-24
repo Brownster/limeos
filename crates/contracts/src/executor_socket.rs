@@ -32,12 +32,22 @@ use std::{
 };
 use tokio::net::UnixStream;
 
-/// Why a socket was not trusted. `Missing` is the executor not running (or
-/// not yet listening); every other kind is a socket the rule refuses.
+/// Why a socket was not trusted or not reached. `Missing` is the executor
+/// not running (nothing at the path, or a socket nobody listens on);
+/// `Failed` is core unable to try (out of descriptors or memory, a name too
+/// long, a call the kernel refuses); every other kind is a socket the rule
+/// refuses, or one core is not allowed to reach.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SocketRefusal {
-    /// No socket, or a directory on the way to it, is there (`Unavailable`).
+    /// Nothing at the path, or a socket nobody listens on (`Unavailable`).
     Missing,
+    /// Core could not open or connect for a reason of its own: descriptors,
+    /// memory, a name too long, a system call refused (`Unavailable`). Not
+    /// evidence that the executor is down.
+    Failed,
+    /// Core may not search the socket's directory or write the socket
+    /// (EACCES, EPERM): a unit or drop-in that changed their owner or group.
+    Denied,
     /// The path is not absolute, has no parent directory, or has `.`, `..`
     /// or empty components.
     InvalidPath,
@@ -57,7 +67,15 @@ pub enum SocketRefusal {
 impl SocketRefusal {
     pub fn message(self) -> &'static str {
         match self {
-            Self::Missing => "the socket is not there (the executor is not running)",
+            Self::Missing => {
+                "the socket is not there, or nothing listens on it (the executor is not running)"
+            }
+            Self::Failed => {
+                "core could not open or connect to the socket (out of descriptors or memory, or a system call failed)"
+            }
+            Self::Denied => {
+                "core is not allowed to reach the socket (its directory or the socket has another owner, group or mode than the unit gives it)"
+            }
             Self::InvalidPath => "the socket path is not a plain absolute path with a directory",
             Self::UnsafeAnchor => {
                 "a symlink on the socket's path, or the parent of its directory is not owned by root or is writable by others"
@@ -71,11 +89,32 @@ impl SocketRefusal {
         }
     }
     /// The error a caller reports: `Unavailable` for a socket that is not
-    /// there, `Forbidden` for one the rule refuses.
+    /// there or that core could not try, `Forbidden` for one the rule
+    /// refuses or core may not reach.
     pub fn error(self) -> Error {
         match self {
-            Self::Missing => Error(ErrorCode::Unavailable),
+            Self::Missing | Self::Failed => Error(ErrorCode::Unavailable),
             _ => Error(ErrorCode::Forbidden),
+        }
+    }
+    /// From a failed open of a path component.
+    fn opening(error: rustix::io::Errno) -> Self {
+        use rustix::io::Errno;
+        match error {
+            Errno::NOENT => Self::Missing,
+            Errno::ACCESS | Errno::PERM => Self::Denied,
+            // A symlink where a directory or the socket should be.
+            Errno::LOOP | Errno::XDEV | Errno::NOTDIR => Self::UnsafeAnchor,
+            _ => Self::Failed,
+        }
+    }
+    /// From a failed connect.
+    fn connecting(error: &std::io::Error) -> Self {
+        // ECONNREFUSED 111, ENOENT 2, EACCES 13, EPERM 1 (Linux, x86_64 and arm64 alike).
+        match error.raw_os_error() {
+            Some(111 | 2) => Self::Missing,
+            Some(13 | 1) => Self::Denied,
+            _ => Self::Failed,
         }
     }
 }
@@ -137,8 +176,9 @@ impl ExecutorOwner {
     }
     /// For tests, which cannot create root-owned directories: the socket
     /// directory's parent must be owned by `anchor_uid` instead of root. The
-    /// checks are otherwise the same.
-    #[doc(hidden)]
+    /// checks are otherwise the same. Only in test builds (the
+    /// `test-support` feature, which only dev-dependencies enable).
+    #[cfg(any(test, feature = "test-support"))]
     pub const fn with_anchor_owner(core_uid: u32, anchor_uid: u32) -> Self {
         Self {
             core_uid,
@@ -171,10 +211,11 @@ impl ExecutorOwner {
         let (anchor_path, directory_name, socket_name) = split(path).map_err(|refusal| {
             // Nothing there is an executor that is not running, whatever the
             // path's shape; the shape is judged only for something that exists.
-            if std::fs::symlink_metadata(path).is_err() {
-                SocketRefusal::Missing
-            } else {
-                refusal
+            match std::fs::symlink_metadata(path) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    SocketRefusal::Missing
+                }
+                _ => refusal,
             }
         })?;
         let anchor = rustix::fs::openat2(
@@ -184,22 +225,22 @@ impl ExecutorOwner {
             Mode::empty(),
             ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
         )
-        .map_err(refusal)?;
+        .map_err(SocketRefusal::opening)?;
         let directory = rustix::fs::openat(
             &anchor,
             directory_name,
             OFlags::PATH | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         )
-        .map_err(refusal)?;
+        .map_err(SocketRefusal::opening)?;
         let socket = rustix::fs::openat(
             &directory,
             socket_name,
             OFlags::PATH | OFlags::NOFOLLOW | OFlags::CLOEXEC,
             Mode::empty(),
         )
-        .map_err(refusal)?;
-        let stat = |fd: &OwnedFd| rustix::fs::fstat(fd).map_err(|_| SocketRefusal::Missing);
+        .map_err(SocketRefusal::opening)?;
+        let stat = |fd: &OwnedFd| rustix::fs::fstat(fd).map_err(|_| SocketRefusal::Failed);
         let socket_stat = stat(&socket)?;
         let owner = self.judge(
             Facts::from(&stat(&anchor)?),
@@ -237,11 +278,8 @@ impl ExecutorSocket {
         let through = format!("/proc/self/fd/{}", self.socket.as_raw_fd());
         let stream = UnixStream::connect(&through)
             .await
-            .map_err(|_| SocketRefusal::Missing)?;
-        let peer = stream
-            .peer_cred()
-            .map_err(|_| SocketRefusal::Missing)?
-            .uid();
+            .map_err(|error| SocketRefusal::connecting(&error))?;
+        let peer = stream.peer_cred().map_err(|_| SocketRefusal::Failed)?.uid();
         if peer != self.owner || self.rule.judge_peer(peer).is_err() {
             return Err(SocketRefusal::WrongPeer);
         }
@@ -286,15 +324,6 @@ fn split(path: &Path) -> std::result::Result<(&Path, &OsStr, &OsStr), SocketRefu
         .ok_or(SocketRefusal::InvalidPath)?;
     let anchor = directory_path.parent().ok_or(SocketRefusal::InvalidPath)?;
     Ok((anchor, directory, socket))
-}
-fn refusal(error: rustix::io::Errno) -> SocketRefusal {
-    use rustix::io::Errno;
-    match error {
-        Errno::NOENT => SocketRefusal::Missing,
-        // A symlink where a directory or the socket should be.
-        Errno::LOOP | Errno::XDEV | Errno::NOTDIR => SocketRefusal::UnsafeAnchor,
-        _ => SocketRefusal::Missing,
-    }
 }
 
 #[cfg(test)]
@@ -505,6 +534,85 @@ mod tests {
         assert_eq!(
             rule().connect_explained(&alias).await.err(),
             Some(SocketRefusal::NotASocket)
+        );
+    }
+
+    #[test]
+    fn every_error_class_maps_to_missing_denied_unsafe_or_failed() {
+        use rustix::io::Errno;
+        assert_eq!(SocketRefusal::opening(Errno::NOENT), SocketRefusal::Missing);
+        for denied in [Errno::ACCESS, Errno::PERM] {
+            assert_eq!(SocketRefusal::opening(denied), SocketRefusal::Denied);
+        }
+        for unsafe_path in [Errno::LOOP, Errno::XDEV, Errno::NOTDIR] {
+            assert_eq!(
+                SocketRefusal::opening(unsafe_path),
+                SocketRefusal::UnsafeAnchor
+            );
+        }
+        // Resource and system errors are core's, never "not running".
+        for failed in [
+            Errno::MFILE,
+            Errno::NFILE,
+            Errno::NOMEM,
+            Errno::NAMETOOLONG,
+            Errno::NOSYS,
+            Errno::IO,
+        ] {
+            assert_eq!(
+                SocketRefusal::opening(failed),
+                SocketRefusal::Failed,
+                "{failed:?}"
+            );
+        }
+        let connect = |code| SocketRefusal::connecting(&std::io::Error::from_raw_os_error(code));
+        assert_eq!(connect(111), SocketRefusal::Missing); // ECONNREFUSED: nobody listens
+        assert_eq!(connect(2), SocketRefusal::Missing);
+        assert_eq!(connect(13), SocketRefusal::Denied);
+        assert_eq!(connect(1), SocketRefusal::Denied);
+        for failed in [24, 23, 12, 36, 38, 11] {
+            assert_eq!(connect(failed), SocketRefusal::Failed, "{failed}");
+        }
+        assert_eq!(SocketRefusal::Failed.error(), Error(ErrorCode::Unavailable));
+        assert_eq!(SocketRefusal::Denied.error(), Error(ErrorCode::Forbidden));
+    }
+
+    #[tokio::test]
+    async fn a_directory_core_cannot_search_or_a_socket_it_cannot_write_is_denied_not_missing() {
+        if rustix::process::geteuid().is_root() {
+            return; // Root ignores the modes this relies on.
+        }
+        let l = layout();
+        std::fs::set_permissions(&l.directory, std::fs::Permissions::from_mode(0o000)).unwrap();
+        assert_eq!(
+            rule().connect_explained(&l.socket).await.err(),
+            Some(SocketRefusal::Denied)
+        );
+        std::fs::set_permissions(&l.directory, std::fs::Permissions::from_mode(0o750)).unwrap();
+        std::fs::set_permissions(&l.socket, std::fs::Permissions::from_mode(0o000)).unwrap();
+        assert_eq!(
+            rule().connect_explained(&l.socket).await.err(),
+            Some(SocketRefusal::Denied)
+        );
+        assert_eq!(
+            rule().connect(&l.socket).await.err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_socket_nobody_listens_on_is_missing() {
+        // The socket file stays (as after a crash); ECONNREFUSED.
+        let Layout {
+            base: _base,
+            socket,
+            listener,
+            ..
+        } = layout();
+        drop(listener);
+        assert_eq!(
+            rule().connect_explained(&socket).await.err(),
+            Some(SocketRefusal::Missing)
         );
     }
 

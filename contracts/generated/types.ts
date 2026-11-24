@@ -208,12 +208,19 @@ degraded: Array<DegradedSubsystem>, };
 export type ReaderState = "accepted" | "refused" | "unanswered" | "unreachable";
 export type ReaderStatus = { state: ReaderState,
 /**
- * Why core refused the socket, for `refused`.
+ * Why core refused the socket (`refused`) or got no answer (`unanswered`).
  */
-reason: string | null, };
+reason: string | null,
+/**
+ * The read asked for, if any, and how it went.
+ */
+read: ReaderReadOutcome | null, };
+export type ReaderRead = "stack" | "storage" | "container_health";
+export type ReadResult = "accepted" | "not_granted" | "failed";
+export type ReaderReadOutcome = { read: ReaderRead, result: ReadResult, reason: string | null, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };
 export type ErrorEnvelope = { code: ErrorCode, message: string, retry: boolean, audit_id: string, };
-export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "reader_status", version: number, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };
+export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "reader_status", version: number, read: ReaderRead | null, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };
 export type CoreResponse = { "response": "health" } & Health | { "response": "bootstrap", token: string, expires_at: number, } | { "response": "enrolled" } | { "response": "legacy_users_imported", imported: number, skipped_existing: Array<string>, } | { "response": "authorized" } | { "response": "resolution" } & ResolutionView | { "response": "resolved" } & ResolveJobResponse | { "response": "restart_plan" } & PlannedContainerAction | { "response": "restart_job" } & ContainerJob | { "response": "container_plan" } & PlannedContainerAction | { "response": "container_job" } & ContainerJob | { "response": "container_logs" } & ContainerLogs | { "response": "compose_plan" } & PlannedCompose | { "response": "reader_status" } & ReaderStatus | { "response": "error" } & ErrorEnvelope;
 export type Source = "host" | "storage" | "pools" | "docker" | "history";
 export type Availability = "loading" | "fresh" | "stale" | "unavailable";

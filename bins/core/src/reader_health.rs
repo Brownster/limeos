@@ -8,7 +8,8 @@
 //! drop-in, say, or bound somewhere else) is listed as degraded with code
 //! `forbidden` and logged once, so it is not mistaken for a dormant reader.
 use limeos_contracts::{
-    DegradedDetail, DegradedSubsystem, ReaderState, ReaderStatus, SocketRefusal, Subsystem, VERSION,
+    DegradedDetail, DegradedSubsystem, ReadResult, ReaderRead, ReaderReadOutcome, ReaderState,
+    ReaderStatus, SocketRefusal, Subsystem, VERSION,
 };
 use limeos_domain::ErrorCode;
 use limeos_executor_protocol::{Receipt, Request, StrandedReads};
@@ -63,24 +64,36 @@ impl Status {
             detail: Some(detail),
         })
     }
-    fn set(&self, value: Latest) {
+    /// Records the latest attempt and logs only changes worth a line, which
+    /// it returns (for tests). A refused reader stays refused, dated from the
+    /// first refusal, until core accepts it: a check that finds no socket or
+    /// gets no answer says nothing new about it, so a root reader restarting
+    /// under `Restart=on-failure` logs one warning, not one per restart.
+    fn set(&self, value: Latest) -> Option<Logged> {
         let mut current = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         let stranded = |l: &Latest| matches!(l, Latest::Accepted(Some(_)));
+        let mut logged = None;
         match (&*current, &value) {
+            (Latest::Refused(..), Latest::Silent) => return None,
             (Latest::Refused(before, since), Latest::Refused(now, _)) => {
-                // Still refused: keep when it began; log a changed reason.
+                let since = *since;
                 if before != now {
                     tracing::warn!(reason = %now, "core still refuses the storage reader's socket, now because: {now}");
+                    logged = Some(Logged::StillRefused);
                 }
-                *current = Latest::Refused(*now, *since);
-                return;
+                *current = Latest::Refused(*now, since);
+                return logged;
             }
-            (_, Latest::Refused(reason, _)) => tracing::warn!(
-                reason = %reason,
-                "core refuses the storage reader's socket and takes no storage, stack or container-health answer from it: {reason}. The reader must run as its own account (limeos-storage-reader) from its runtime directory; check for a drop-in with systemctl cat limeos-storage-reader"
-            ),
-            (Latest::Refused(..), _) => {
-                tracing::info!("core accepts the storage reader's socket again")
+            (_, Latest::Refused(reason, _)) => {
+                tracing::warn!(
+                    reason = %reason,
+                    "core refuses the storage reader's socket and takes no storage, stack or container-health answer from it: {reason}. The reader must run as its own account (limeos-storage-reader) from its runtime directory; check for a drop-in with systemctl cat limeos-storage-reader"
+                );
+                logged = Some(Logged::Refused);
+            }
+            (Latest::Refused(..), Latest::Accepted(_)) => {
+                tracing::info!("core accepts the storage reader's socket again");
+                logged = Some(Logged::AcceptedAgain);
             }
             _ => {}
         }
@@ -88,11 +101,23 @@ impl Status {
             tracing::warn!(
                 "the storage reader has a storage read stuck past its deadline; storage inventory is refused until it returns"
             );
+            logged = logged.or(Some(Logged::Stuck));
         } else if !stranded(&value) && stranded(&current) {
             tracing::info!("the storage reader's stuck read returned");
+            logged = logged.or(Some(Logged::Returned));
         }
         *current = value;
+        logged
     }
+}
+/// The line `Status::set` logged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Logged {
+    Refused,
+    StillRefused,
+    AcceptedAgain,
+    Stuck,
+    Returned,
 }
 
 #[derive(Clone)]
@@ -129,51 +154,137 @@ impl Watcher {
     /// One question; the entry always describes the latest attempt. What it
     /// found, as `limeosctl reader-status` reports it.
     pub(crate) async fn check(&self) -> ReaderStatus {
-        let latest = match tokio::time::timeout(DEADLINE, self.ask()).await {
-            Ok(Ok(stranded)) => Latest::Accepted(stranded),
-            Ok(Err(Some(refusal))) => Latest::Refused(refusal, super::now()),
-            Ok(Err(None)) | Err(_) => Latest::Silent,
-        };
-        let status = match &latest {
-            Latest::Accepted(_) => ReaderStatus {
-                state: ReaderState::Accepted,
-                reason: None,
-            },
-            Latest::Refused(refusal, _) => ReaderStatus {
-                state: ReaderState::Refused,
-                reason: Some(refusal.message().into()),
-            },
-            Latest::Silent => ReaderStatus {
-                state: if self.owner.open(&self.socket).err() == Some(SocketRefusal::Missing) {
-                    ReaderState::Unreachable
-                } else {
-                    ReaderState::Unanswered
-                },
-                reason: None,
-            },
+        let asked = tokio::time::timeout(DEADLINE, self.ask())
+            .await
+            .unwrap_or(Asked::NoAnswer("no well-formed answer within the deadline"));
+        let (latest, state, reason) = match asked {
+            Asked::Answered(stranded) => (Latest::Accepted(stranded), ReaderState::Accepted, None),
+            Asked::Refused(refusal) => (
+                Latest::Refused(refusal, super::now()),
+                ReaderState::Refused,
+                Some(refusal.message().to_owned()),
+            ),
+            Asked::NoSocket => (Latest::Silent, ReaderState::Unreachable, None),
+            Asked::NoAnswer(why) => (
+                Latest::Silent,
+                ReaderState::Unanswered,
+                Some(why.to_owned()),
+            ),
         };
         self.status.set(latest);
-        status
+        ReaderStatus {
+            state,
+            reason,
+            read: None,
+        }
     }
-    /// The reader's answer; `Err(Some(_))` for a socket the rule refuses,
-    /// `Err(None)` for no socket or no well-formed answer.
-    async fn ask(&self) -> std::result::Result<Option<StrandedReads>, Option<SocketRefusal>> {
+    async fn ask(&self) -> Asked {
         let mut stream = match self.owner.connect_explained(&self.socket).await {
             Ok(stream) => stream,
-            Err(SocketRefusal::Missing) => return Err(None),
-            Err(refusal) => return Err(Some(refusal)),
+            Err(SocketRefusal::Missing) => return Asked::NoSocket,
+            Err(SocketRefusal::Failed) => return Asked::NoAnswer(SocketRefusal::Failed.message()),
+            Err(refusal) => return Asked::Refused(refusal),
         };
-        limeos_contracts::write_frame(&mut stream, &Request::Health { version: VERSION })
-            .await
-            .map_err(|_| None)?;
-        let receipt: Receipt = limeos_contracts::read_frame(&mut stream)
-            .await
-            .map_err(|_| None)?;
-        if receipt.version != VERSION || !receipt.ready || receipt.error.is_some() {
-            return Err(None);
+        let unanswered = |_| Asked::NoAnswer("the reader did not answer its health request");
+        if let Err(error) =
+            limeos_contracts::write_frame(&mut stream, &Request::Health { version: VERSION }).await
+        {
+            return unanswered(error);
         }
-        Ok(receipt.stranded_reads)
+        let receipt: Receipt = match limeos_contracts::read_frame(&mut stream).await {
+            Ok(receipt) => receipt,
+            Err(error) => return unanswered(error),
+        };
+        if receipt.version != VERSION || !receipt.ready || receipt.error.is_some() {
+            return Asked::NoAnswer("the reader refused or failed its health request");
+        }
+        Asked::Answered(receipt.stranded_reads)
     }
+}
+
+/// What one health question found.
+enum Asked {
+    Answered(Option<StrandedReads>),
+    /// Nothing at the socket's path, or nothing listening: a dormant reader.
+    NoSocket,
+    /// A socket core may not trust or reach.
+    Refused(SocketRefusal),
+    /// Core could not try, or the reader gave no well-formed answer.
+    NoAnswer(&'static str),
+}
+
+/// One read the reader serves, made now by core as it would for a user
+/// (`limeosctl reader-status --read`), so a deployment check proves more
+/// than the socket: a reader whose capability or Docker group a drop-in
+/// took away still answers `Health`, but fails these.
+pub(crate) async fn read_once(core: &crate::Core, read: ReaderRead) -> ReaderReadOutcome {
+    let result = match read {
+        ReaderRead::Stack => stack_once(core).await,
+        ReaderRead::Storage => core.probe_storage().await.map(drop).map_err(failure),
+        ReaderRead::ContainerHealth => crate::health_collection::HealthReader::new(
+            (*core.storage_socket).clone(),
+            core.storage_readers.clone(),
+        )
+        .read(std::time::Instant::now() + crate::health_collection::WINDOW)
+        .await
+        .map(drop)
+        .map_err(failure),
+    };
+    let (result, reason) = match result {
+        Ok(()) => (ReadResult::Accepted, None),
+        Err(Failure::NotGranted) => (ReadResult::NotGranted, None),
+        Err(Failure::Failed(reason)) => (ReadResult::Failed, Some(reason)),
+    };
+    ReaderReadOutcome {
+        read,
+        result,
+        reason,
+    }
+}
+enum Failure {
+    NotGranted,
+    Failed(String),
+}
+/// A read's error: `Forbidden` from a reader whose socket core already
+/// accepted is its ceiling saying no.
+fn failure(error: limeos_domain::Error) -> Failure {
+    match error.0 {
+        ErrorCode::Forbidden => Failure::NotGranted,
+        code => Failure::Failed(format!("the read failed: {code:?}")),
+    }
+}
+/// The reader's latest stack scan, which must be fresh from both the
+/// catalog and the Engine.
+async fn stack_once(core: &crate::Core) -> std::result::Result<(), Failure> {
+    use limeos_domain::deployment::discovery::SourceState;
+    let receipt: Receipt = tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
+        let mut stream = crate::storage::executor_owner()
+            .connect(&core.storage_socket)
+            .await?;
+        limeos_contracts::write_frame(&mut stream, &Request::StackInventory { version: VERSION })
+            .await?;
+        limeos_contracts::read_frame(&mut stream).await
+    })
+    .await
+    .unwrap_or(Err(limeos_domain::Error(ErrorCode::Unavailable)))
+    .map_err(failure)?;
+    if let Some(code) = receipt.error {
+        return Err(failure(limeos_domain::Error(code)));
+    }
+    let cohort = receipt
+        .stack_cohort
+        .ok_or_else(|| Failure::Failed("the reader has no stack scan yet".into()))?;
+    let inventory = cohort
+        .project(super::now())
+        .map_err(|error| Failure::Failed(format!("the stack scan is not usable: {:?}", error.0)))?;
+    if inventory.catalog.state != SourceState::Fresh || inventory.engine.state != SourceState::Fresh
+    {
+        return Err(Failure::Failed(format!(
+            "the stack scan is not fresh: catalog {:?}, Engine {:?}",
+            inventory.catalog.state, inventory.engine.state
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -259,6 +370,39 @@ mod tests {
             assert_eq!(listed.subsystem, Subsystem::StorageReader);
             assert_eq!(listed.detail.unwrap().code, ErrorCode::Forbidden);
         }
+    }
+
+    #[test]
+    fn a_refused_reader_logs_once_until_accepted_and_silence_changes_nothing() {
+        let status = Status::default();
+        let refused = |since| Latest::Refused(SocketRefusal::WrongOwner, since);
+        assert_eq!(status.set(refused(100)), Some(Logged::Refused));
+        // A root reader restarting: no socket for a moment, then refused again.
+        for at in [110, 120, 130] {
+            assert_eq!(status.set(Latest::Silent), None);
+            assert_eq!(status.set(refused(at)), None);
+        }
+        let listed = status.degraded().unwrap().detail.unwrap();
+        assert_eq!((listed.code, listed.since), (ErrorCode::Forbidden, 100));
+        // A different reason is worth a line; the date stays the first refusal's.
+        assert_eq!(
+            status.set(Latest::Refused(SocketRefusal::Denied, 140)),
+            Some(Logged::StillRefused)
+        );
+        assert_eq!(status.degraded().unwrap().detail.unwrap().since, 100);
+        // Only acceptance clears it, and says so.
+        assert_eq!(
+            status.set(Latest::Accepted(None)),
+            Some(Logged::AcceptedAgain)
+        );
+        assert_eq!(status.degraded(), None);
+        assert_eq!(status.set(Latest::Silent), None);
+        assert_eq!(status.set(Latest::Accepted(None)), None);
+        // A stuck read is logged when it starts and when it returns.
+        let stuck = Latest::Accepted(Some(StrandedReads { count: 1, since: 5 }));
+        assert_eq!(status.set(stuck.clone()), Some(Logged::Stuck));
+        assert_eq!(status.set(stuck), None);
+        assert_eq!(status.set(Latest::Accepted(None)), Some(Logged::Returned));
     }
 
     #[tokio::test]
