@@ -259,32 +259,5 @@ class ReachabilityTests(unittest.TestCase):
             self.assertEqual(check.unreachable_sources(manifest), [], manifest)
 
 
-class SharedFunctionTests(unittest.TestCase):
-    """PR-32: the rule for which processes may run the fixed readers is held in
-    two crates the boundary keeps apart; the copies must stay identical."""
-
-    BODY = "\npub fn full_read_access() -> bool {\n    true\n}\n"
-
-    def tree(self, first, second):
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        root = Path(directory.name)
-        for file, text in zip(check.SHARED_FUNCTIONS["full_read_access"], (first, second)):
-            (root / file).parent.mkdir(parents=True, exist_ok=True)
-            (root / file).write_text("//! crate\n" + text + "\nfn other() {}\n")
-        return root
-
-    def test_identical_copies_pass(self):
-        self.assertEqual(check.shared_function_drift(self.tree(self.BODY, self.BODY)), [])
-
-    def test_a_changed_or_missing_copy_fails(self):
-        changed = self.BODY.replace("true", "false")
-        self.assertEqual(check.shared_function_drift(self.tree(self.BODY, changed)), ["full_read_access"])
-        self.assertEqual(check.shared_function_drift(self.tree(self.BODY, "")), ["full_read_access"])
-
-    def test_the_repository_copies_are_identical(self):
-        self.assertEqual(check.shared_function_drift(), [])
-
-
 if __name__ == "__main__":
     unittest.main()

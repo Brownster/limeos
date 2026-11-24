@@ -164,6 +164,15 @@ class StorageReaderRunsAsItsOwnAccount(unittest.TestCase):
         guard = script.rindex("if [[", 0, position)
         self.assertIn('" limeos-storage-reader.service "', script[guard:position])
 
+    @unittest.skipUnless(shutil.which("systemd-analyze"), "needs systemd-analyze")
+    def test_the_privileged_group_refuses_open_by_handle_at_and_capset(self):
+        listed = subprocess.run(
+            ["systemd-analyze", "syscall-filter", "@privileged"],
+            capture_output=True, text=True, check=False,
+        ).stdout.split()
+        self.assertIn("open_by_handle_at", listed)
+        self.assertIn("capset", listed)
+
     def test_core_reaches_the_reader_through_the_service_group(self):
         reader = service("limeos-storage-reader.service")
         self.assertEqual(reader["RuntimeDirectory"], ["limeos-storage-reader"])
@@ -180,6 +189,9 @@ class StorageReaderRunsAsItsOwnAccount(unittest.TestCase):
         )
         self.assertIn("root-equivalent", text)
         self.assertIn("read every file", text)
+        self.assertIn("tmpfs and ramfs", text)
+        self.assertIn("open_by_handle_at", text)
+        self.assertIn("SystemCallFilter=~@privileged below refuses", text)
         self.assertIn("ProtectClock is off", text)
 
 
@@ -204,6 +216,9 @@ class RootStorageUnitsSayWhatRemains(unittest.TestCase):
                     self.assertEqual(values.get(key, ["no"]), ["no"], key)
 
     def test_read_and_wait_roles_deny_privileged_syscalls(self):
+        # For the reader, ~@privileged is also what refuses open_by_handle_at,
+        # the classic CAP_DAC_READ_SEARCH escape (files opened by handle, past
+        # directory permissions), and capset; it must stay with the capability.
         self.assertEqual(
             service("limeos-storage-reader.service")["SystemCallFilter"],
             ["@system-service openat2", "~@privileged"],

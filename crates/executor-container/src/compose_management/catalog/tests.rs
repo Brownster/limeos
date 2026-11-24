@@ -395,18 +395,18 @@ fn catalog_path_admission_and_maximum_retained_handles() {
     assert!(admit(Path::new(&format!("/{dirs}/a/catalog.json"))).is_err());
 }
 #[test]
-fn public_catalog_nonroot_refusal_precedes_callback_and_target_access() {
-    assert!(!crate::full_read_access());
+fn a_missing_installed_catalog_yields_no_evidence() {
+    // No privilege gate (PR-32: the stack worker holds no capability); the
+    // protected walk refuses what it cannot open as root-owned.
     let called = Cell::new(false);
-    refusal(
+    assert!(
         inspect_management_catalog(
             Path::new("/limeos-unregistered-missing-catalog.json"),
             &|| {
                 called.set(true);
                 false
             },
-        ),
-        ErrorCode::Forbidden,
+        )
+        .is_err()
     );
-    assert!(!called.get());
 }

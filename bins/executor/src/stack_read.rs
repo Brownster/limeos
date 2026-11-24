@@ -1,4 +1,5 @@
-//! Narrow root-reader collection. The process supervisor owns the hard deadline.
+//! Narrow storage-reader stack collection, in a worker that holds no
+//! capability. The process supervisor owns the hard deadline.
 use crate::{
     read_budget::Sample,
     read_launch::{ProtectedStackLaunch, StackSelection},
@@ -80,7 +81,7 @@ pub fn admit_guardian() -> Result<()> {
     sample(GUARDIAN_RSS, 16, 256)
 }
 
-/// Called by one background collector holding the root reader's shared gate.
+/// Called by one background collector holding the storage reader's shared gate.
 /// Supervision retains its own flight/image until verified cleanup, even when
 /// this waiter times out. No RPC or HTTP handler invokes this collection.
 pub fn refresh(

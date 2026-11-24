@@ -17,6 +17,28 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The stack and health guardians and workers read the 0644 management
+/// catalog, world-readable proc tables and the Engine socket (through the
+/// `docker` group): no capability. The storage reader holds
+/// `CAP_DAC_READ_SEARCH` in its ambient set for `blkid`'s device reads
+/// (`limeos-storage-reader.service`), and every process it starts inherits
+/// it. Each of these roles clears its ambient set first, so no process it
+/// starts inherits the capability: a worker, started by a guardian with an
+/// empty ambient set, holds none. The guardian itself keeps it in its
+/// permitted set until it exits: dropping that needs `capset`, which the
+/// unit's `SystemCallFilter=~@privileged` refuses (with SIGSYS).
+pub fn clear_ambient_capabilities() -> io::Result<()> {
+    rustix::thread::clear_ambient_capability_set().map_err(io::Error::from)
+}
+/// Whether a worker may collect: as any account but root it must hold no
+/// capability at all (root's are not reduced by this design and root is not
+/// how the reader runs).
+pub fn worker_holds_no_capability() -> bool {
+    rustix::process::geteuid().is_root()
+        || rustix::thread::capabilities(None)
+            .is_ok_and(|sets| sets.effective.is_empty() && sets.permitted.is_empty())
+}
+
 #[cfg(test)]
 mod tests;
 const WINDOW: Duration = Duration::from_secs(4);

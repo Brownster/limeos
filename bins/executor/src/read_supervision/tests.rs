@@ -165,3 +165,21 @@ fn preparation_deadline_reaches_the_monitor_without_a_new_window() {
     }
     assert!(weak.upgrade().is_none());
 }
+
+#[test]
+fn a_read_role_clears_its_ambient_set_and_a_worker_with_any_capability_is_refused() {
+    // A test process holds no capability, so this shows the calls succeed
+    // under the reader's syscall filter shape (prctl, capget; no capset) and
+    // that a capability-free worker passes. The account-with-capability case
+    // is asserted on an installed reader (tests/privileged_vm).
+    clear_ambient_capabilities().unwrap();
+    assert!(
+        !rustix::thread::capability_is_in_ambient_set(
+            rustix::thread::CapabilitySet::DAC_READ_SEARCH
+        )
+        .unwrap()
+    );
+    if !rustix::process::geteuid().is_root() {
+        assert!(worker_holds_no_capability());
+    }
+}

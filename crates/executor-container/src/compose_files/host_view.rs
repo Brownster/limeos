@@ -22,11 +22,17 @@ pub(super) fn authenticate(anchor: &ComposeObjectIdentity) -> Result<()> {
     // The caller retains the root descriptor, preventing mount-ID recycling.
     // Each proc table is released before the next allocation. Only the bounded
     // root entry survives; paths in unrelated entries need not be UTF-8.
-    // This process's table is owned by its own account (root or the storage
-    // reader's), PID 1's by root.
+    let (current, host) = root_entries()?;
+    agree(anchor, &current, &host)
+}
+
+/// The root entries of this process's mount table and PID 1's. This
+/// process's table is owned by its own account (root, or the storage
+/// reader's), PID 1's by root.
+fn root_entries() -> Result<(RootMount, RootMount)> {
     let current = read_root("/proc/self/mountinfo", rustix::process::geteuid().as_raw())?;
     let host = read_root("/proc/1/mountinfo", 0)?;
-    agree(anchor, &current, &host)
+    Ok((current, host))
 }
 
 fn agree(anchor: &ComposeObjectIdentity, current: &RootMount, host: &RootMount) -> Result<()> {
@@ -298,5 +304,16 @@ mod tests {
         let own = read_root("/proc/self/mountinfo", uid).unwrap();
         assert!(own.id > 0);
         assert!(read_root("/proc/self/mountinfo", uid.wrapping_add(1)).is_err());
+    }
+    #[test]
+    fn authenticate_reads_this_accounts_own_proc_table() {
+        // `authenticate` reads both tables through `root_entries`, which must
+        // expect /proc/self/mountinfo to be owned by this process's account:
+        // as root's, every non-root run (the storage reader's account, and
+        // this test's) would be refused. Whether the root entries then agree
+        // with the held root depends on the filesystem (a btrfs subvolume's
+        // device differs from the one mountinfo names) and is not judged here.
+        let (own, host) = root_entries().unwrap();
+        assert!(own.id > 0 && host.id > 0);
     }
 }

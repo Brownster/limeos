@@ -9,27 +9,38 @@ After=local-fs.target
 # socket, well under a second; device reads start later, off that thread.
 Type=exec
 # Its own account, as the container executor has. Core trusts this socket by
-# the container executor's rule: owned by an account that is neither root nor
-# core, which the kernel names as the peer (limeos_contracts::ExecutorOwner).
+# the container executor's rule (limeos_contracts::ExecutorOwner): the socket
+# is owned by an account that is neither root nor core, sits in a directory
+# that account owns and no one else can write (RuntimeDirectory below) under
+# a root-owned /run, and the kernel names that account as the peer.
 # What the reads need beyond that account, and nothing else:
 # - CAP_DAC_READ_SEARCH, for the inventory's read-only opens of block device
 #   nodes (root:disk 0660) and blkid's reopen of them through
 #   /proc/PID/fd/N, which is why it is ambient (blkid inherits it); the
 #   fixed readers refuse to run without root or this capability
-#   (full_read_access, in executor-storage and executor-container). It also
-#   lets the reader read every file, as root's owner read of the raw disks
-#   already did; it grants no write. The disk group was the alternative: it
-#   grants raw write to every disk. A udev rule giving this account read-only
-#   ACLs on block nodes would be narrower still and is not qualified.
+#   (limeos_executor_storage::full_read_access). It grants no write, but it
+#   lets the reader read every file. For files on disk, root's owner read of
+#   the raw disks already allowed that; for tmpfs and ramfs (/run, /dev/shm,
+#   Docker's tmpfs secrets) it is new: empty-capability root could not read
+#   those when another account owned them, and this account can.
+#   open_by_handle_at, the classic CAP_DAC_READ_SEARCH escape (opening files
+#   by handle, past directory permissions and outside a chroot), is in
+#   @privileged, which SystemCallFilter=~@privileged below refuses. The stack
+#   and health guardians clear their ambient set before starting a worker,
+#   and the workers (which parse the Engine's answers) hold no capability.
+#   The disk group was the alternative: it grants raw write to every disk. A
+#   udev rule giving this account read-only ACLs on block nodes would be
+#   narrower still and is not qualified.
 # - docker, for the stack and container-health reads, which are GET requests
 #   on /run/docker.sock (root:docker 0660). The Docker API is root-equivalent
 #   for whoever can reach it, so a compromised reader can still become root
 #   through dockerd, as it was root before; what this account removes is the
 #   reader's owner write on every root-owned file (/etc, /usr/lib/limeos,
 #   /proc/sys, /sys) and on the disks.
-# Everything else it reads is world-readable: sysfs, /proc/self/mountinfo,
-# /proc/1/mountinfo, /proc/swaps, /etc/fstab, the ceiling (root-owned, group
-# limeos-host-access, 0640) and the management catalog (root-owned, 0644).
+# Everything else it reads is world-readable (sysfs, /proc/self/mountinfo,
+# /proc/1/mountinfo, /proc/swaps, /etc/fstab, the 0644 management catalog),
+# except its ceiling, root:limeos-host-access 0640, which it reads through
+# its primary group (as limeos-storaged and core can).
 User=limeos-storage-reader
 Group=limeos-host-access
 SupplementaryGroups=docker
@@ -87,7 +98,10 @@ IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH
 AmbientCapabilities=CAP_DAC_READ_SEARCH
-# Possible now that the account is not root: its SysV IPC objects go with it.
+# Possible now that the account is not root: SysV and POSIX IPC objects owned
+# by the unit's user or group are removed when the last unit running as that
+# user or group stops. The group, limeos-host-access, is limeos-storaged's
+# too, so its objects go only when both units are stopped; neither uses IPC.
 RemoveIPC=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service openat2

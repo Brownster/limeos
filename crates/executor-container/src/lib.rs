@@ -25,20 +25,6 @@ pub use limit::ActionRecord;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
 
-/// Whether this thread reads files as root would: it runs as root, or holds
-/// `CAP_DAC_READ_SEARCH` in its effective set. The fixed Compose and Engine
-/// readers refuse to run otherwise. The same rule as
-/// `limeos_executor_storage::full_read_access` (the crate boundary keeps the
-/// two crates apart, so each holds a copy; keep them identical): the storage
-/// reader runs as its own account with that one capability
-/// (`limeos-storage-reader.service`), and its read workers inherit it.
-pub fn full_read_access() -> bool {
-    rustix::process::geteuid().is_root()
-        || rustix::thread::capabilities(None).is_ok_and(|sets| {
-            sets.effective
-                .contains(rustix::thread::CapabilitySet::DAC_READ_SEARCH)
-        })
-}
 /// Rows of `actions` the store holds at most: an execute that would pass it is
 /// refused `Overloaded`, a last resort retention keeps far away.
 const MAX_ACTION_ROWS: u32 = 8192;

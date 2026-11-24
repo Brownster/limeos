@@ -1,7 +1,5 @@
 use super::*;
-use crate::docker::compose_evidence::{
-    ComposeOwnership, EngineComposeEvidence, inspect_compose_membership,
-};
+use crate::docker::compose_evidence::{ComposeOwnership, EngineComposeEvidence};
 use limeos_domain::deployment::discovery::{
     CatalogFacts, Declaration, DiscoveryCohort, FileStatus, OmissionReason, StackIssue,
 };
@@ -174,14 +172,6 @@ async fn storage_evidence_over_the_bound_still_refuses_whole() {
             .is_err()
     );
     assert!(fixture.inspect_combined().await.is_err());
-}
-#[tokio::test]
-async fn public_nonroot_refusal_precedes_canonical_endpoint_access() {
-    assert!(!crate::full_read_access());
-    assert!(matches!(
-        inspect_compose_membership().await,
-        Err(Error(ErrorCode::Forbidden))
-    ));
 }
 #[tokio::test]
 async fn root_policy_and_wrong_kernel_peer_refuse_before_http_bytes() {
