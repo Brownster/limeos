@@ -45,16 +45,14 @@ fn share_name(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
 }
 
+/// A storage path (`crate::storage_path`) Samba configuration can carry
+/// literally: spaces only inside components, none of its quoting, comment,
+/// substitution or separator characters.
 fn literal_path(path: &str) -> bool {
-    path.starts_with('/')
-        && (2..=512).contains(&path.len())
+    crate::storage_path(path, false)
         && !path.contains(['\\', '%', '[', ']', '#', ';', '=', '"', '\''])
-        && !path
-            .chars()
-            .any(|c| c.is_control() || c.is_whitespace() && c != ' ')
-        && path[1..]
-            .split('/')
-            .all(|p| !matches!(p, "" | "." | "..") && p.trim() == p)
+        && !path.chars().any(|c| c.is_whitespace() && c != ' ')
+        && path[1..].split('/').all(|p| p.trim() == p)
 }
 
 fn literal_comment(comment: &str) -> bool {

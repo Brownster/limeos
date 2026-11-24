@@ -1,8 +1,8 @@
 //! Reviewed facts for one nonpersistent mount; these values are never effect authority.
 use crate::{
-    DirectoryIdentity, Error, ErrorCode, JobState, Operation, OperationDefinition,
-    PLAN_TTL_SECONDS, Recovery, Result, Risk, StorageBlockDevice, StorageDevice, StorageFilesystem,
-    StorageInventory, StorageMountWaitPlan, StorageRole, TargetEvidence, identifier, opaque_id,
+    DirectoryIdentity, Error, ErrorCode, JobState, Operation, OperationDefinition, PlanLifetime,
+    Recovery, Result, Risk, StorageBlockDevice, StorageDevice, StorageFilesystem, StorageInventory,
+    StorageMountWaitPlan, StorageRole, TargetEvidence, identifier, opaque_id,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -112,9 +112,7 @@ impl StorageMountEffectPlan {
             self.version == STORAGE_MOUNT_VERSION
                 && self.operation == STORAGE_MOUNT_OPERATION
                 && opaque_id(&self.action)
-                && self.created_at >= 0
-                && self.expires_at > self.created_at
-                && self.expires_at <= self.created_at.saturating_add(PLAN_TTL_SECONDS),
+                && PlanLifetime::bounded(self.created_at, self.expires_at).is_ok(),
         )?;
         validate_facts(
             &self.device,
@@ -123,9 +121,7 @@ impl StorageMountEffectPlan {
             &self.physical_devices,
             &self.consumer_digest,
         )?;
-        if at < self.created_at || at >= self.expires_at {
-            return Err(Error(ErrorCode::Expired));
-        }
+        PlanLifetime::bounded(self.created_at, self.expires_at)?.current(at)?;
         bounded(self, STORAGE_MOUNT_PLAN_BYTES)
     }
     pub fn check_current(&self, current: &StorageMountInspection, at: i64) -> Result<()> {
@@ -460,20 +456,14 @@ fn validate_mounted(plan: &StorageMountEffectPlan, current: &StorageMountedSnaps
     )
 }
 fn target_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id.as_bytes()[0].is_ascii_alphanumeric()
-        && id
-            .bytes()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"_-".contains(&c))
+    crate::storage_device_id(id)
 }
 fn canonical(path: &str, root: bool) -> bool {
-    (root && path == "/")
-        || (path.starts_with('/')
-            && path.len() > 1
-            && path.len() <= 512
-            && !path.chars().any(char::is_control)
-            && path[1..].split('/').all(|s| !matches!(s, "" | "." | "..")))
+    if root {
+        crate::absolute_path(path)
+    } else {
+        crate::storage_path(path, false)
+    }
 }
 fn overlap(a: &str, b: &str) -> bool {
     a == "/"

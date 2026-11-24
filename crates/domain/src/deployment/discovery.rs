@@ -207,8 +207,9 @@ pub struct OmittedContainer {
 }
 impl OmittedContainer {
     fn validate(&self) -> Result<()> {
-        let id = self.resource.strip_prefix("container:").unwrap_or_default();
-        if !crate::opaque_id(id) || self.project.as_deref().is_some_and(|p| !name(p, true)) {
+        if !crate::container_resource(&self.resource)
+            || self.project.as_deref().is_some_and(|p| !name(p, true))
+        {
             return Err(invalid());
         }
         Ok(())
@@ -296,14 +297,10 @@ fn name(value: &str, project: bool) -> bool {
 /// absolute, at most 512 bytes, 16 segments of at most 255 bytes, no empty,
 /// `.` or `..` segment, comma or control character. Shared with the executor.
 pub fn compose_path(value: &str) -> bool {
-    value.starts_with('/')
-        && value.len() <= 512
+    crate::storage_path(value, false)
         && !value.contains(',')
-        && !value.chars().any(char::is_control)
         && value[1..].split('/').count() <= 16
-        && value[1..]
-            .split('/')
-            .all(|p| !matches!(p, "" | "." | "..") && p.len() <= 255)
+        && value[1..].split('/').all(|p| p.len() <= 255)
 }
 fn path(value: &str) -> bool {
     compose_path(value)

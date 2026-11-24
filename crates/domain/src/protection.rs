@@ -179,13 +179,7 @@ impl SnapraidConfig {
                 &mut findings,
             );
             require(
-                !drive.uuid.is_empty()
-                    && drive.uuid.len() <= 128
-                    && drive.uuid.as_bytes()[0].is_ascii_alphanumeric()
-                    && drive
-                        .uuid
-                        .bytes()
-                        .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)),
+                crate::filesystem_uuid(&drive.uuid),
                 &format!("{field}.uuid"),
                 UnknownIdentity,
                 &mut findings,

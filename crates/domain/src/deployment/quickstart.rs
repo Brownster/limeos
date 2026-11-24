@@ -38,14 +38,9 @@ fn name(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b))
 }
 fn path(s: &str) -> bool {
-    s.starts_with('/')
-        && s != "/"
-        && s.len() <= 512
-        && !s.chars().any(char::is_control)
+    crate::storage_path(s, false)
         && !s.contains(['$', '{', '}', '\\'])
-        && s[1..]
-            .split('/')
-            .all(|p| !matches!(p, "" | "." | "..") && p.len() <= 255)
+        && s[1..].split('/').all(|p| p.len() <= 255)
 }
 fn overlaps(a: &str, b: &str) -> bool {
     a == b

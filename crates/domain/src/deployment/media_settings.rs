@@ -28,14 +28,9 @@ fn text(s: &str, max: usize) -> bool {
     s.len() <= max && !s.chars().any(char::is_control)
 }
 fn path(s: &str) -> bool {
-    s.len() <= 512
-        && s.starts_with('/')
-        && s != "/"
-        && text(s, 512)
+    crate::storage_path(s, false)
         && !s.contains(['$', '{', '}', '\\'])
-        && s[1..]
-            .split('/')
-            .all(|p| !matches!(p, "" | "." | "..") && p.len() <= 255)
+        && s[1..].split('/').all(|p| p.len() <= 255)
 }
 fn id(v: u32) -> bool {
     (1..=i32::MAX as u32).contains(&v)

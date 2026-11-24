@@ -309,14 +309,7 @@ fn identity(project: &ProjectIdentity, text: &mut usize) -> Result<()> {
         checked(
             text,
             path,
-            path.starts_with('/')
-                && path.len() <= 512
-                && !path.contains([',', '$', '{', '}', '\\'])
-                && !path.chars().any(char::is_control)
-                && path[1..].split('/').count() <= 16
-                && path[1..]
-                    .split('/')
-                    .all(|s| !matches!(s, "" | "." | "..") && s.len() <= 255),
+            super::discovery::compose_path(path) && !path.contains(['$', '{', '}', '\\']),
         )?;
     }
     let unique: BTreeSet<_> = project.config_files.iter().collect();

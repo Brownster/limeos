@@ -31,11 +31,10 @@ impl Config {
         if share_path.len() > MAX_PATH_BYTES {
             return Err(ConfigIssue::Limit);
         }
-        if !share_path.starts_with('/')
-            || share_path.chars().any(char::is_control)
-            || share_path[1..].split('/').any(|part| {
-                matches!(part, "" | "." | "..") || part.trim() != part || part.len() > 255
-            })
+        if !crate::storage_path(share_path, false)
+            || share_path[1..]
+                .split('/')
+                .any(|part| part.trim() != part || part.len() > 255)
         {
             return Err(ConfigIssue::InvalidPath);
         }

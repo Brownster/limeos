@@ -92,16 +92,12 @@ impl TargetPreparationPlan {
         if self.version != 1
             || self.operation != STORAGE_TARGET_OPERATION
             || !opaque_id(&self.action)
-            || self.created_at < 0
-            || self.expires_at <= self.created_at
-            || self.expires_at > self.created_at.saturating_add(PLAN_TTL_SECONDS)
+            || PlanLifetime::bounded(self.created_at, self.expires_at).is_err()
             || self.targets.len() != self.contract.devices.len()
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        if at < self.created_at || at >= self.expires_at {
-            return Err(Error(ErrorCode::Expired));
-        }
+        PlanLifetime::bounded(self.created_at, self.expires_at)?.current(at)?;
         // A snapshot is ordered by literal mountpoint, as the protected reader
         // does. Paths, identity and ownership never come from the queue caller.
         let mut mountpoints: Vec<_> = self

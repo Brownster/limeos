@@ -5,6 +5,8 @@ pub mod deployment;
 pub use backup_jobs::*;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+mod newtypes;
+pub use newtypes::*;
 mod operations;
 pub use operations::*;
 mod stack_operations;

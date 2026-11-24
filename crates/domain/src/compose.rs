@@ -23,14 +23,11 @@ pub fn compose_name(value: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
+/// A storage path (`crate::storage_path`) of at most 256 bytes in the
+/// portable file-name alphabet.
 fn literal_path(value: &str) -> bool {
-    value.starts_with('/')
+    crate::storage_path(value, false)
         && value.len() <= 256
-        && value != "/"
-        && value
-            .split('/')
-            .skip(1)
-            .all(|s| !s.is_empty() && s != "." && s != "..")
         && value
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"/-_.".contains(&b))
@@ -386,16 +383,9 @@ impl ComposePlan {
                 && opaque_id(&self.catalog_digest)
                 && opaque_id(&self.template_digest)
                 && self.managed_file == COMPOSE_MANAGED_FILE
-                && self.created_at >= 0
-                && self.expires_at
-                    == self
-                        .created_at
-                        .checked_add(crate::PLAN_TTL_SECONDS)
-                        .ok_or(Error(ErrorCode::InvalidInput))?,
+                && crate::PlanLifetime::exact(self.created_at, self.expires_at).is_ok(),
         )?;
-        if now < self.created_at || now >= self.expires_at {
-            return Err(Error(ErrorCode::Expired));
-        }
+        crate::PlanLifetime::exact(self.created_at, self.expires_at)?.current(now)?;
         Ok(())
     }
 }

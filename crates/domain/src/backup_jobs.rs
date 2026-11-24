@@ -1,5 +1,5 @@
 //! Durable claims to revalidate, never imported filesystem authority.
-use crate::{Error, ErrorCode, JobState, PLAN_TTL_SECONDS, Result, identifier, opaque_id};
+use crate::{Error, ErrorCode, JobState, PlanLifetime, Result, identifier, opaque_id};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -103,8 +103,10 @@ impl BackupPreparationJobPlan {
             || !opaque_id(&self.action)
             || !identifier(&self.principal)
             || self.grant_revision < 1
-            || self.created_at < 0
-            || self.created_at.checked_add(PLAN_TTL_SECONDS) != Some(self.expires_at)
+            || PlanLifetime::exact(self.created_at, self.expires_at).is_err()
+            // A clock behind creation is invalid here, where every other plan
+            // reports it as expired (`PlanLifetime::current`). Kept: this
+            // change does not alter refusal codes.
             || at < self.created_at
         {
             return Err(Error(ErrorCode::InvalidInput));

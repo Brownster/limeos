@@ -140,9 +140,7 @@ impl ResolutionEvidence {
         }
         let mut targets = Vec::with_capacity(expected.len());
         for (before, now) in expected.iter().zip(current) {
-            let container = before
-                .resource
-                .strip_prefix("container:")
+            let container = crate::container_resource_id(&before.resource)
                 .ok_or(Error(ErrorCode::InvalidInput))?
                 .to_owned();
             targets.push(match now {

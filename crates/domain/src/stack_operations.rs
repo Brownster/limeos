@@ -3,8 +3,8 @@
 //! records exactly which containers a later effect may touch.
 use crate::{
     ContainerAction, ContainerSnapshot, Error, ErrorCode, ExecutionState, Operation,
-    OperationDefinition, PLAN_TTL_SECONDS, Recovery, Result, Risk, Scope, identifier, opaque_id,
-    verify_container,
+    OperationDefinition, PlanLifetime, Recovery, Result, Risk, STACK_RESOURCE_PREFIX, Scope,
+    identifier, opaque_id, stack_resource_project, verify_container,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -41,17 +41,8 @@ pub fn stack_definition(action: ContainerAction) -> &'static OperationDefinition
     }
 }
 
-/// Compose project names as the Engine labels them.
-pub fn stack_project(value: &str) -> bool {
-    let first = value.as_bytes().first().copied();
-    value.len() <= 64
-        && first.is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        && value
-            .bytes()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-')
-}
 pub fn stack_resource(project: &str) -> String {
-    format!("stack:{project}")
+    format!("{STACK_RESOURCE_PREFIX}{project}")
 }
 
 /// Every ordinary (non one-off) member, stopped or running, sorted by ID.
@@ -72,10 +63,7 @@ impl StackSnapshot {
         Ok(value)
     }
     pub fn project(&self) -> Result<&str> {
-        self.resource
-            .strip_prefix("stack:")
-            .filter(|p| stack_project(p))
-            .ok_or(Error(ErrorCode::InvalidInput))
+        stack_resource_project(&self.resource).ok_or(Error(ErrorCode::InvalidInput))
     }
     pub fn validate(&self) -> Result<()> {
         self.project()?;
@@ -161,16 +149,12 @@ impl StackPlan {
             || !identifier(&self.principal)
             || !identifier(&self.catalog_stack)
             || self.grant_revision < 1
-            || self.created_at < 0
-            || self.expires_at <= self.created_at
-            || self.expires_at > self.created_at.saturating_add(PLAN_TTL_SECONDS)
+            || PlanLifetime::bounded(self.created_at, self.expires_at).is_err()
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
         self.expected.validate_for(self.operation)?;
-        if now < self.created_at || now >= self.expires_at {
-            return Err(Error(ErrorCode::Expired));
-        }
+        PlanLifetime::bounded(self.created_at, self.expires_at)?.current(now)?;
         Ok(())
     }
     /// `validate` without the clock: the plan is well formed, expired or not.
@@ -341,6 +325,7 @@ pub fn verify_partly_done(receipt: &StackReceipt, afters: &[ContainerSnapshot]) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::PLAN_TTL_SECONDS;
     fn member(n: char, running: bool) -> ContainerSnapshot {
         ContainerSnapshot {
             resource: format!("container:{}", n.to_string().repeat(64)),

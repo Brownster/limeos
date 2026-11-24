@@ -1,6 +1,6 @@
 //! Guided assignment previews. No filesystem formatting or executable intent.
 use super::*;
-use crate::{PLAN_TTL_SECONDS, identifier, opaque_id};
+use crate::{PlanLifetime, identifier, opaque_id};
 
 pub const STORAGE_PLAN_VERSION: u16 = 1;
 pub const STORAGE_FSTAB_BEGIN: &str = "# BEGIN LIMEOS STORAGE V1";
@@ -112,13 +112,7 @@ impl StorageInventory {
         let mut numbers = BTreeSet::new();
         for d in &self.devices {
             valid(numbers.insert(d.device) && d.device.major > 0)?;
-            valid(
-                !d.filesystem_uuid.is_empty()
-                    && d.filesystem_uuid.len() <= 128
-                    && d.filesystem_uuid
-                        .bytes()
-                        .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)),
-            )?;
+            valid(crate::observed_filesystem_uuid(&d.filesystem_uuid))?;
             valid(
                 !d.filesystem.is_empty()
                     && d.filesystem.len() <= 64
@@ -256,9 +250,7 @@ impl StorageSetupPlan {
                 && opaque_id(&self.id)
                 && identifier(&self.principal)
                 && self.grant_revision > 0
-                && self.created_at >= 0
-                && self.expires_at > self.created_at
-                && self.expires_at <= self.created_at.saturating_add(PLAN_TTL_SECONDS),
+                && PlanLifetime::bounded(self.created_at, self.expires_at).is_ok(),
         )?;
         valid(
             self.readiness == validate_assignments(&self.desired, self.readiness.timeout_seconds)?,
@@ -271,9 +263,7 @@ impl StorageSetupPlan {
                     &self.expected,
                 )?,
         )?;
-        if now < self.created_at || now >= self.expires_at {
-            return Err(Error(ErrorCode::Expired));
-        }
+        PlanLifetime::bounded(self.created_at, self.expires_at)?.current(now)?;
         Ok(())
     }
     pub fn check_current(&self, actual: &StorageInventory, now: i64) -> Result<()> {

@@ -68,11 +68,9 @@ pub struct DeclaredContainerStorageDependency {
     pub mountpoint: String,
     pub containers: Vec<String>,
 }
+/// Any canonical absolute path, the root included (`crate::absolute_path`).
 pub fn container_storage_path(path: &str) -> bool {
-    path.starts_with('/')
-        && path.len() <= 512
-        && !path.chars().any(char::is_control)
-        && (path == "/" || path[1..].split('/').all(|c| !matches!(c, "" | "." | "..")))
+    crate::absolute_path(path)
 }
 fn bounded_name(name: &str, maximum: usize) -> bool {
     !name.is_empty()

@@ -52,11 +52,7 @@ impl ContainerHealthCohort {
         }
         let mut previous = None;
         for member in &members {
-            let id = member
-                .resource
-                .strip_prefix("container:")
-                .ok_or_else(invalid)?;
-            if !crate::opaque_id(id)
+            if !crate::container_resource(&member.resource)
                 || previous.is_some_and(|p: &str| p >= member.resource.as_str())
             {
                 return Err(invalid());

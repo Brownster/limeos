@@ -196,14 +196,9 @@ fn name(s: &str, project: bool) -> bool {
         })
 }
 fn path(s: &str) -> bool {
-    s.len() <= 512
-        && s.starts_with('/')
-        && s.len() > 1
-        && !s.chars().any(char::is_control)
+    crate::storage_path(s, false)
         && !["{{", "}}", "${", "$("].iter().any(|p| s.contains(p))
-        && s[1..]
-            .split('/')
-            .all(|p| !matches!(p, "" | "." | "..") && p.len() <= 255)
+        && s[1..].split('/').all(|p| p.len() <= 255)
 }
 fn normalized(s: &str) -> &str {
     s.trim_end_matches('/')

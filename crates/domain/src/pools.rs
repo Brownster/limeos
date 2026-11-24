@@ -66,12 +66,13 @@ pub(crate) fn name(value: &str) -> bool {
             .bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
 }
+/// A storage path beneath `/mnt` (`crate::storage_path`) that mergerfs and
+/// SnapRAID configuration can carry literally: no whitespace and none of
+/// their separator or glob characters.
 pub(crate) fn mount_path(path: &str) -> bool {
-    path.starts_with("/mnt/")
-        && path.len() <= 512
-        && !path.chars().any(|c| c.is_control() || c.is_whitespace())
+    crate::storage_path(path, true)
+        && !path.chars().any(char::is_whitespace)
         && !path.contains(['\\', ':', ',', '#', '*', '?', '[', ']', '='])
-        && path[1..].split('/').all(|p| !matches!(p, "" | "." | ".."))
 }
 pub(crate) fn beneath(path: &str, root: &str) -> bool {
     // Compare components; /mnt/pool-other is not beneath /mnt/pool.

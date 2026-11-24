@@ -164,14 +164,7 @@ fn name(value: &str, max: usize, project: bool) -> bool {
         })
 }
 fn path(value: &str) -> bool {
-    value.starts_with('/')
-        && value.len() <= 512
-        && !value.contains(',')
-        && !value.chars().any(char::is_control)
-        && value[1..].split('/').count() <= 16
-        && value[1..]
-            .split('/')
-            .all(|part| !matches!(part, "" | "." | "..") && part.len() <= 255)
+    super::discovery::compose_path(value)
 }
 fn reference(mode: &str) -> Option<(ReferenceKind, &str)> {
     mode.strip_prefix("container:")

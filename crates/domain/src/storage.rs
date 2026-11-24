@@ -125,14 +125,7 @@ fn valid(condition: bool) -> Result<()> {
 }
 
 fn canonical_path(path: &str, under_mnt: bool) -> bool {
-    path.starts_with('/')
-        && path.len() <= 512
-        && path.len() > 1
-        && !path.chars().any(char::is_control)
-        && path[1..]
-            .split('/')
-            .all(|part| !matches!(part, "" | "." | ".."))
-        && (!under_mnt || path.starts_with("/mnt/"))
+    crate::storage_path(path, under_mnt)
 }
 
 // Component relationships for configuration only. Live paths require descriptor
@@ -164,24 +157,9 @@ impl StorageContract {
         let (mut ids, mut uuids, mut mountpoints) =
             (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
         for device in &self.devices {
+            valid(crate::storage_device_id(&device.id) && ids.insert(&device.id))?;
             valid(
-                !device.id.is_empty()
-                    && device.id.len() <= 64
-                    && (device.id.as_bytes()[0].is_ascii_lowercase()
-                        || device.id.as_bytes()[0].is_ascii_digit())
-                    && device.id.bytes().all(|c| {
-                        c.is_ascii_lowercase() || c.is_ascii_digit() || b"_-".contains(&c)
-                    })
-                    && ids.insert(&device.id),
-            )?;
-            valid(
-                !device.filesystem_uuid.is_empty()
-                    && device.filesystem_uuid.len() <= 128
-                    && device.filesystem_uuid.as_bytes()[0].is_ascii_alphanumeric()
-                    && device
-                        .filesystem_uuid
-                        .bytes()
-                        .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
+                crate::filesystem_uuid(&device.filesystem_uuid)
                     && uuids.insert(&device.filesystem_uuid),
             )?;
             valid(
@@ -268,24 +246,8 @@ impl StorageMountWaitPlan {
         valid((1..=STORAGE_MAX_DEVICES).contains(&self.devices.len()))?;
         let (mut ids, mut uuids, mut mounts) = (BTreeSet::new(), BTreeSet::new(), BTreeSet::new());
         for d in &self.devices {
-            valid(
-                !d.id.is_empty()
-                    && d.id.len() <= 64
-                    && d.id.as_bytes()[0].is_ascii_alphanumeric()
-                    && d.id.bytes().all(|c| {
-                        c.is_ascii_lowercase() || c.is_ascii_digit() || b"_-".contains(&c)
-                    })
-                    && ids.insert(&d.id),
-            )?;
-            valid(
-                !d.filesystem_uuid.is_empty()
-                    && d.filesystem_uuid.len() <= 128
-                    && d.filesystem_uuid.as_bytes()[0].is_ascii_alphanumeric()
-                    && d.filesystem_uuid
-                        .bytes()
-                        .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
-                    && uuids.insert(&d.filesystem_uuid),
-            )?;
+            valid(crate::storage_device_id(&d.id) && ids.insert(&d.id))?;
+            valid(crate::filesystem_uuid(&d.filesystem_uuid) && uuids.insert(&d.filesystem_uuid))?;
             valid(canonical_path(&d.mountpoint, true) && mounts.insert(&d.mountpoint))?;
             valid(d.serial.as_ref().is_none_or(|s| {
                 !s.is_empty() && s.len() <= 128 && s.trim() == s && !s.chars().any(char::is_control)

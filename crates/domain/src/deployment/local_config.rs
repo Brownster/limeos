@@ -99,16 +99,11 @@ impl ConfigDraft {
     }
 }
 fn path(value: &str) -> bool {
-    value.len() <= MAX_PATH_BYTES
-        && value.starts_with('/')
-        && value != "/"
+    crate::storage_path(value, false)
+        && value.len() <= MAX_PATH_BYTES
         && !value.contains(['$', '{', '}', '\\', '"'])
-        && !value
-            .chars()
-            .any(|c| c.is_control() || (c.is_whitespace() && c != ' '))
-        && value[1..]
-            .split('/')
-            .all(|s| !s.is_empty() && s != "." && s != ".." && s.trim() == s)
+        && !value.chars().any(|c| c.is_whitespace() && c != ' ')
+        && value[1..].split('/').all(|s| s.trim() == s)
 }
 fn beneath(a: &str, b: &str) -> bool {
     a == b || a.strip_prefix(b).is_some_and(|s| s.starts_with('/'))

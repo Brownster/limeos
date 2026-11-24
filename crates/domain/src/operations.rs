@@ -1,5 +1,5 @@
 //! Operation-owned risk, authority and preconditions; no caller policy overrides.
-use crate::{Error, ErrorCode, Operation, Result, Scope, identifier};
+use crate::{Error, ErrorCode, Operation, PlanLifetime, Result, Scope, identifier, opaque_id};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -119,13 +119,6 @@ impl ContainerAction {
     }
 }
 
-pub fn opaque_id(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
 /// Selected inspection evidence. Environment variables, labels and host paths
 /// never enter a plan. The full ID, image and start timestamp identify an instance.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -138,9 +131,11 @@ pub struct ContainerSnapshot {
 }
 impl ContainerSnapshot {
     pub fn validate(&self) -> Result<()> {
-        let id = self.resource.strip_prefix("container:").unwrap_or_default();
         let image = self.image.strip_prefix("sha256:").unwrap_or_default();
-        if !opaque_id(id) || !opaque_id(image) || engine_timestamp(&self.started_at).is_none() {
+        if !crate::container_resource(&self.resource)
+            || !opaque_id(image)
+            || engine_timestamp(&self.started_at).is_none()
+        {
             return Err(Error(ErrorCode::InvalidInput));
         }
         Ok(())
@@ -177,16 +172,12 @@ impl ContainerPlan {
             || !opaque_id(&self.id)
             || !identifier(&self.principal)
             || self.grant_revision < 1
-            || self.created_at < 0
-            || self.expires_at <= self.created_at
-            || self.expires_at > self.created_at.saturating_add(PLAN_TTL_SECONDS)
+            || PlanLifetime::bounded(self.created_at, self.expires_at).is_err()
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
         self.operation.validate_before(&self.expected)?;
-        if now < self.created_at || now >= self.expires_at {
-            return Err(Error(ErrorCode::Expired));
-        }
+        PlanLifetime::bounded(self.created_at, self.expires_at)?.current(now)?;
         Ok(())
     }
     /// `validate` without the clock: the plan is well formed, expired or not.
