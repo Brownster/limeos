@@ -21,6 +21,8 @@ fn help_and_version_in_command_position_succeed() {
         &["-h"],
         &["job", "--help"],
         &["job", "resolve", "--help"],
+        &["job", "list", "--help"],
+        &["job", "cancel", "-h"],
         &["migrate", "-h"],
         &["migrate", "scan", "--help"],
     ] {
@@ -66,6 +68,17 @@ fn a_flag_where_a_value_belongs_is_a_usage_error_not_a_version_print() {
         &["migrate", "import-users", "--env-file", "--version"],
         &["status", "extra"],
         &["frobnicate"],
+        &["job", "list", "--state", "--version"],
+        &["job", "list", "--limit", "--help"],
+        &["job", "list", "--limit", "65"],
+        &["job", "list", "--state", "queued", "--help"],
+        &["job", "cancel", JOB, "--admin", "--version"],
+        &["job", "cancel", JOB, "--admin", "a", "--help"],
+        &["job", "cancel", JOB],
+        &["job", "cancel", JOB, "--admin", "a", "--yes", "--yes"],
+        &["job", "list", "--after", "-1"],
+        &["job", "list", "--family", "--version"],
+        &["job", "list", "--owner", "-h"],
     ] {
         let out = ctl(args);
         assert_eq!(out.status.code(), Some(2), "{args:?}");
@@ -79,4 +92,29 @@ fn a_flag_where_a_value_belongs_is_a_usage_error_not_a_version_print() {
 fn a_well_formed_request_that_cannot_be_served_is_a_refusal() {
     let out = ctl(&["--socket", "/nonexistent/core.sock", "status"]);
     assert_eq!(out.status.code(), Some(1));
+}
+
+#[test]
+fn job_list_and_cancel_refuse_a_non_root_caller_before_contacting_core() {
+    if rustix::process::geteuid().is_root() {
+        return;
+    }
+    for args in [
+        &["--socket", "/nonexistent/core.sock", "job", "list"][..],
+        &[
+            "--socket",
+            "/nonexistent/core.sock",
+            "job",
+            "cancel",
+            JOB,
+            "--admin",
+            "a",
+            "--yes",
+        ],
+    ] {
+        let out = ctl(args);
+        assert_eq!(out.status.code(), Some(1), "{args:?}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(stderr.contains("run it as root"), "{args:?}: {stderr}");
+    }
 }

@@ -508,6 +508,51 @@ def locks_held():
     return detail
 
 
+@case("1b CLI as root: job list shows a job queued behind a held lock; job cancel cancels it; it never runs")
+def cli_list_cancel():
+    facts = jobs["H"]
+    holder = facts["ids"][0]
+    proposal, approval = sl.container_plan(holder)
+    mark = sl.mark()
+    status, job = sl.container_queue(proposal, approval, "H-operator-cancel")
+    check(status == 202, "queue refused", status=status, job=job)
+    time.sleep(6)
+    check(core_job(job["id"]) == "queued", "job behind a held lock left queued", state=core_job(job["id"]))
+    detail = {"job": job["id"]}
+    listed = fx.run(*CTL, "job", "list", "--state", "queued", "--json")
+    rows = [json.loads(line) for line in listed.stdout.splitlines()]
+    mine = [r for r in rows[:-1] if r["job"] == job["id"]]
+    check(len(mine) == 1 and mine[0]["owner"] == ADMIN and mine[0]["family"] == "container" and mine[0]["state"] == "queued"
+          and mine[0]["resource"] == "container:" + holder and mine[0]["created_at"] > 0,
+          "queued job not listed as expected", rows=rows[-5:])
+    check(set(rows[-1]) == {"shown", "matching", "more", "next"}, "no totals line", last=rows[-1])
+    table = fx.run(*CTL, "job", "list")
+    check(job["id"] in table.stdout and facts["job"] in table.stdout and "needs_intervention" in table.stdout,
+          "default listing lacks the queued or the held job", out=table.stdout[-1500:])
+    detail["listed"] = mine[0]
+    nonroot = fx.run("runuser", "-u", "limeos-assistant", "--", *CTL, "job", "list", check=False)
+    check(nonroot.returncode == 1 and "root" in nonroot.stderr + nonroot.stdout, "non-root job list not refused", out=nonroot.stdout, err=nonroot.stderr)
+    unconfirmed = fx.run(*CTL, "job", "cancel", job["id"], "--admin", ADMIN, check=False, input="")
+    check(unconfirmed.returncode == 1 and "--yes" in unconfirmed.stderr and core_job(job["id"]) == "queued",
+          "cancel without --yes or a terminal was not refused", rc=unconfirmed.returncode, err=unconfirmed.stderr[-500:])
+    nonadmin = fx.run(*CTL, "job", "cancel", job["id"], "--admin", "operator-res", "--yes", check=False)
+    check(nonadmin.returncode == 1 and core_job(job["id"]) == "queued", "non-administrator cancel accepted", out=nonadmin.stdout, err=nonadmin.stderr)
+    held = fx.run(*CTL, "job", "cancel", facts["job"], "--admin", ADMIN, "--yes", check=False)
+    check(held.returncode == 1 and "not queued" in held.stdout + held.stderr and core_job(facts["job"]) == "needs_intervention",
+          "held job cancel not refused", rc=held.returncode, out=held.stdout[-800:], err=held.stderr[-800:])
+    done = fx.run(*CTL, "job", "cancel", job["id"], "--admin", ADMIN, "--yes", check=False)
+    check(done.returncode == 0 and "canceled:" in done.stdout and core_job(job["id"]) == "canceled",
+          "queued job not cancelled", rc=done.returncode, out=done.stdout[-800:], err=done.stderr[-800:])
+    actors = db(fx.CORE_DB, "SELECT principal FROM events WHERE job=? AND json_extract(kind,'$.kind')='job_canceled_by_administrator'", (job["id"],))
+    check(actors == [(session["principal"]["id"],)], "administrator not recorded as the actor", actors=actors)
+    time.sleep(4)
+    check(lifecycle_events(mark) == [], "cancelled job produced Engine events")
+    check(executor_rows(job["id"]) == {"stack_actions": [], "actions": []}, "executor saw the cancelled job", rows=executor_rows(job["id"]))
+    check(job_locks(facts["job"]) and core_job(facts["job"]) == "needs_intervention", "held job changed")
+    jobs["H"]["canceled_behind"] = job["id"]
+    return detail
+
+
 @case("2 GET resolution evidence: plan vs measured, allowed outcomes, digest")
 def evidence():
     detail = {}
@@ -834,7 +879,13 @@ def zero_effects():
     # Each case above asserted an empty lifecycle-event window around its resolution; this checks the log as a whole:
     # every start/stop/restart/kill in the log must be attributable to induction, a planned job or a hand fixture step.
     total = lifecycle_events(0)
-    return {"lifecycle_events_total": len(total), "note": "per-resolution windows asserted empty in cases 3, 4a-4c, 6a, 6b, 7a, 7b"}
+    # The job the operator cancelled behind H (case 1b) stayed cancelled after H's lock was freed (4a) and never reached the executor.
+    behind = jobs.get("H", {}).get("canceled_behind")
+    if behind:
+        check(core_job(behind) == "canceled" and executor_rows(behind) == {"stack_actions": [], "actions": []},
+              "cancelled job ran after its lock was freed", state=core_job(behind), rows=executor_rows(behind))
+    return {"lifecycle_events_total": len(total), "canceled_behind_h": behind,
+            "note": "per-resolution windows asserted empty in cases 1b, 3, 4a-4c, 6a, 6b, 7a, 7b"}
 
 
 # ---------------------------------------------------------------- driver

@@ -1151,3 +1151,41 @@ fn last_supported_observation_deadline_is_exact_and_overflow_has_no_writes() {
     drop(store);
     assert!(Store::open(&dir.path().join("core.sqlite")).is_ok());
 }
+
+#[test]
+fn an_administrator_is_told_to_pause_instead_and_the_observation_is_untouched() {
+    let (dir, mut store, actor) = setup();
+    let schedule = create(&mut store, &actor);
+    let Reservation::Queued(job) = store
+        .automation_reserve(&schedule, &settlement(&schedule, 200), 200)
+        .unwrap()
+    else {
+        panic!("queued");
+    };
+    let changes = store.conn.total_changes();
+    let answer = store.operator_cancel_job(&actor, &job.id, 201).unwrap();
+    assert_eq!(
+        answer,
+        limeos_domain::OperatorCancel {
+            job: job.id.clone(),
+            family: limeos_domain::JobFamily::AutomationObservation,
+            state: JobState::Queued,
+            outcome: limeos_domain::CancelOutcome::Refused,
+            refusal: Some(limeos_domain::CancelRefusal::PauseScheduleInstead),
+        }
+    );
+    assert_eq!(store.conn.total_changes(), changes);
+    assert_eq!(store.job_state(&job.id).unwrap(), "queued");
+    let listed = store
+        .operator_jobs(&crate::job_admin::tests::only(&[JobState::Queued]), 64)
+        .unwrap()
+        .jobs
+        .remove(0);
+    assert_eq!(
+        listed.family,
+        limeos_domain::JobFamily::AutomationObservation
+    );
+    assert_eq!(listed.resource, "system");
+    drop(store);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
+}

@@ -11,6 +11,8 @@ mod stack_operations;
 pub use stack_operations::*;
 mod job_resolution;
 pub use job_resolution::*;
+mod job_admin;
+pub use job_admin::*;
 mod logs;
 pub use logs::*;
 mod compose;
@@ -256,6 +258,11 @@ pub enum EventKind {
     JobResolved {
         declared: DeclaredOutcome,
     },
+    /// The host operator cancelled this queued job on its owner's behalf
+    /// (`limeosctl job cancel`, a root peer naming an administrator). The
+    /// event's principal is that administrator; the owner's history shows
+    /// the `canceled` transition, written in the same transaction.
+    JobCanceledByAdministrator,
     PlanCreated {
         plan: String,
     },
