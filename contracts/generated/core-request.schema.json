@@ -198,6 +198,66 @@
       ]
     },
     {
+      "description": "Root-peer only. Every principal's jobs that `filter` matches, oldest\nfirst, at most `limit` (1 to `limeos_domain::MAX_OPERATOR_JOBS`) from\n`filter.after` on. Read-only.",
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/$defs/OperatorJobFilter"
+        },
+        "limit": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "request": {
+          "type": "string",
+          "const": "list_jobs"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "filter",
+        "limit"
+      ]
+    },
+    {
+      "description": "Root-peer only. Cancel one queued job on its owner's behalf. As for\n`ResolveJob`, `admin` names a current administrator, recorded as the\nactor; the root peer is the re-authentication.",
+      "type": "object",
+      "properties": {
+        "admin": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string",
+          "const": "cancel_job"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "admin",
+        "job"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "operation": {
@@ -569,6 +629,71 @@
         "password"
       ]
     },
+    "JobFamily": {
+      "description": "The job families core can queue, one per group of intent operations.",
+      "oneOf": [
+        {
+          "description": "`container_restart`, `container_start`, `container_stop`.",
+          "type": "string",
+          "const": "container"
+        },
+        {
+          "description": "`stack_restart`, `stack_start`, `stack_stop`.",
+          "type": "string",
+          "const": "stack"
+        },
+        {
+          "description": "`storage_prepare_targets`.",
+          "type": "string",
+          "const": "storage_targets"
+        },
+        {
+          "description": "`storage_mount`.",
+          "type": "string",
+          "const": "storage_mount"
+        },
+        {
+          "description": "`automation_observe_health`.",
+          "type": "string",
+          "const": "automation_observation"
+        },
+        {
+          "description": "`health_probe`.",
+          "type": "string",
+          "const": "health_probe"
+        },
+        {
+          "description": "`backup_prepare_private`.",
+          "type": "string",
+          "const": "backup_preparation"
+        }
+      ]
+    },
+    "JobState": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "planned",
+            "waiting_approval",
+            "queued",
+            "running",
+            "verifying",
+            "succeeded",
+            "failed",
+            "canceled",
+            "precondition_changed",
+            "outcome_unknown",
+            "needs_intervention"
+          ]
+        },
+        {
+          "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+          "type": "string",
+          "const": "resolved"
+        }
+      ]
+    },
     "LegacyUser": {
       "description": "One legacy user as read from the frozen app's env file. The hash is secret\nmaterial: no `Debug`, and it never appears in errors or logs.",
       "type": "object",
@@ -619,6 +744,55 @@
           "type": "string",
           "const": "job_resolve"
         }
+      ]
+    },
+    "OperatorJobFilter": {
+      "description": "Which jobs a listing shows. Every field narrows it.",
+      "type": "object",
+      "properties": {
+        "after": {
+          "description": "Continue after this listing position: an earlier page's `next`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "family": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobFamily"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "job": {
+          "description": "Exactly this job.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "owner": {
+          "description": "The owner's username.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "states": {
+          "description": "1 to 12 states.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JobState"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "states"
       ]
     },
     "PlannedContainerAction": {

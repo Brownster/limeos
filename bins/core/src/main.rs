@@ -28,6 +28,7 @@ pub mod automation_store;
 mod compose;
 pub mod health_collection;
 mod identity_enablement;
+mod job_admin;
 mod job_resolution;
 mod operations;
 mod password_admission;
@@ -970,170 +971,7 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
         .map_err(|_| Error(ErrorCode::Forbidden))?;
     let result: Result<CoreResponse> = async {
         let request: CoreRequest = limeos_contracts::read_frame(&mut stream).await?;
-        let response = match request {
-            CoreRequest::Health { version } if version == VERSION => {
-                CoreResponse::Health(core.health().await?)
-            }
-            CoreRequest::IssueBootstrap { version } if version == VERSION && peer.uid() == 0 => {
-                let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
-                let digest = limeos_identity::digest(&token);
-                let expires_at = core
-                    .db
-                    .call(move |s| s.issue_bootstrap(&digest, now()))
-                    .await?;
-                CoreResponse::Bootstrap { token, expires_at }
-            }
-            CoreRequest::Enroll {
-                version,
-                enrollment,
-            } if version == VERSION && peer.uid() == 0 => {
-                core.enroll(enrollment).await?;
-                CoreResponse::Enrolled
-            }
-            CoreRequest::ImportLegacyUsers { version, users }
-                if version == VERSION && peer.uid() == 0 =>
-            {
-                let (imported, skipped_existing) = core.import_legacy_users(users).await?;
-                CoreResponse::LegacyUsersImported {
-                    imported,
-                    skipped_existing,
-                }
-            }
-            CoreRequest::ReaderStatus { version, read }
-                if version == VERSION && peer.uid() == 0 =>
-            {
-                let mut status = reader_health::Watcher::new(
-                    (*core.storage_socket).clone(),
-                    core.reader_health.clone(),
-                )
-                .check()
-                .await;
-                if let Some(read) = read {
-                    status.read =
-                        Some(if status.state == limeos_contracts::ReaderState::Accepted {
-                            reader_health::read_once(&core, read).await
-                        } else {
-                            limeos_contracts::ReaderReadOutcome {
-                                read,
-                                result: limeos_contracts::ReadResult::Failed,
-                                reason: Some("core did not accept the reader's socket".into()),
-                            }
-                        });
-                }
-                CoreResponse::ReaderStatus(status)
-            }
-            CoreRequest::ReadResolution {
-                version,
-                admin,
-                job,
-            } if version == VERSION && peer.uid() == 0 => {
-                CoreResponse::Resolution(core.rpc_resolution_view(admin, job).await?)
-            }
-            CoreRequest::ResolveJob {
-                version,
-                admin,
-                job,
-                declared,
-                reason,
-                evidence_digest,
-            } if version == VERSION && peer.uid() == 0 => CoreResponse::Resolved(
-                core.rpc_resolve(admin, job, declared, reason, evidence_digest)
-                    .await?,
-            ),
-            CoreRequest::CheckTask {
-                version,
-                token,
-                task,
-                operation,
-                resource,
-            } if version == VERSION => {
-                let digest = limeos_identity::digest(&token);
-                let uid = peer.uid();
-                core.db
-                    .call(move |s| {
-                        s.check_task(
-                            &digest,
-                            uid,
-                            &task,
-                            &Scope {
-                                operation,
-                                resource,
-                            },
-                            now(),
-                        )
-                    })
-                    .await?;
-                CoreResponse::Authorized
-            }
-            CoreRequest::ProposeRestart {
-                version,
-                token,
-                task,
-                resource,
-            } if version == VERSION => {
-                let proposal = core
-                    .propose_task(
-                        token,
-                        peer.uid(),
-                        task,
-                        limeos_domain::ContainerAction::Restart,
-                        resource,
-                    )
-                    .await?;
-                CoreResponse::RestartPlan(proposal)
-            }
-            CoreRequest::QueueRestart {
-                version,
-                token,
-                task,
-                input,
-            } if version == VERSION => {
-                if input.proposal.plan.operation != limeos_domain::ContainerAction::Restart {
-                    return Err(Error(ErrorCode::InvalidInput));
-                }
-                let job = core.submit_task(token, peer.uid(), task, *input).await?;
-                CoreResponse::RestartJob(job)
-            }
-            CoreRequest::ProposeContainer {
-                version,
-                token,
-                task,
-                resource,
-                operation,
-            } if version == VERSION => CoreResponse::ContainerPlan(
-                core.propose_task(token, peer.uid(), task, operation, resource)
-                    .await?,
-            ),
-            CoreRequest::QueueContainer {
-                version,
-                token,
-                task,
-                input,
-            } if version == VERSION => {
-                CoreResponse::ContainerJob(core.submit_task(token, peer.uid(), task, *input).await?)
-            }
-            CoreRequest::ReadContainerLogs {
-                version,
-                token,
-                task,
-                resource,
-                options,
-            } if version == VERSION => CoreResponse::ContainerLogs(
-                core.task_logs(token, peer.uid(), task, resource, options)
-                    .await?,
-            ),
-            CoreRequest::ProposeCompose {
-                version,
-                token,
-                task,
-                selection,
-            } if version == VERSION => CoreResponse::ComposePlan(
-                core.propose_compose_task(token, peer.uid(), task, selection)
-                    .await?,
-            ),
-            _ => return Err(Error(ErrorCode::Forbidden)),
-        };
-        Ok(response)
+        respond(&core, peer.uid(), request).await
     }
     .await;
     let response = result.unwrap_or_else(|error| {
@@ -1145,6 +983,182 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
         })
     });
     limeos_contracts::write_frame(&mut stream, &response).await
+}
+/// One control-socket request from a peer whose kernel credentials name
+/// `uid`. Root-only requests are matched only for uid 0; anything else is
+/// `Forbidden`.
+async fn respond(core: &Core, uid: u32, request: CoreRequest) -> Result<CoreResponse> {
+    let response = match request {
+        CoreRequest::Health { version } if version == VERSION => {
+            CoreResponse::Health(core.health().await?)
+        }
+        CoreRequest::IssueBootstrap { version } if version == VERSION && uid == 0 => {
+            let token = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
+            let digest = limeos_identity::digest(&token);
+            let expires_at = core
+                .db
+                .call(move |s| s.issue_bootstrap(&digest, now()))
+                .await?;
+            CoreResponse::Bootstrap { token, expires_at }
+        }
+        CoreRequest::Enroll {
+            version,
+            enrollment,
+        } if version == VERSION && uid == 0 => {
+            core.enroll(enrollment).await?;
+            CoreResponse::Enrolled
+        }
+        CoreRequest::ImportLegacyUsers { version, users } if version == VERSION && uid == 0 => {
+            let (imported, skipped_existing) = core.import_legacy_users(users).await?;
+            CoreResponse::LegacyUsersImported {
+                imported,
+                skipped_existing,
+            }
+        }
+        CoreRequest::ReaderStatus { version, read } if version == VERSION && uid == 0 => {
+            let mut status = reader_health::Watcher::new(
+                (*core.storage_socket).clone(),
+                core.reader_health.clone(),
+            )
+            .check()
+            .await;
+            if let Some(read) = read {
+                status.read = Some(if status.state == limeos_contracts::ReaderState::Accepted {
+                    reader_health::read_once(core, read).await
+                } else {
+                    limeos_contracts::ReaderReadOutcome {
+                        read,
+                        result: limeos_contracts::ReadResult::Failed,
+                        reason: Some("core did not accept the reader's socket".into()),
+                    }
+                });
+            }
+            CoreResponse::ReaderStatus(status)
+        }
+        CoreRequest::ReadResolution {
+            version,
+            admin,
+            job,
+        } if version == VERSION && uid == 0 => {
+            CoreResponse::Resolution(core.rpc_resolution_view(admin, job).await?)
+        }
+        CoreRequest::ResolveJob {
+            version,
+            admin,
+            job,
+            declared,
+            reason,
+            evidence_digest,
+        } if version == VERSION && uid == 0 => CoreResponse::Resolved(
+            core.rpc_resolve(admin, job, declared, reason, evidence_digest)
+                .await?,
+        ),
+        CoreRequest::ListJobs {
+            version,
+            filter,
+            limit,
+        } if version == VERSION && uid == 0 => {
+            CoreResponse::Jobs(core.rpc_list_jobs(filter, limit).await?)
+        }
+        CoreRequest::CancelJob {
+            version,
+            admin,
+            job,
+        } if version == VERSION && uid == 0 => {
+            CoreResponse::JobCanceled(core.rpc_cancel_job(admin, job).await?)
+        }
+        CoreRequest::CheckTask {
+            version,
+            token,
+            task,
+            operation,
+            resource,
+        } if version == VERSION => {
+            let digest = limeos_identity::digest(&token);
+            core.db
+                .call(move |s| {
+                    s.check_task(
+                        &digest,
+                        uid,
+                        &task,
+                        &Scope {
+                            operation,
+                            resource,
+                        },
+                        now(),
+                    )
+                })
+                .await?;
+            CoreResponse::Authorized
+        }
+        CoreRequest::ProposeRestart {
+            version,
+            token,
+            task,
+            resource,
+        } if version == VERSION => {
+            let proposal = core
+                .propose_task(
+                    token,
+                    uid,
+                    task,
+                    limeos_domain::ContainerAction::Restart,
+                    resource,
+                )
+                .await?;
+            CoreResponse::RestartPlan(proposal)
+        }
+        CoreRequest::QueueRestart {
+            version,
+            token,
+            task,
+            input,
+        } if version == VERSION => {
+            if input.proposal.plan.operation != limeos_domain::ContainerAction::Restart {
+                return Err(Error(ErrorCode::InvalidInput));
+            }
+            let job = core.submit_task(token, uid, task, *input).await?;
+            CoreResponse::RestartJob(job)
+        }
+        CoreRequest::ProposeContainer {
+            version,
+            token,
+            task,
+            resource,
+            operation,
+        } if version == VERSION => CoreResponse::ContainerPlan(
+            core.propose_task(token, uid, task, operation, resource)
+                .await?,
+        ),
+        CoreRequest::QueueContainer {
+            version,
+            token,
+            task,
+            input,
+        } if version == VERSION => {
+            CoreResponse::ContainerJob(core.submit_task(token, uid, task, *input).await?)
+        }
+        CoreRequest::ReadContainerLogs {
+            version,
+            token,
+            task,
+            resource,
+            options,
+        } if version == VERSION => {
+            CoreResponse::ContainerLogs(core.task_logs(token, uid, task, resource, options).await?)
+        }
+        CoreRequest::ProposeCompose {
+            version,
+            token,
+            task,
+            selection,
+        } if version == VERSION => CoreResponse::ComposePlan(
+            core.propose_compose_task(token, uid, task, selection)
+                .await?,
+        ),
+        _ => return Err(Error(ErrorCode::Forbidden)),
+    };
+    Ok(response)
 }
 async fn rpc_server(core: Core, listener: UnixListener) -> std::io::Result<()> {
     let permits = Arc::new(Semaphore::new(16));

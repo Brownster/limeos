@@ -33,7 +33,8 @@
 //! 3. No resolution request is open for it (`confirmation IS NULL`): the
 //!    resolution retry loop may still complete or supersede it.
 //! 4. No authority event names it (`job_resolution_requested`, `_withdrawn`,
-//!    `_superseded`): those are the only record of what an operator declared
+//!    `_superseded`, `job_canceled_by_administrator`): those are the only
+//!    record of what an operator declared or which one cancelled the job
 //!    and are kept against their own budget (`AUTHORITY_BUDGET`), pinned
 //!    while the job's history lasts. The job stays until the events rule has
 //!    taken its history and the authority rule those events; until then it

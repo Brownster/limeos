@@ -254,6 +254,91 @@
       ]
     },
     {
+      "description": "One bounded page of a listing, oldest job first. Positions follow the\norder jobs were created and never change, so paging with `next` reaches\nevery job that matches, whatever changes state between pages.",
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OperatorJob"
+          }
+        },
+        "matching": {
+          "description": "Every job the filter matches, ignoring `after`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "next": {
+          "description": "Pass as `after` for the next page; present exactly when `remaining`\nis not 0.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "remaining": {
+          "description": "Matching jobs after this page.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "response": {
+          "type": "string",
+          "const": "jobs"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "jobs",
+        "matching",
+        "remaining"
+      ]
+    },
+    {
+      "description": "The answer to one cancellation on the owner's behalf.",
+      "type": "object",
+      "properties": {
+        "family": {
+          "$ref": "#/$defs/JobFamily"
+        },
+        "job": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/CancelOutcome"
+        },
+        "refusal": {
+          "description": "Present exactly when `outcome` is `refused`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CancelRefusal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "response": {
+          "type": "string",
+          "const": "job_canceled"
+        },
+        "state": {
+          "description": "The job's state after the call.",
+          "$ref": "#/$defs/JobState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "job",
+        "family",
+        "state",
+        "outcome"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "digest": {
@@ -459,6 +544,41 @@
     }
   ],
   "$defs": {
+    "CancelOutcome": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "refused"
+          ]
+        },
+        {
+          "description": "The job moved from `queued` to `canceled` now.",
+          "type": "string",
+          "const": "canceled"
+        },
+        {
+          "description": "The job was already `canceled`; nothing was written.",
+          "type": "string",
+          "const": "already_canceled"
+        }
+      ]
+    },
+    "CancelRefusal": {
+      "description": "Why core refused to cancel a job on its owner's behalf. Nothing changed.",
+      "oneOf": [
+        {
+          "description": "The job is not queued: it was dispatched (an execute may have been\nsent, so cancelling cannot prove nothing happened), or it has already\nsettled. A held job is settled by `limeosctl job resolve`.",
+          "type": "string",
+          "const": "not_queued"
+        },
+        {
+          "description": "Automation observations are cancelled only by pausing their schedule:\nstartup refuses a store holding a cancellation of the current schedule\nrevision that no pause explains.",
+          "type": "string",
+          "const": "pause_schedule_instead"
+        }
+      ]
+    },
     "ComposeDevice": {
       "type": "object",
       "properties": {
@@ -1036,6 +1156,46 @@
         }
       ]
     },
+    "JobFamily": {
+      "description": "The job families core can queue, one per group of intent operations.",
+      "oneOf": [
+        {
+          "description": "`container_restart`, `container_start`, `container_stop`.",
+          "type": "string",
+          "const": "container"
+        },
+        {
+          "description": "`stack_restart`, `stack_start`, `stack_stop`.",
+          "type": "string",
+          "const": "stack"
+        },
+        {
+          "description": "`storage_prepare_targets`.",
+          "type": "string",
+          "const": "storage_targets"
+        },
+        {
+          "description": "`storage_mount`.",
+          "type": "string",
+          "const": "storage_mount"
+        },
+        {
+          "description": "`automation_observe_health`.",
+          "type": "string",
+          "const": "automation_observation"
+        },
+        {
+          "description": "`health_probe`.",
+          "type": "string",
+          "const": "health_probe"
+        },
+        {
+          "description": "`backup_prepare_private`.",
+          "type": "string",
+          "const": "backup_preparation"
+        }
+      ]
+    },
     "JobResolution": {
       "description": "The completed audit record (step 3). Additional to, never replacing, the\njob's `outcome_unknown`/`needs_intervention` history.",
       "type": "object",
@@ -1102,6 +1262,66 @@
           "type": "string",
           "const": "resolved"
         }
+      ]
+    },
+    "OperatorJob": {
+      "description": "One job as the host operator sees it. Names the job, its owner and what\nit would act on; never the plan body, evidence or receipts.",
+      "type": "object",
+      "properties": {
+        "claims": {
+          "description": "Resources the job claims when dispatched (its `job_resources` rows,\nthe headline resource included). A queued job holds none of them yet.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "created_at": {
+          "description": "Unix seconds of the job's first recorded event (when it was queued);\n0 when none survives.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "deadline": {
+          "description": "Unix seconds after which a queued job is never dispatched: its approved\nplan's expiry, or a health probe's deadline. Backup preparation stores\nits plan's expiry here but has no dispatcher that reads it.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "family": {
+          "$ref": "#/$defs/JobFamily"
+        },
+        "job": {
+          "type": "string"
+        },
+        "operation": {
+          "description": "The intent's operation tag, for example `container_restart`.",
+          "type": "string"
+        },
+        "owner": {
+          "description": "Username of the principal that queued the job.",
+          "type": "string"
+        },
+        "resolution_open": {
+          "description": "An administrator's resolution request is recorded and not completed.",
+          "type": "boolean"
+        },
+        "resource": {
+          "description": "The job's headline resource, for example `container:<id>`,\n`stack:<name>`, `storage:configuration`.",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/JobState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "owner",
+        "family",
+        "operation",
+        "state",
+        "resource",
+        "claims",
+        "created_at",
+        "deadline",
+        "resolution_open"
       ]
     },
     "PortProtocol": {

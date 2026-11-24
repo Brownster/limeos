@@ -120,6 +120,7 @@ Rates are in `workload.rs`, with their reasons. Normal days:
 | Receipt store replaced | on six days (two in the smoke): the next container job's execute is handled, its answer lost, and the executor comes back with an empty receipt store (days 5 and 22, before the action storm refills it) or the copy of an earlier night (days 12, 33, 47, 55); none in the last third, whose flatness is asserted |
 | A resolution held open | once (90-day runs): see below |
 | Operator reviews | four a day; every `needs_intervention` job resolved on fresh evidence (10% of decisions interrupted by a core restart between the recorded request and the executor, while allowed) |
+| Administrative cancels | 3.5% of household jobs queued without a fault (a few a week): the host operator looks the job up and cancels it on its owner's behalf before core's next pass, through `rpc_list_jobs` and `rpc_cancel_job` as `limeosctl job cancel --yes` does; the job must end `canceled` with no Engine effect |
 | Containers restarted outside LimeOS | 2 a day |
 | Restarts | the executor every night at 04:00; core too while the scenario allows it |
 

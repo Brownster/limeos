@@ -1488,3 +1488,34 @@ async fn a_session_and_its_csrf_are_confirmed_on_the_reader_with_the_queue_full(
         call.await.unwrap().unwrap();
     }
 }
+
+/// Each store's open diagnostics are its own: another store's open (tests
+/// open many at once) neither replaces nor takes them, and each is reported
+/// once.
+#[test]
+fn open_diagnostics_are_kept_per_store_and_taken_once() {
+    let a = Path::new("/nonexistent/diagnostics-a/core.sqlite");
+    let b = Path::new("/nonexistent/diagnostics-b/core.sqlite");
+    let mismatch = |name: &str| SchemaMismatch {
+        kind: "table",
+        name: name.into(),
+    };
+    note_mismatch(a, mismatch("jobs"));
+    note_mismatch(b, mismatch("events"));
+    note_mismatch(a, mismatch("users"));
+    assert_eq!(schema_mismatch(b), Some(mismatch("events")));
+    assert_eq!(schema_mismatch(a), Some(mismatch("users")));
+    assert_eq!(schema_mismatch(a), None);
+    note_blocked(a);
+    note_unrecorded(b);
+    assert!(!upgrade_blocked(b));
+    assert!(upgrade_blocked(a));
+    assert!(!upgrade_blocked(a));
+    assert!(!unrecorded_snapshot(a));
+    assert!(unrecorded_snapshot(b));
+    note_upgrade(a, None);
+    note_upgrade(b, None);
+    assert_eq!(UPGRADE_NOTE.take(b), Some(None));
+    assert_eq!(UPGRADE_NOTE.take(a), Some(None));
+    assert_eq!(UPGRADE_NOTE.take(a), None);
+}

@@ -100,13 +100,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
         Route::Help => {
-            println!(
-                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll|reader-status\nbootstrap: root-only, one-use token valid for 15 minutes.\nreader-status [--read stack|storage|container-health]: root-only; core asks the storage reader now and prints whether it accepted the answer, and with --read, whether that read through the reader succeeded (exit 1 unless accepted; a read the reader's ceiling does not grant is not_granted and exits 0).\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}",
-                ceiling_check::USAGE,
-                action_log::USAGE,
-                migrate::USAGE,
-                job::USAGE
-            );
+            println!("{}", help());
             return Ok(());
         }
         Route::CheckCeiling(file, uid, role) => {
@@ -190,6 +184,17 @@ fn reader_accepted(response: &CoreResponse) -> Result<(), Box<dyn std::error::Er
         _ => Ok(()),
     }
 }
+/// The help text: the core commands, then each module's usage.
+fn help() -> String {
+    format!(
+        "Usage: limeosctl [--socket PATH] status|bootstrap|enroll|reader-status\nbootstrap: root-only, one-use token valid for 15 minutes.\nreader-status [--read stack|storage|container-health]: root-only; core asks the storage reader now and prints whether it accepted the answer, and with --read, whether that read through the reader succeeded (exit 1 unless accepted; a read the reader's ceiling does not grant is not_granted and exits 0).\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}\n{}",
+        ceiling_check::USAGE,
+        action_log::USAGE,
+        migrate::USAGE,
+        job::USAGE,
+        job::ADMIN_USAGE
+    )
+}
 const DEFAULT_SOCKET: &str = "/run/limeos-core/core.sock";
 /// The ceiling bytes parse and suit the container role and `core_uid`.
 #[cfg(test)]
@@ -203,16 +208,57 @@ fn ceiling_acceptable(bytes: &[u8], core_uid: u32) -> bool {
         .is_ok()
     })
 }
+/// Core's socket could not be connected to: core is not running, or not
+/// listening yet. Nothing was sent.
+#[derive(Debug)]
+pub struct Unreachable {
+    socket: String,
+    cause: std::io::Error,
+}
+impl std::fmt::Display for Unreachable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "cannot reach core at {} ({}); nothing was sent. Is limeos-core running? Check `systemctl status limeos-core`.",
+            self.socket, self.cause
+        )
+    }
+}
+impl std::error::Error for Unreachable {}
+
+/// Core answered with an error. Shown as core's message; `code` lets a
+/// subcommand explain it.
+#[derive(Debug)]
+pub struct Refused {
+    pub code: limeos_domain::ErrorCode,
+    message: String,
+}
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+impl std::error::Error for Refused {}
+
 async fn rpc(
     socket: &str,
     request: &CoreRequest,
 ) -> Result<CoreResponse, Box<dyn std::error::Error>> {
     tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
-        let mut stream = tokio::net::UnixStream::connect(socket).await?;
+        let mut stream = tokio::net::UnixStream::connect(socket)
+            .await
+            .map_err(|cause| Unreachable {
+                socket: socket.into(),
+                cause,
+            })?;
         limeos_contracts::write_frame(&mut stream, request).await?;
         let response: CoreResponse = limeos_contracts::read_frame(&mut stream).await?;
         if let CoreResponse::Error(error) = response {
-            return Err(error.message.into());
+            return Err(Refused {
+                code: error.code,
+                message: error.message,
+            }
+            .into());
         }
         Ok::<_, Box<dyn std::error::Error>>(response)
     })
@@ -226,6 +272,26 @@ mod tests {
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn help_lists_the_reader_status_and_the_job_administration_commands() {
+        let text = help();
+        for command in [
+            "reader-status [--read stack|storage|container-health]",
+            "job show-resolution",
+            "job resolve",
+            "job list",
+            "job cancel",
+            "check-ceiling",
+            "action-log",
+        ] {
+            assert!(text.contains(command), "{command}");
+        }
+        assert!(matches!(
+            route(&args(&["job", "list"])).unwrap(),
+            Route::Job(DEFAULT_SOCKET, _)
+        ));
     }
 
     #[test]
