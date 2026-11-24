@@ -3,12 +3,16 @@
 //! reached. Root-only like `enroll`: the core accepts these requests only from a
 //! root peer, so being root on the host is the re-authentication, and `--admin`
 //! names the administrator the decision is recorded under. Same evidence, same
-//! checks and same crash-safe order as the HTTP route.
+//! checks and same crash-safe order as the HTTP route. `job list` and
+//! `job cancel` (`admin`) follow the same rules.
 use limeos_contracts::{
     CoreRequest, CoreResponse, ResolutionView, ResolveJobResponse, ResolveStatus, VERSION,
 };
 use limeos_domain::DeclaredOutcome;
 use std::io::{BufRead, IsTerminal, Read, Write};
+
+mod admin;
+pub use admin::USAGE as ADMIN_USAGE;
 
 pub const USAGE: &str = "job show-resolution JOB_ID --admin USERNAME\n  root-only; fresh read-only evidence for a stuck container or stack job.\njob resolve JOB_ID --admin USERNAME --outcome verified-done|not-done|accepted-divergence [--reason TEXT] [--evidence-digest HEX]\n  root-only; records the decision under that administrator. The reason is read from\n  stdin when --reason is absent. Shows the evidence first; without --evidence-digest it\n  then asks you to type the outcome to confirm, so it needs a terminal. From a script,\n  run show-resolution, review it, and pass the digest it printed: resolve refuses if\n  the state has changed since. Never starts, stops or restarts anything.";
 /// Why a non-interactive resolve without a digest is refused.
@@ -19,6 +23,8 @@ const REASON_LIMIT: u64 = 2048;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
+    List(admin::List),
+    Cancel(admin::Cancel),
     Show {
         admin: String,
         job: String,
@@ -43,8 +49,13 @@ fn outcome(text: &str) -> Result<DeclaredOutcome, String> {
 
 /// `args` follow the word `job`. Flags may come in any order; each is given once.
 pub fn parse(args: &[String]) -> Result<Command, String> {
-    let usage = || format!("usage:\n{USAGE}");
+    let usage = || format!("usage:\n{USAGE}\n{ADMIN_USAGE}");
     let (sub, rest) = args.split_first().ok_or_else(usage)?;
+    match sub.as_str() {
+        "list" => return admin::parse_list(rest).map(Command::List),
+        "cancel" => return admin::parse_cancel(rest).map(Command::Cancel),
+        _ => {}
+    }
     let (job, mut flags) = match rest.split_first() {
         Some((job, flags)) if !job.starts_with('-') => (job.clone(), flags.iter()),
         _ => return Err(usage()),
@@ -227,18 +238,26 @@ async fn read(
     }
 }
 
+/// The host's clock, to mark deadlines that have passed.
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 /// One typed line from the operator's terminal.
 type Confirm<'a> = &'a mut dyn FnMut() -> std::io::Result<String>;
 
 pub async fn run(socket: &str, args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     // Help only straight after `job` or `job SUBCOMMAND`.
     if crate::args::help_requested(args) {
-        println!("usage:\n{USAGE}");
+        println!("usage:\n{USAGE}\n{ADMIN_USAGE}");
         return Ok(());
     }
     let command = parse(args).map_err(crate::args::Usage)?;
     if rustix::process::geteuid().as_raw() != 0 {
-        return Err("job resolution over the local socket is root-only".into());
+        return Err("limeosctl job uses core's root-only socket; run it as root".into());
     }
     let mut line = || {
         let mut answer = String::new();
@@ -263,6 +282,14 @@ async fn execute(
     confirm: Option<Confirm<'_>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
+        Command::List(list) => {
+            print!("{}", admin::list(socket, list, unix_now()).await?);
+            Ok(())
+        }
+        Command::Cancel(cancel) => {
+            print!("{}", admin::cancel(socket, cancel).await?);
+            Ok(())
+        }
         Command::Show { admin, job } => {
             print!("{}", render_view(&read(socket, &admin, &job).await?));
             Ok(())
