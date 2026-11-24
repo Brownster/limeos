@@ -5,6 +5,7 @@ pub mod destinations;
 pub mod effects;
 mod fstab;
 mod inventory;
+pub mod journal;
 pub mod mount_admission;
 mod mounts;
 mod path;
