@@ -129,19 +129,73 @@ class HostObservationRunsUnprivileged(unittest.TestCase):
         self.assertIn('"${account}" != limeos-containerd', script)
 
 
+class StorageReaderRunsAsItsOwnAccount(unittest.TestCase):
+    """PR-32: the live stack/storage reader is no longer root."""
+
+    def test_reader_has_a_dedicated_account_with_only_what_its_reads_need(self):
+        values = service("limeos-storage-reader.service")
+        self.assertEqual(values["User"], ["limeos-storage-reader"])
+        self.assertEqual(values["Group"], ["limeos-host-access"])
+        # The Docker socket (stack and container-health reads), nothing more.
+        self.assertEqual(values["SupplementaryGroups"], ["docker"])
+        # Block-device reads (and blkid's reopen of them): one capability,
+        # ambient so blkid inherits it, and nothing else in the bounding set.
+        self.assertEqual(values["CapabilityBoundingSet"], ["CAP_DAC_READ_SEARCH"])
+        self.assertEqual(values["AmbientCapabilities"], ["CAP_DAC_READ_SEARCH"])
+        self.assertEqual(values["NoNewPrivileges"], ["yes"])
+        self.assertEqual(values["RemoveIPC"], ["yes"])
+        # Host mount identity still rules out every mount-namespace setting.
+        for key in ("ProtectSystem", "ProtectHome", "PrivateTmp", "PrivateDevices",
+                    "ProtectKernelTunables", "ProtectControlGroups", "ProtectProc"):
+            self.assertEqual(values.get(key, ["no"]), ["no"], key)
+        self.assertEqual(values["PrivateMounts"], ["no"])
+
+    def test_package_creates_the_reader_account_and_hands_it_its_ceiling(self):
+        script = (ROOT / "packaging/debian/postinst").read_text()
+        accounts = re.search(r"for account in ([^;]+); do fct_account", script)[1]
+        self.assertIn("limeos-storage-reader", accounts.split())
+        group = service("limeos-storage-reader.service")["Group"][0]
+        call = f"fct_reader_access /etc/limeos/system-policy/storage.json {group}"
+        position = script.index(call)
+        loop_end = script.index("done", script.index("for target in host container storage"))
+        self.assertLess(loop_end, position)
+        self.assertLess(position, script.index('systemctl restart "'))
+        # Skipped for a refused ceiling, which stays as the operator wrote it.
+        guard = script.rindex("if [[", 0, position)
+        self.assertIn('" limeos-storage-reader.service "', script[guard:position])
+
+    def test_core_reaches_the_reader_through_the_service_group(self):
+        reader = service("limeos-storage-reader.service")
+        self.assertEqual(reader["RuntimeDirectory"], ["limeos-storage-reader"])
+        self.assertEqual(reader["RuntimeDirectoryMode"], ["0750"])
+        self.assertNotIn("StateDirectory", reader)
+        core = service("limeos-core.service")
+        self.assertIn(reader["Group"][0], core["SupplementaryGroups"][0].split())
+
+    def test_the_unit_says_what_the_docker_group_and_the_capability_still_allow(self):
+        text = " ".join(
+            line.removeprefix("#").strip()
+            for line in (UNITS / "limeos-storage-reader.service").read_text().splitlines()
+            if line.startswith("#")
+        )
+        self.assertIn("root-equivalent", text)
+        self.assertIn("read every file", text)
+        self.assertIn("ProtectClock is off", text)
+
+
 class RootStorageUnitsSayWhatRemains(unittest.TestCase):
     ROOT_UNITS = [
-        "limeos-storage-reader.service",
         "limeos-storage-targets.service",
         "limeos-storage-ready.service",
         "limeos-storage-mounts.service",
     ]
 
     def test_namespace_free_settings_apply_to_every_root_storage_unit(self):
-        for name in self.ROOT_UNITS:
+        for name in [*self.ROOT_UNITS, "limeos-storage-reader.service"]:
             with self.subTest(unit=name):
                 values = service(name)
-                self.assertEqual(values["User"], ["root"])
+                if name != "limeos-storage-reader.service":
+                    self.assertEqual(values["User"], ["root"])
                 self.assertEqual(values["NoNewPrivileges"], ["yes"])
                 self.assertEqual(values["RestrictNamespaces"], ["yes"])
                 self.assertEqual(values["IPAddressDeny"], ["any"])
@@ -168,7 +222,7 @@ class RootStorageUnitsSayWhatRemains(unittest.TestCase):
         )
 
     def test_root_without_capabilities_is_not_described_as_harmless(self):
-        for name in self.ROOT_UNITS[:3]:
+        for name in self.ROOT_UNITS[:2]:
             with self.subTest(unit=name):
                 text = " ".join(
                     line.removeprefix("#").strip()

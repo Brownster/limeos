@@ -11,6 +11,8 @@ mod resolution;
 pub use resolution::*;
 mod service;
 pub use service::*;
+mod executor_socket;
+pub use executor_socket::ExecutorOwner;
 
 pub const VERSION: u16 = 1;
 pub const FRAME_LIMIT: usize = 64 * 1024;

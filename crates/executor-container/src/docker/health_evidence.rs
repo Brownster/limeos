@@ -137,7 +137,7 @@ impl EngineHealthEvidence {
 /// the basic cutover leaves off. Raise it with an `EngineWideV1`-style profile
 /// before enabling that read on an Engine of more than 16 containers.
 pub async fn inspect_container_health() -> Result<EngineHealthEvidence> {
-    if !rustix::process::geteuid().is_root() {
+    if !crate::full_read_access() {
         return Err(Error(ErrorCode::Forbidden));
     }
     let inner = process_evidence::inspect_health(

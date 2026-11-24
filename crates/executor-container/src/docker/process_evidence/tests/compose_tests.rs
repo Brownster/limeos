@@ -177,7 +177,7 @@ async fn storage_evidence_over_the_bound_still_refuses_whole() {
 }
 #[tokio::test]
 async fn public_nonroot_refusal_precedes_canonical_endpoint_access() {
-    assert!(!rustix::process::geteuid().is_root());
+    assert!(!crate::full_read_access());
     assert!(matches!(
         inspect_compose_membership().await,
         Err(Error(ErrorCode::Forbidden))

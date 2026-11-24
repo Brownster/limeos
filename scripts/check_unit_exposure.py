@@ -51,7 +51,9 @@ CEILINGS = {
     "limeos-core.service": 25,
     "limeos-storaged.service": 4,
     "limeos-storage-mounts.service": 46,
-    "limeos-storage-reader.service": 35,
+    # PR-32: 3.5 as root with no capability; 3.4 as limeos-storage-reader
+    # with CAP_DAC_READ_SEARCH, the docker group and RemoveIPC (systemd 258).
+    "limeos-storage-reader.service": 34,
     "limeos-storage-ready.service": 32,
     "limeos-storage-targets.service": 36,
 }

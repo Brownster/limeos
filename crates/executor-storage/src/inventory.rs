@@ -55,7 +55,7 @@ impl StorageInventoryEvidence {
         &self.snapshot
     }
     pub async fn revalidate(&self) -> Result<()> {
-        if !rustix::process::geteuid().is_root() {
+        if !crate::full_read_access() {
             return Err(Failure::Unavailable);
         }
         self.check_context()?;
@@ -130,7 +130,7 @@ pub async fn inspect_storage_inventory() -> Result<StorageInventoryEvidence> {
 pub async fn inspect_storage_inventory_with_profile(
     profile: StorageReadProfile,
 ) -> Result<StorageInventoryEvidence> {
-    if !rustix::process::geteuid().is_root() {
+    if !crate::full_read_access() {
         return Err(Failure::Unavailable);
     }
     let expires = Instant::now() + Duration::from_secs(5);
@@ -261,8 +261,8 @@ mod tests {
         assert_eq!(same_fstab(&fd, &fd), Err(Failure::IdentityMismatch));
     }
     #[tokio::test]
-    async fn public_storage_collection_requires_root() {
-        if !rustix::process::geteuid().is_root() {
+    async fn public_storage_collection_requires_root_or_dac_read_search() {
+        if !crate::full_read_access() {
             assert!(matches!(
                 inspect_storage_inventory().await,
                 Err(Failure::Unavailable)

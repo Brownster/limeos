@@ -539,7 +539,7 @@ pub fn inspect_management_catalog(
     path: &Path,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ManagementCatalogEvidence> {
-    if !rustix::process::geteuid().is_root() {
+    if !crate::full_read_access() {
         return Err(Error(ErrorCode::Forbidden));
     }
     admit(path)?;

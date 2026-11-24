@@ -421,6 +421,35 @@ def unreachable_sources(manifest):
     return sorted(p for p in src.rglob("*.rs") if p.resolve() not in reached)
 
 
+# One rule held twice because the crate boundary keeps the two crates apart:
+# which processes may run the fixed storage, Compose and Engine readers.
+SHARED_FUNCTIONS = {
+    "full_read_access": [
+        "crates/executor-storage/src/lib.rs",
+        "crates/executor-container/src/lib.rs",
+    ],
+}
+
+
+def function_body(text, name):
+    """The text of `pub fn NAME` up to its closing brace at column 0, or None."""
+    start = text.find(f"\npub fn {name}(")
+    if start < 0:
+        return None
+    end = text.find("\n}\n", start)
+    return None if end < 0 else text[start : end + 3]
+
+
+def shared_function_drift(root=ROOT):
+    """Names of SHARED_FUNCTIONS whose copies are missing or differ."""
+    drift = []
+    for name, files in SHARED_FUNCTIONS.items():
+        bodies = {function_body((root / file).read_text(), name) for file in files}
+        if None in bodies or len(bodies) != 1:
+            drift.append(name)
+    return drift
+
+
 def workspace_manifests():
     return [
         ROOT / "Cargo.toml",
@@ -487,6 +516,8 @@ def main():
     # Raw evidence lives in release bundles (docs/rewrite-evidence/README.md).
     evidence = tracked_violations(ROOT)
     assert not evidence, "evidence policy violation: " + "; ".join(evidence[:20])
+    drift = shared_function_drift()
+    assert not drift, "copies of a shared rule differ or are missing: " + ", ".join(drift)
     assert (ROOT / "Cargo.lock").is_file(), "Cargo.lock is required"
     assert not (ROOT / "Docs").exists(), "Only one docs root is allowed"
     print("Repository dependency and hygiene checks passed.")

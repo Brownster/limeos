@@ -396,7 +396,7 @@ fn catalog_path_admission_and_maximum_retained_handles() {
 }
 #[test]
 fn public_catalog_nonroot_refusal_precedes_callback_and_target_access() {
-    assert!(!rustix::process::geteuid().is_root());
+    assert!(!crate::full_read_access());
     let called = Cell::new(false);
     refusal(
         inspect_management_catalog(

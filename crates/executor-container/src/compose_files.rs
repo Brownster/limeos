@@ -602,7 +602,7 @@ fn current_view() -> Result<View> {
     })
 }
 pub(crate) fn host_root() -> Result<Root> {
-    if !rustix::process::geteuid().is_root() {
+    if !crate::full_read_access() {
         return Err(Error(ErrorCode::Forbidden));
     }
     let original = current_view()?;

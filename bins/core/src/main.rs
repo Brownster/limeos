@@ -1303,7 +1303,10 @@ async fn run() -> Result<()> {
     let mut core = Core {
         automation_status: automation_runtime::Status::default(),
         reader_health: Default::default(),
-        stacks: limeos_observations::stacks::start_proxy(config.storage_socket.clone().into()),
+        stacks: limeos_observations::stacks::start_proxy(
+            config.storage_socket.clone().into(),
+            storage::executor_owner(),
+        ),
         db,
         password_workers: Arc::new(PasswordWorkers::new(2)),
         dummy_hash: "".into(),

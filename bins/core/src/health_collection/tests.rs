@@ -105,9 +105,7 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
         }
     });
     let mut reader = HealthReader::new(path, Arc::new(Semaphore::new(1)));
-    let uid = rustix::process::geteuid().as_raw();
-    reader.test_socket_uid = Some(uid);
-    reader.test_peer_uid = Some(uid);
+    reader.owner = super::test_owner();
     let wall = clock.clone();
     reader.clock = Arc::new(move || wall.load(Ordering::SeqCst));
     Fixture {
@@ -148,19 +146,19 @@ async fn replay_wrong_payload_clock_version_and_socket_replacement_refuse() {
     }
 }
 #[tokio::test]
-async fn production_uid_wrong_kernel_peer_and_symlink_refuse_before_request_bytes() {
+async fn a_socket_core_owns_and_a_symlink_refuse_before_request_bytes() {
     let mut f = fixture(0, 120).await;
-    f.reader.test_socket_uid = None;
-    f.reader.test_peer_uid = None;
-    assert!(f.reader.read(deadline()).await.is_err());
-    assert_eq!(f.requests.load(Ordering::SeqCst), 0);
-    f.reader.test_socket_uid = Some(rustix::process::geteuid().as_raw());
-    f.reader.test_peer_uid = Some(rustix::process::geteuid().as_raw() + 1);
+    // Under the production rule this test process is core, and the socket
+    // it serves is core's own: refused before connecting. (A peer other than
+    // the owner, and a root-owned socket, are refused by the same rule,
+    // `limeos_contracts::ExecutorOwner`, whose tests cover them.)
+    f.reader.owner = crate::storage::executor_owner();
     assert_eq!(
         f.reader.read(deadline()).await.err(),
         Some(Error(ErrorCode::Forbidden))
     );
     assert_eq!(f.requests.load(Ordering::SeqCst), 0);
+    f.reader.owner = super::test_owner();
     let linked = f.dir.path().join("linked.sock");
     std::os::unix::fs::symlink(&f.reader.socket, &linked).unwrap();
     f.reader.socket = linked;

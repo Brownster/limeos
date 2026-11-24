@@ -436,7 +436,7 @@ async fn joint_report_limit_refuses_amplification_without_clipping_the_inventory
 
 #[tokio::test]
 async fn production_nonroot_and_wrong_kernel_peer_refuse_before_any_http_request() {
-    assert!(!rustix::process::geteuid().is_root());
+    assert!(!crate::full_read_access());
     assert!(matches!(
         inspect_container_health().await,
         Err(Error(ErrorCode::Forbidden))

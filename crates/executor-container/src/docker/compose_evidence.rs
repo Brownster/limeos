@@ -110,9 +110,11 @@ impl EngineComposeEvidence {
     }
 }
 
-/// Unregistered UID-0 reader. No caller-selected endpoint/policy/profile/clock/cap.
+/// Unregistered fixed reader: root, or an account with `CAP_DAC_READ_SEARCH`
+/// (`crate::full_read_access`), and Docker socket access.
+/// No caller-selected endpoint/policy/profile/clock/cap.
 pub async fn inspect_compose_membership() -> Result<EngineComposeEvidence> {
-    if !rustix::process::geteuid().is_root() {
+    if !crate::full_read_access() {
         return Err(Error(ErrorCode::Forbidden));
     }
     let inner = process_evidence::inspect_compose(

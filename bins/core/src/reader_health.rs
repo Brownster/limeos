@@ -10,7 +10,6 @@ use std::{
     sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
-use tokio::net::UnixStream;
 
 /// How often core asks. The answer is cheap: it reads a counter.
 const INTERVAL: Duration = Duration::from_secs(10);
@@ -55,15 +54,16 @@ impl Status {
 #[derive(Clone)]
 pub(crate) struct Watcher {
     socket: PathBuf,
-    /// The reader runs as root; a socket answered by anyone else is ignored.
-    peer_uid: u32,
+    /// The reader runs as its own account; a socket that account does not
+    /// own and answer (`limeos_contracts::ExecutorOwner`) is ignored.
+    owner: limeos_contracts::ExecutorOwner,
     status: Status,
 }
 impl Watcher {
     pub(crate) fn new(socket: PathBuf, status: Status) -> Self {
         Self {
             socket,
-            peer_uid: 0,
+            owner: crate::storage::executor_owner(),
             status,
         }
     }
@@ -71,7 +71,7 @@ impl Watcher {
     pub(crate) fn for_test(socket: PathBuf, status: Status) -> Self {
         Self {
             socket,
-            peer_uid: rustix::process::geteuid().as_raw(),
+            owner: crate::health_collection::test_owner(),
             status,
         }
     }
@@ -91,17 +91,7 @@ impl Watcher {
         self.status.set(answer.ok().flatten());
     }
     async fn ask(&self) -> Result<Option<StrandedReads>> {
-        let mut stream = UnixStream::connect(&self.socket)
-            .await
-            .map_err(|_| Error(ErrorCode::Unavailable))?;
-        if stream
-            .peer_cred()
-            .map_err(|_| Error(ErrorCode::Unavailable))?
-            .uid()
-            != self.peer_uid
-        {
-            return Err(Error(ErrorCode::Forbidden));
-        }
+        let mut stream = self.owner.connect(&self.socket).await?;
         limeos_contracts::write_frame(&mut stream, &Request::Health { version: VERSION }).await?;
         let receipt: Receipt = limeos_contracts::read_frame(&mut stream).await?;
         if receipt.version != VERSION || !receipt.ready || receipt.error.is_some() {
@@ -174,8 +164,8 @@ mod tests {
         assert_eq!(status.degraded(), None);
         let answer = Arc::new(Mutex::new(Some(StrandedReads { count: 1, since: 1 })));
         reader(UnixListener::bind(&socket).unwrap(), answer);
-        // The installed reader runs as root, so a socket served by this
-        // test's user is not taken for it.
+        // Under the production rule this test's user is core, so a socket it
+        // serves is core's own and is not taken for the reader's.
         Watcher::new(socket, status.clone()).check().await;
         assert_eq!(status.degraded(), None);
     }
