@@ -159,15 +159,28 @@ paths, pool and share paths, Compose binds, Compose working directories) and
 the seven deferred ones in `deployment` (each now the shared rule plus its own
 character or length limits); every inline `container:` check; the duplicated
 device-id and UUID checks; the seven plan-lifetime checks. In core: the plan
-request bodies (`RestartInput`, `ContainerInput`, `StackInput`) hold typed
-values, so a malformed resource or project is a 400 while the body is decoded,
-before the backend, as other malformed bodies already were (before, an
-unauthenticated request with a malformed resource got 401, now 400); the logs
+request bodies (`RestartInput`, `ContainerInput`, `StackInput`) keep a plain
+string at the API boundary; core turns it into `ContainerResource` or
+`StackProject` only after authentication, CSRF and (for containers)
+authorization, so every status code is that of `9019a6ba` (a first version
+decoded the typed value in the API, which turned an unauthorized caller's 403
+into 400; `container_plan_statuses_over_http_for_each_caller_and_resource`
+and `stack_plan_statuses_over_http_for_each_caller_and_project` pin the
+codes through the real router and pass at `9019a6ba`). Unchanged and
+pre-existing: a stack plan judges the project before `authorize_stack`, so a
+caller without the stack grant gets 400 for a malformed project and 404 for
+an unknown one. The logs
 route, core's inspect and logs RPCs, resolution views and the health-poll
 silence check use the shared rule. No behaviour of a valid value changed and
-no rule was loosened or tightened, except `job_resolutions` showing a
-malformed receipt resource whole instead of stripping every `container:`
-prefix. Left, with reasons: the core configuration's socket paths and
+no rule was loosened or tightened, with two exceptions in
+`job_resolutions`: a malformed receipt resource is shown whole instead of
+with every `container:` prefix stripped, and a stored stack target that is
+not a container resource now refuses a resolution request (`9019a6ba`
+dropped one without the prefix from the expected targets, so evidence for
+the rest alone passed). `differential_tests.rs` keeps the old validator
+bodies and checks every replaced site against them over a generated corpus
+(byte ceilings with multibyte characters, every excluded character, C0, DEL
+and C1 controls, `.`, `..` and empty components, the root, trailing `/`). Left, with reasons: the core configuration's socket paths and
 `ExecutorOwner`'s path split (a `sun_path` rule of at most 107 bytes; the
 configuration accepts `//` and `/./`, which the split refuses or reads
 through `Path::components`; tightening it could refuse to start a device with
