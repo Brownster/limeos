@@ -167,17 +167,23 @@ fn reserve<T, F: Failure>(values: &mut Vec<T>, count: usize) -> Result<(), F> {
 pub(crate) fn no_attributes<F: Failure>(file: &File) -> Result<(), F> {
     attributes(file).map(|_| ())
 }
+/// What an attribute listing admits. A filesystem that keeps no extended
+/// attributes answers ENOTSUP (EOPNOTSUPP): it holds none, so none. A list
+/// longer than the buffer is refused unread; any other error is reported,
+/// never taken for an empty list.
+fn listed<F: Failure>(listing: Result<usize, Errno>) -> Result<usize, F> {
+    match listing {
+        Ok(count) => Ok(count),
+        Err(e) if e == Errno::NOTSUP || e == Errno::OPNOTSUPP => Ok(0),
+        Err(Errno::RANGE) => Err(F::unsupported_metadata()),
+        Err(e) => Err(F::io("inspect extended attributes", e.into())),
+    }
+}
 pub(crate) fn attributes<F: Failure>(file: &File) -> Result<Option<Vec<u8>>, F> {
     // Admit exactly one known attribute. Unknown/oversized lists never grow
     // memory, and ACL/capability/user attributes are not silently discarded.
     let mut names = [0u8; 256];
-    let count = rustix::fs::flistxattr(file, names.as_mut_slice()).map_err(|e| {
-        if e == Errno::RANGE {
-            F::unsupported_metadata()
-        } else {
-            F::io("inspect extended attributes", e.into())
-        }
-    })?;
+    let count = listed(rustix::fs::flistxattr(file, names.as_mut_slice()))?;
     if count == 0 {
         return Ok(None);
     }
@@ -653,3 +659,6 @@ pub(crate) fn write_all<K: Kind, I: Io<K>>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

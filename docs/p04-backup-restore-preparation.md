@@ -54,7 +54,15 @@ records remain evidence, not operation authority.
 The caller supplies an existing normalized absolute private root owned by the
 effective UID with mode exactly 0700, carrying no extended attribute but an
 optional bounded `security.selinux` label (an ACL, capability or user attribute
-refuses with `UnsupportedMetadata`). `openat2` rejects symlink/magic-link
+refuses with `UnsupportedMetadata`; a filesystem without extended attributes,
+which answers ENOTSUP, holds none and is accepted). A default ACL on the root
+is refused deliberately: every attempt directory and object created beneath
+it would inherit it, and it can grant access the 0700 and 0400/0500 modes do
+not. The operator sees `private preparation refused: UnsupportedMetadata`
+(before-image capture refuses the same root alike, `before-image capture
+refused: UnsupportedMetadata`); list the root's ACLs with `getfacl -p ROOT`
+and remove them with `setfacl -b -k ROOT` (`-k` the default ACL, `-b` any
+access ACL), or use a root without ACLs. `openat2` rejects symlink/magic-link
 components; unsupported protection refuses. Component comparisons reject root
 labels overlapping selected destination labels. This is not physical alias or
 mount-namespace proof. The caller owns protected ancestors, ACLs, mount/backing

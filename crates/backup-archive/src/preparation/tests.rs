@@ -857,3 +857,17 @@ fn an_attribute_added_to_the_attempt_fails_revalidation_and_reading() {
     owner.discard().unwrap();
     scene.empty();
 }
+
+/// Every fault test above builds its root as `Scene` does and expects its
+/// injected fault, not an earlier admission refusal. On a filesystem whose
+/// scene root the admission check refused, this test fails by name.
+#[test]
+fn the_scene_root_passes_admission_so_fault_tests_reach_their_fault() {
+    let scene = Scene::new();
+    let root = PreparationRoot::open(&scene.prep).unwrap();
+    crate::private_tree::no_attributes::<Failure>(&root.directory).unwrap();
+    let owner = scene.run(&mut RealIo, &|| false).unwrap();
+    owner.revalidate(&|| false).unwrap();
+    owner.discard().unwrap();
+    scene.empty();
+}
