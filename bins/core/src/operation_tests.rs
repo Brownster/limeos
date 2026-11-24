@@ -105,7 +105,7 @@ async fn start_and_stop_dispatch_use_the_same_approval_and_verified_job_path() {
                 token.clone(),
                 csrf.clone(),
                 limeos_contracts::ContainerInput {
-                    resource: resource.parse().unwrap(),
+                    resource,
                     operation,
                 },
             )
@@ -382,9 +382,7 @@ async fn queued_as(
         .plan_restart(
             token.into(),
             csrf.into(),
-            limeos_contracts::RestartInput {
-                resource: resource.parse().unwrap(),
-            },
+            limeos_contracts::RestartInput { resource },
         )
         .await
         .unwrap();
@@ -439,7 +437,6 @@ async fn revoking_a_session_during_inspection_prevents_plan_persistence() {
     let copy = core.clone();
     let supplied = token.clone();
     let operation = tokio::spawn(async move {
-        let resource = resource.parse().unwrap();
         copy.plan_restart(supplied, csrf, limeos_contracts::RestartInput { resource })
             .await
     });
@@ -1465,4 +1462,77 @@ async fn an_operator_cancel_after_the_claim_is_refused_and_the_job_runs_once() {
     assert_eq!(progress.job.state, JobState::Succeeded);
     assert_eq!(state.lock().unwrap().posts, 1);
     task.abort();
+}
+
+/// Through the real router: a container plan request is authenticated,
+/// CSRF-checked and authorized before its resource is judged, so none of
+/// those outcomes depends on the body, on either plan route: the codes of
+/// `9019a6ba`.
+#[tokio::test]
+async fn container_plan_statuses_over_http_for_each_caller_and_resource() {
+    use crate::http_probe::post_status;
+    let valid = format!("container:{}", "b".repeat(64));
+    let doubled = format!("container:container:{}", "b".repeat(64));
+    let upper = format!("container:{}", "B".repeat(64));
+    let resources = [
+        (valid.as_str(), true),
+        ("container:BAD", false),
+        (doubled.as_str(), false),
+        (upper.as_str(), false),
+        ("", false),
+    ];
+    for caller in ["no session", "bad csrf", "no grant", "authorised"] {
+        for (path, operation) in [
+            ("/api/v1/container/restart/plans", None),
+            ("/api/v1/container/plans", Some("stop")),
+        ] {
+            for (resource, well_formed) in resources {
+                let (_dir, core, mut token, mut csrf, _state, _entered, _release, task) =
+                    fixture().await;
+                match caller {
+                    "no session" => token = "f".repeat(64),
+                    "bad csrf" => csrf = "0".repeat(64),
+                    "no grant" => {
+                        token = "d".repeat(64);
+                        csrf = limeos_identity::digest(&format!("csrf:{token}"));
+                        let (digest, csrf_digest) = (
+                            limeos_identity::digest(&token),
+                            limeos_identity::digest(&csrf),
+                        );
+                        core.db
+                            .call(move |s| {
+                                let record = s.login_record("admin")?.unwrap();
+                                s.revise_grants(
+                                    &record.principal.id,
+                                    limeos_domain::Role::Viewer,
+                                    &[],
+                                    now(),
+                                )?;
+                                let record = s.login_record("admin")?.unwrap();
+                                s.create_session(&record, None, &digest, &csrf_digest, now())
+                            })
+                            .await
+                            .unwrap();
+                    }
+                    _ => {}
+                }
+                let mut body = serde_json::json!({ "resource": resource });
+                if let Some(operation) = operation {
+                    body["operation"] = serde_json::json!(operation);
+                }
+                let expected = match (caller, well_formed) {
+                    ("no session", _) => 401,
+                    ("bad csrf" | "no grant", _) => 403,
+                    (_, true) => 201,
+                    (_, false) => 400,
+                };
+                assert_eq!(
+                    post_status(&core, path, &token, &csrf, &body.to_string()).await,
+                    expected,
+                    "{caller} {path} {resource:?}"
+                );
+                task.abort();
+            }
+        }
+    }
 }

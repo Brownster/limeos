@@ -360,6 +360,10 @@ impl Core {
             .principal;
         self.authorize_resource(principal.clone(), resource.clone())
             .await?;
+        // Validated only now, after authentication, CSRF and authorization,
+        // so those outcomes never depend on the body (the API passes the
+        // string through unjudged).
+        let resource = limeos_domain::ContainerResource::parse(resource)?;
         let snapshot = self.inspect(&resource).await?;
         let digest = limeos_identity::digest(&token);
         let csrf = limeos_identity::digest(&csrf);

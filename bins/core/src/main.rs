@@ -808,8 +808,7 @@ impl Backend for Core {
         csrf: String,
         input: limeos_contracts::RestartInput,
     ) -> Result<limeos_domain::PlannedRestart> {
-        self.propose(token, csrf, input.resource.into_string())
-            .await
+        self.propose(token, csrf, input.resource).await
     }
     async fn plan_container(
         &self,
@@ -817,7 +816,7 @@ impl Backend for Core {
         csrf: String,
         input: limeos_contracts::ContainerInput,
     ) -> Result<limeos_domain::PlannedContainerAction> {
-        self.propose_action(token, csrf, input.operation, input.resource.into_string())
+        self.propose_action(token, csrf, input.operation, input.resource)
             .await
     }
     async fn container_logs(
@@ -898,7 +897,7 @@ impl Backend for Core {
         csrf: String,
         input: limeos_contracts::StackInput,
     ) -> Result<limeos_domain::PlannedStackAction> {
-        self.propose_stack(token, csrf, input.project.into_string(), input.operation)
+        self.propose_stack(token, csrf, input.project, input.operation)
             .await
     }
     async fn approve_stack(
@@ -1430,6 +1429,8 @@ async fn services(
 
 #[cfg(test)]
 mod compose_tests;
+#[cfg(test)]
+mod http_probe;
 #[cfg(test)]
 mod operation_tests;
 #[cfg(test)]

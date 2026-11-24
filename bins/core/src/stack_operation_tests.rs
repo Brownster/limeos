@@ -179,7 +179,7 @@ impl Fixture {
                 self.token.clone(),
                 self.csrf.clone(),
                 limeos_contracts::StackInput {
-                    project: "media".parse().unwrap(),
+                    project: "media".into(),
                     operation,
                 },
             )
@@ -854,7 +854,7 @@ async fn revoked_grants_and_ineligible_stacks_stop_work_before_the_executor() {
                 f.token.clone(),
                 f.csrf.clone(),
                 limeos_contracts::StackInput {
-                    project: "other".parse().unwrap(),
+                    project: "other".into(),
                     operation: ContainerAction::Stop,
                 },
             )
@@ -2242,4 +2242,44 @@ async fn a_stack_claim_that_commits_after_core_gave_up_is_executed_once_on_the_n
     assert_eq!((engine.executes, engine.receipts), (1, 0));
     drop(engine);
     f.task.abort();
+}
+
+/// Through the real router: authentication and CSRF outcomes never depend on
+/// whether the project is well formed. The project rule runs after them and
+/// before the cohort lookup and `authorize_stack`, as it always has, so a
+/// caller without the stack grant learns a malformed project is malformed
+/// (as it learns an unknown project is not found): the codes of `9019a6ba`.
+#[tokio::test]
+async fn stack_plan_statuses_over_http_for_each_caller_and_project() {
+    use crate::http_probe::post_status;
+    // (caller, project, status)
+    let cases = [
+        ("no session", "media", 401),
+        ("no session", "Media", 401),
+        ("bad csrf", "media", 403),
+        ("bad csrf", "Media", 403),
+        ("no grant", "media", 403),
+        ("no grant", "Media", 400),
+        ("authorised", "media", 201),
+        ("authorised", "Media", 400),
+    ];
+    for (caller, project, expected) in cases {
+        let f = if caller == "no grant" {
+            fixture(limeos_domain::Role::Viewer, Some(vec![])).await
+        } else {
+            admin().await
+        };
+        let (token, csrf) = match caller {
+            "no session" => ("f".repeat(64), f.csrf.clone()),
+            "bad csrf" => (f.token.clone(), "0".repeat(64)),
+            _ => (f.token.clone(), f.csrf.clone()),
+        };
+        let body = serde_json::json!({"project": project, "operation": "restart"}).to_string();
+        assert_eq!(
+            post_status(&f.core, "/api/v1/stack/plans", &token, &csrf, &body).await,
+            expected,
+            "{caller} {project}"
+        );
+        f.task.abort();
+    }
 }

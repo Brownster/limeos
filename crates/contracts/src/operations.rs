@@ -5,14 +5,12 @@ use ts_rs::TS;
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct RestartInput {
-    // Validated on decode: `container:<64 lowercase hex>`.
-    pub resource: limeos_domain::ContainerResource,
+    pub resource: String,
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerInput {
-    // Validated on decode: `container:<64 lowercase hex>`.
-    pub resource: limeos_domain::ContainerResource,
+    pub resource: String,
     pub operation: limeos_domain::ContainerAction,
 }
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
@@ -52,8 +50,7 @@ pub struct JobProgress {
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct StackInput {
-    // Validated on decode: a Compose project name (`limeos_domain::stack_project`).
-    pub project: limeos_domain::StackProject,
+    pub project: String,
     pub operation: limeos_domain::ContainerAction,
 }
 #[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]

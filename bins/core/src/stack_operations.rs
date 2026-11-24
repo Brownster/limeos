@@ -88,6 +88,9 @@ impl Core {
             .session(token.clone(), Some(csrf.clone()))
             .await?
             .principal;
+        // Validated after authentication and CSRF, where the project rule
+        // always ran (before the cohort lookup and `authorize_stack`).
+        let project = limeos_domain::StackProject::parse(project)?;
         let (catalog_stack, planned) = self.cohort_stack(&project)?;
         planned.validate_for(operation)?;
         // Refuse before any executor contact if the grants do not reach the
