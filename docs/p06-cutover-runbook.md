@@ -112,8 +112,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    (`limeos-storage-reader`, started but never enabled); installs the Caddy site; then checks
    core health and the login page through the proxy, `limeosctl status`, `docker
    ps` IDs and StartedAt of the managed containers against the snapshot (naming
-   any that changed; other containers that changed are warned about by name), that the reader is active, listening and not
-   restarting (twice, three seconds apart), and that `limeops-*`,
+   any that changed; other containers that changed are warned about by name), that the reader is active, listening, its socket
+   owned by `limeos-storage-reader` (a drop-in running it as root fails here), not restarting,
+   and that core accepts an answer from it (`limeosctl reader-status`) (twice, three seconds apart), and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
    `return.sh` and exits non-zero; so do SIGINT, SIGTERM, SIGHUP and any
    unexpected exit after the first change. Each step runs in its own session, so
