@@ -27,9 +27,26 @@ const CHECKED_OPERATIONS: [&str; 4] = [
 /// of [`CHECKED_OPERATIONS`], so that the owners' checks read only those
 /// jobs, each through its primary key, instead of each walking `jobs` again
 /// to find them: eight walks of every job, settled or not, until 24
-/// November. The rows it returns are those jobs and any job breaking the
-/// invariant.
-const JOB_WALK: &str = "SELECT j.id,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128 FROM jobs j WHERE json_extract(j.intent,'$.operation') IN ('storage_prepare_targets','storage_mount','backup_prepare_private','automation_observe_health') OR NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128";
+/// November. The rows it returns are those jobs, with the rowid each was
+/// read at, and any job breaking the invariant.
+const JOB_WALK: &str = "SELECT j.id,j.rowid,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128 FROM jobs j WHERE json_extract(j.intent,'$.operation') IN ('storage_prepare_targets','storage_mount','backup_prepare_private','automation_observe_health') OR NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128";
+
+/// The listed jobs (`?1`, a JSON array of `[id, rowid, operation]`) that
+/// the owners' access path finds: through the primary key's index, as every
+/// owner's statement reads them, at the rowid the walk read each at, with
+/// the operation it read. [`Walked::read`] refuses the store unless this
+/// counts every listed job.
+///
+/// The walk reads the table; the owners read through the index
+/// (`sqlite_autoindex_jobs_1`), and `quick_check` does not compare the two.
+/// A job row the index lacks (or that it files under another id) would
+/// otherwise be listed by the walk and then read by no owner, so checked by
+/// none: the eight walks this replaced read the table and refused it. An
+/// index entry pointing at another row is refused the same way (its rowid
+/// differs from the walk's), and one pointing at no row fails the statement
+/// (SQLite reports the store corrupt). The `+` keeps the rowid out of the
+/// lookup, so it is the index entry's rowid that is compared, not used.
+const LISTED_BY_KEY: &str = "SELECT count(*) FROM json_each(?1) w CROSS JOIN jobs j ON j.id=json_extract(w.value,'$[0]') WHERE +j.rowid=json_extract(w.value,'$[1]') AND json_extract(j.intent,'$.operation')=json_extract(w.value,'$[2]')";
 
 /// The lock invariants: every resource of a job that holds locks
 /// (`running`, `verifying`, `outcome_unknown`, `needs_intervention`) is
@@ -56,26 +73,39 @@ const LOCK_INVARIANTS: &str = "SELECT EXISTS(
 
 /// What [`JOB_WALK`] listed: the ids of each checked operation's jobs, in
 /// the order of [`CHECKED_OPERATIONS`]. Read in the startup transaction, so
-/// they are every job of those operations the checks after it can see.
+/// they are every job of those operations the checks after it can see, and
+/// each found by key at the row the walk read ([`LISTED_BY_KEY`]), so every
+/// owner's statement, reading by key, reads every one of those rows.
 pub(super) struct Walked {
     jobs: [Vec<String>; CHECKED_OPERATIONS.len()],
 }
 impl Walked {
     pub(super) fn read(conn: &Connection) -> Result<Self> {
         let mut jobs: [Vec<String>; CHECKED_OPERATIONS.len()] = Default::default();
+        let mut keyed = Vec::new();
         let mut statement = conn.prepare(JOB_WALK).map_err(durable)?;
         let mut rows = statement.query([]).map_err(durable)?;
         while let Some(row) = rows.next().map_err(durable)? {
-            let broken: bool = row.get(2).map_err(durable)?;
+            let broken: bool = row.get(3).map_err(durable)?;
             if broken {
                 return Err(Error(ErrorCode::StateNotDurable));
             }
-            let operation: Option<String> = row.get(1).map_err(durable)?;
+            let operation: Option<String> = row.get(2).map_err(durable)?;
             let listed = CHECKED_OPERATIONS
                 .iter()
                 .position(|o| Some(*o) == operation.as_deref())
                 .ok_or(Error(ErrorCode::StateNotDurable))?;
-            jobs[listed].push(row.get(0).map_err(durable)?);
+            let id: String = row.get(0).map_err(durable)?;
+            let rowid: i64 = row.get(1).map_err(durable)?;
+            keyed.push(serde_json::json!([id, rowid, CHECKED_OPERATIONS[listed]]));
+            jobs[listed].push(id);
+        }
+        drop(rows);
+        let found: i64 = conn
+            .query_row(LISTED_BY_KEY, [json(&keyed)?], |r| r.get(0))
+            .map_err(durable)?;
+        if usize::try_from(found).ok() != Some(keyed.len()) {
+            return Err(Error(ErrorCode::StateNotDurable));
         }
         Ok(Self { jobs })
     }

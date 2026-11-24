@@ -2471,7 +2471,7 @@ pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
               (`Count`, no full-scan steps); the events table is bounded by retention",
     },
     ScanAllowance {
-        marker: "SELECT j.id,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r",
+        marker: "SELECT j.id,j.rowid,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r",
         tables: &["jobs"],
         events_table: false,
         steps_per_row: 1,

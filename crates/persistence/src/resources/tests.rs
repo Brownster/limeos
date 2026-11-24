@@ -1003,6 +1003,48 @@ fn settled_jobs_keep_their_resource_sets_and_hold_no_lock_at_startup() {
     }
 }
 
+/// A store with 300 settled copies of a container job and, between them, a
+/// settled job of `operation` with id `FORGED` that no queue path writes
+/// (an intent with no plan), with resource `system`, or with the copies'
+/// resource when `shared`. Returns the store's directory, its generation
+/// and the copies' resource.
+fn forged_among_settled(operation: &str, shared: Option<()>) -> (tempfile::TempDir, i64, String) {
+    let (dir, mut s, p) = setup();
+    let template = queue(&mut s, &p, "template", "a");
+    s.conn
+        .execute(
+            "UPDATE jobs SET state='canceled' WHERE id=?",
+            [&template.id],
+        )
+        .unwrap();
+    settled_copies(&s.conn, &template.id, 1, 150);
+    let resource = template.plan.expected.resource.clone();
+    s.conn
+        .execute(
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+             VALUES(?1,?2,'forged',?3,?4,?5,'queued',1,1,1000)",
+            params![
+                FORGED,
+                p.id,
+                serde_json::json!({ "operation": operation }).to_string(),
+                "0".repeat(64),
+                if shared.is_some() { resource.as_str() } else { "system" }
+            ],
+        )
+        .unwrap();
+    s.conn
+        .execute(
+            "UPDATE jobs SET state='canceled' WHERE idempotency='forged'",
+            [],
+        )
+        .unwrap();
+    settled_copies(&s.conn, &template.id, 151, 150);
+    let generation = s.generation;
+    drop(s);
+    (dir, generation, resource)
+}
+const FORGED: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
 /// Startup's walk lists every job of an operation an owner checks, wherever
 /// it is among many settled jobs of other operations, and that owner's check
 /// then refuses one it cannot validate (here an intent with no plan, which
@@ -1017,36 +1059,7 @@ fn startup_checks_every_job_of_a_checked_operation_among_settled_jobs() {
         .copied()
         .chain(["no_such_operation"])
     {
-        let (dir, mut s, p) = setup();
-        let template = queue(&mut s, &p, "template", "a");
-        s.conn
-            .execute(
-                "UPDATE jobs SET state='canceled' WHERE id=?",
-                [&template.id],
-            )
-            .unwrap();
-        settled_copies(&s.conn, &template.id, 1, 150);
-        s.conn
-            .execute(
-                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
-                 VALUES(?1,?2,'forged',?3,?4,'system','queued',1,1,1000)",
-                params![
-                    "f".repeat(64),
-                    p.id,
-                    serde_json::json!({ "operation": operation }).to_string(),
-                    "0".repeat(64)
-                ],
-            )
-            .unwrap();
-        s.conn
-            .execute(
-                "UPDATE jobs SET state='canceled' WHERE idempotency='forged'",
-                [],
-            )
-            .unwrap();
-        settled_copies(&s.conn, &template.id, 151, 150);
-        let generation = s.generation;
-        drop(s);
+        let (dir, generation, _) = forged_among_settled(operation, None);
         if operation == "no_such_operation" {
             Store::open(&dir.path().join("core.sqlite")).unwrap();
         } else {
@@ -1095,6 +1108,16 @@ fn only_the_walk_reads_every_job_at_startup() {
             "{steps:?}: {sql}"
         );
     }
+    // The accounting reads by key exactly as the owners do, so a job it
+    // finds at the walk's row is one every owner reads there.
+    let steps = plan(LISTED_BY_KEY);
+    assert!(!walks_jobs(&steps), "{steps:?}");
+    assert!(
+        steps
+            .iter()
+            .any(|step| step == "SEARCH j USING INDEX sqlite_autoindex_jobs_1 (id=?)"),
+        "{steps:?}"
+    );
     let steps = s
         .conn
         .prepare(&format!("EXPLAIN QUERY PLAN {LOCK_INVARIANTS}"))
@@ -1126,4 +1149,173 @@ fn only_the_walk_reads_every_job_at_startup() {
         .collect::<Vec<_>>()
         .join(",");
     assert!(JOB_WALK.contains(&format!("IN ({operations})")));
+}
+
+/// Rewrites every occurrence of `from` with `to` (as long) on the pages of
+/// the b-tree `btree` in the closed store at `path`, after folding its WAL
+/// in, as a lost or misdirected page write can leave a b-tree: structurally
+/// sound, so `quick_check` passes, but no longer agreeing with the others
+/// (`quick_check` does not compare an index with its table). Returns how
+/// many it rewrote.
+fn rewrite_in(path: &std::path::Path, btree: &str, from: &str, to: &str) -> usize {
+    assert_eq!(from.len(), to.len());
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    let size = conn
+        .query_row("PRAGMA page_size", [], |r| r.get::<_, i64>(0))
+        .unwrap() as usize;
+    let pages: Vec<usize> = conn
+        .prepare("SELECT pageno FROM dbstat WHERE name=?")
+        .unwrap()
+        .query_map([btree], |r| Ok(r.get::<_, i64>(0)? as usize))
+        .unwrap()
+        .collect::<std::result::Result<_, _>>()
+        .unwrap();
+    drop(conn);
+    assert!(!std::fs::metadata(path.with_extension("sqlite-wal")).is_ok_and(|m| m.len() > 0));
+    let mut bytes = std::fs::read(path).unwrap();
+    let mut rewritten = 0;
+    for page in pages {
+        let page = &mut bytes[(page - 1) * size..page * size];
+        let mut at = 0;
+        while let Some(found) = page[at..]
+            .windows(from.len())
+            .position(|w| w == from.as_bytes())
+        {
+            let start = at + found;
+            page[start..start + to.len()].copy_from_slice(to.as_bytes());
+            rewritten += 1;
+            at = start + to.len();
+        }
+    }
+    std::fs::write(path, bytes).unwrap();
+    rewritten
+}
+
+/// What `quick_check` and the foreign-key check make of a store: both pass
+/// on the stores the next tests build.
+fn whole_file_checks_pass(path: &std::path::Path) {
+    let conn = Connection::open(path).unwrap();
+    assert_eq!(
+        conn.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0))
+            .unwrap(),
+        "ok"
+    );
+    let violations: Vec<(String, i64, String)> = conn
+        .prepare("SELECT \"table\",rowid,parent FROM pragma_foreign_key_check")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .collect::<std::result::Result<_, _>>()
+        .unwrap();
+    assert!(violations.is_empty(), "{violations:?}");
+}
+
+/// A job row the primary key's index does not find, as a partial write can
+/// leave `jobs` (here the row's id rewritten on its table page, and its
+/// resource's index entry with it, so the resource-set and foreign-key
+/// checks still pass): `quick_check` passes, the walk lists the row from
+/// the table, and the owners, reading by key, would find nothing to check.
+/// The open refuses because the listed job is not found by key
+/// (`LISTED_BY_KEY`), as the eight walks this replaced refused it for its
+/// missing plan. The same rewrite on a job no owner checks opens: the store
+/// is otherwise one every check accepts.
+#[test]
+fn a_listed_job_the_key_does_not_find_refuses_startup() {
+    let moved = format!("{}e", &FORGED[..63]);
+    for operation in CHECKED_OPERATIONS
+        .iter()
+        .copied()
+        .chain(["no_such_operation"])
+    {
+        let (dir, generation, _) = forged_among_settled(operation, None);
+        let path = dir.path().join("core.sqlite");
+        // A page may also hold stale copies of a cell in its free space.
+        assert!(
+            rewrite_in(&path, "jobs", FORGED, &moved) >= 1,
+            "{operation}"
+        );
+        assert!(
+            rewrite_in(&path, "sqlite_autoindex_job_resources_1", FORGED, &moved) >= 1,
+            "{operation}"
+        );
+        whole_file_checks_pass(&path);
+        // The disagreement built: the table holds the row, the key finds none.
+        let conn = Connection::open(&path).unwrap();
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [&moved], |r| r.get(0)).unwrap() };
+        assert_eq!(count("SELECT count(*) FROM jobs NOT INDEXED WHERE id=?"), 1);
+        assert_eq!(
+            count("SELECT count(*) FROM jobs INDEXED BY sqlite_autoindex_jobs_1 WHERE id=?"),
+            0
+        );
+        drop(conn);
+        if operation == "no_such_operation" {
+            Store::open(&path).unwrap();
+        } else {
+            refused_unchanged(&dir, generation, operation);
+        }
+    }
+}
+
+/// An index entry that leads to another job's row: the forged job's id and
+/// a settled container job's id swapped on their table pages (both with
+/// the same resource, so the resource sets still agree), so the key finds
+/// each job at the other's row. `quick_check` and the foreign-key check
+/// pass; the walk lists the forged row under the container job's id, and by
+/// key that id reads the container row, which no owner checks as one of
+/// theirs. The open refuses: the key does not lead to the row the walk
+/// read. A job no owner checks, swapped the same way, opens.
+#[test]
+fn a_listed_job_the_key_finds_at_another_row_refuses_startup() {
+    // Ids no other bytes can run into: a zero-padded copy id can also match
+    // where a shorter one is followed by a principal id starting with zeros.
+    let copy = "c".repeat(64);
+    let swap = "g".repeat(64);
+    for operation in CHECKED_OPERATIONS
+        .iter()
+        .copied()
+        .chain(["no_such_operation"])
+    {
+        let (dir, generation, _) = forged_among_settled(operation, Some(()));
+        let path = dir.path().join("core.sqlite");
+        // One more settled copy of the container job, under `copy`.
+        let conn = Connection::open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+             SELECT ?1,principal,'copy-c',intent,digest,resource,'queued',generation,revision,deadline FROM jobs WHERE idempotency='copy-1'",
+            [&copy],
+        )
+        .unwrap();
+        conn.execute("UPDATE jobs SET state='canceled' WHERE id=?", [&copy])
+            .unwrap();
+        drop(conn);
+        assert!(rewrite_in(&path, "jobs", FORGED, &swap) >= 1, "{operation}");
+        assert!(rewrite_in(&path, "jobs", &copy, FORGED) >= 1, "{operation}");
+        assert!(rewrite_in(&path, "jobs", &swap, &copy) >= 1, "{operation}");
+        whole_file_checks_pass(&path);
+        // The disagreement built: the table files the forged intent under the
+        // copy's id, and the key leads from that id to a container job.
+        let conn = Connection::open(&path).unwrap();
+        let operation_of =
+            |sql: &str| -> String { conn.query_row(sql, [&copy], |r| r.get(0)).unwrap() };
+        assert_eq!(
+            operation_of(
+                "SELECT json_extract(intent,'$.operation') FROM jobs NOT INDEXED WHERE id=?"
+            ),
+            operation
+        );
+        assert_eq!(
+            operation_of(
+                "SELECT json_extract(intent,'$.operation') FROM jobs INDEXED BY sqlite_autoindex_jobs_1 WHERE id=?"
+            ),
+            "container_restart"
+        );
+        drop(conn);
+        if operation == "no_such_operation" {
+            Store::open(&path).unwrap();
+        } else {
+            refused_unchanged(&dir, generation, operation);
+        }
+    }
 }
