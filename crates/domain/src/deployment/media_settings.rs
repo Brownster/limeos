@@ -27,7 +27,7 @@ fn check(ok: bool) -> Result<()> {
 fn text(s: &str, max: usize) -> bool {
     s.len() <= max && !s.chars().any(char::is_control)
 }
-fn path(s: &str) -> bool {
+pub(crate) fn path(s: &str) -> bool {
     crate::storage_path(s, false)
         && !s.contains(['$', '{', '}', '\\'])
         && s[1..].split('/').all(|p| p.len() <= 255)

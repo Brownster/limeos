@@ -37,7 +37,7 @@ fn name(s: &str) -> bool {
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b))
 }
-fn path(s: &str) -> bool {
+pub(crate) fn path(s: &str) -> bool {
     crate::storage_path(s, false)
         && !s.contains(['$', '{', '}', '\\'])
         && s[1..].split('/').all(|p| p.len() <= 255)

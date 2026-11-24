@@ -98,7 +98,7 @@ impl ConfigDraft {
         }
     }
 }
-fn path(value: &str) -> bool {
+pub(crate) fn path(value: &str) -> bool {
     crate::storage_path(value, false)
         && value.len() <= MAX_PATH_BYTES
         && !value.contains(['$', '{', '}', '\\', '"'])

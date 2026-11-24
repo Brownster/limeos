@@ -25,7 +25,7 @@ pub fn compose_name(value: &str) -> bool {
 }
 /// A storage path (`crate::storage_path`) of at most 256 bytes in the
 /// portable file-name alphabet.
-fn literal_path(value: &str) -> bool {
+pub(crate) fn literal_path(value: &str) -> bool {
     crate::storage_path(value, false)
         && value.len() <= 256
         && value

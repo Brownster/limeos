@@ -48,7 +48,7 @@ fn share_name(name: &str) -> bool {
 /// A storage path (`crate::storage_path`) Samba configuration can carry
 /// literally: spaces only inside components, none of its quoting, comment,
 /// substitution or separator characters.
-fn literal_path(path: &str) -> bool {
+pub(crate) fn literal_path(path: &str) -> bool {
     crate::storage_path(path, false)
         && !path.contains(['\\', '%', '[', ']', '#', ';', '=', '"', '\''])
         && !path.chars().any(|c| c.is_whitespace() && c != ' ')

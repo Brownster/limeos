@@ -241,6 +241,11 @@ impl UpdatePlan {
         }
     }
 }
+/// A Compose working directory or config file as an update plan may name
+/// it: `compose_path` without interpolation or escape characters.
+pub(crate) fn config_path(path: &str) -> bool {
+    super::discovery::compose_path(path) && !path.contains(['$', '{', '}', '\\'])
+}
 fn invalid() -> Error {
     Error(ErrorCode::InvalidInput)
 }
@@ -306,11 +311,7 @@ fn identity(project: &ProjectIdentity, text: &mut usize) -> Result<()> {
         return Err(limit());
     }
     for path in std::iter::once(&project.working_directory).chain(&project.config_files) {
-        checked(
-            text,
-            path,
-            super::discovery::compose_path(path) && !path.contains(['$', '{', '}', '\\']),
-        )?;
+        checked(text, path, config_path(path))?;
     }
     let unique: BTreeSet<_> = project.config_files.iter().collect();
     if unique.len() != project.config_files.len() {

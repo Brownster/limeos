@@ -195,7 +195,7 @@ fn name(s: &str, project: bool) -> bool {
                 || (!project && b == b'.')
         })
 }
-fn path(s: &str) -> bool {
+pub(crate) fn path(s: &str) -> bool {
     crate::storage_path(s, false)
         && !["{{", "}}", "${", "$("].iter().any(|p| s.contains(p))
         && s[1..].split('/').all(|p| p.len() <= 255)

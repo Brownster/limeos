@@ -455,10 +455,10 @@ fn validate_mounted(plan: &StorageMountEffectPlan, current: &StorageMountedSnaps
             && current.target.inode < (1u64 << 53),
     )
 }
-fn target_id(id: &str) -> bool {
+pub(crate) fn target_id(id: &str) -> bool {
     crate::storage_device_id(id)
 }
-fn canonical(path: &str, root: bool) -> bool {
+pub(crate) fn canonical(path: &str, root: bool) -> bool {
     if root {
         crate::absolute_path(path)
     } else {

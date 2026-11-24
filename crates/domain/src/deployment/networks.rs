@@ -163,7 +163,7 @@ fn name(value: &str, max: usize, project: bool) -> bool {
                 || (!project && b == b'.')
         })
 }
-fn path(value: &str) -> bool {
+pub(crate) fn path(value: &str) -> bool {
     super::discovery::compose_path(value)
 }
 fn reference(mode: &str) -> Option<(ReferenceKind, &str)> {

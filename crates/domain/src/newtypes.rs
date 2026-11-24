@@ -168,3 +168,5 @@ pub use lifetime::*;
 pub use path::*;
 pub use resource::*;
 pub use storage_identity::*;
+#[cfg(test)]
+mod differential_tests;

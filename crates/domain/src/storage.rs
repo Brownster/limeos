@@ -124,7 +124,7 @@ fn valid(condition: bool) -> Result<()> {
         .ok_or(Error(ErrorCode::InvalidInput))
 }
 
-fn canonical_path(path: &str, under_mnt: bool) -> bool {
+pub(crate) fn canonical_path(path: &str, under_mnt: bool) -> bool {
     crate::storage_path(path, under_mnt)
 }
 
