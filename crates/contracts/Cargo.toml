@@ -15,6 +15,7 @@ serde_json.workspace = true
 schemars.workspace = true
 ts-rs.workspace = true
 tokio.workspace = true
+rustix.workspace = true
 limeos-domain = { path = "../domain", version = "=0.2.0" }
 
 [dev-dependencies]

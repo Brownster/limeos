@@ -96,6 +96,27 @@
       ]
     },
     {
+      "description": "Root-peer only. Asks the storage reader for its health now, under the\nrule core trusts its socket by, and says whether core accepted the\nanswer. For deployment checks (`scripts/cutover/activate.sh`).",
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "const": "reader_status"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version"
+      ]
+    },
+    {
       "description": "Root-peer only. Read-only evidence for a stuck job, as the named\nadministrator would see it over HTTP. `admin` is a username; core\nrefuses anyone who is not currently an administrator.",
       "type": "object",
       "properties": {

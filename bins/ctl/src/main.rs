@@ -61,7 +61,12 @@ fn route(args: &[String]) -> Result<Route<'_>, Usage> {
         [first, ..] if is_help(first) => Ok(Route::Help),
         [cmd, rest @ ..] if cmd == "migrate" => Ok(Route::Migrate(socket, rest)),
         [cmd, rest @ ..] if cmd == "job" => Ok(Route::Job(socket, rest)),
-        [cmd] if matches!(cmd.as_str(), "status" | "bootstrap" | "enroll") => {
+        [cmd]
+            if matches!(
+                cmd.as_str(),
+                "status" | "bootstrap" | "enroll" | "reader-status"
+            ) =>
+        {
             Ok(Route::Core(socket, cmd))
         }
         [cmd] if cmd.starts_with('-') => Err(invalid()),
@@ -79,7 +84,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Route::Help => {
             println!(
-                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}",
+                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll|reader-status\nbootstrap: root-only, one-use token valid for 15 minutes.\nreader-status: root-only; core asks the storage reader now and prints whether it accepted the answer (exit 1 unless accepted).\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}",
                 ceiling_check::USAGE,
                 action_log::USAGE,
                 migrate::USAGE,
@@ -104,6 +109,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let request = match command {
         "status" => CoreRequest::Health { version: VERSION },
         "bootstrap" => CoreRequest::IssueBootstrap { version: VERSION },
+        "reader-status" => CoreRequest::ReaderStatus { version: VERSION },
         _ => {
             let mut input = String::new();
             std::io::stdin().take(16385).read_to_string(&mut input)?;
@@ -120,6 +126,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let response = rpc(socket, &request).await?;
     println!("{}", serde_json::to_string(&response)?);
+    if let CoreResponse::ReaderStatus(status) = &response
+        && status.state != limeos_contracts::ReaderState::Accepted
+    {
+        return Err(format!(
+            "core did not accept an answer from the storage reader ({:?}{})",
+            status.state,
+            status
+                .reason
+                .as_deref()
+                .map(|r| format!(": {r}"))
+                .unwrap_or_default()
+        )
+        .into());
+    }
     Ok(())
 }
 const DEFAULT_SOCKET: &str = "/run/limeos-core/core.sock";
@@ -187,6 +207,11 @@ mod tests {
 
     #[test]
     fn the_socket_needs_a_real_value_and_commands_take_no_extra_words() {
+        assert_eq!(
+            route(&args(&["reader-status"])).unwrap(),
+            Route::Core(DEFAULT_SOCKET, "reader-status")
+        );
+        assert!(route(&args(&["reader-status", "extra"])).is_err());
         let ok = args(&["--socket", "/run/x.sock", "status"]);
         assert_eq!(route(&ok).unwrap(), Route::Core("/run/x.sock", "status"));
         assert_eq!(

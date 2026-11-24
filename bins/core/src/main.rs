@@ -999,6 +999,16 @@ async fn handle_rpc(core: Core, mut stream: UnixStream) -> Result<()> {
                     skipped_existing,
                 }
             }
+            CoreRequest::ReaderStatus { version } if version == VERSION && peer.uid() == 0 => {
+                CoreResponse::ReaderStatus(
+                    reader_health::Watcher::new(
+                        (*core.storage_socket).clone(),
+                        core.reader_health.clone(),
+                    )
+                    .check()
+                    .await,
+                )
+            }
             CoreRequest::ReadResolution {
                 version,
                 admin,

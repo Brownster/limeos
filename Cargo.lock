@@ -770,6 +770,7 @@ name = "limeos-contracts"
 version = "0.2.0"
 dependencies = [
  "limeos-domain",
+ "rustix",
  "schemars",
  "serde",
  "serde_json",

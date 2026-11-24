@@ -2,8 +2,15 @@
 //! storage read it abandoned at its deadline is still stuck (on a failing
 //! disk, in the kernel). The reader keeps serving and refuses further
 //! inventories; core lists it as degraded until the read returns.
-use limeos_contracts::{DegradedDetail, DegradedSubsystem, Subsystem, VERSION};
-use limeos_domain::{Error, ErrorCode, Result};
+//!
+//! Also whether core trusts the reader's socket at all: a reader whose
+//! socket core refuses (`limeos_contracts::ExecutorOwner`: run as root by a
+//! drop-in, say, or bound somewhere else) is listed as degraded with code
+//! `forbidden` and logged once, so it is not mistaken for a dormant reader.
+use limeos_contracts::{
+    DegradedDetail, DegradedSubsystem, ReaderState, ReaderStatus, SocketRefusal, Subsystem, VERSION,
+};
+use limeos_domain::ErrorCode;
 use limeos_executor_protocol::{Receipt, Request, StrandedReads};
 use std::{
     path::PathBuf,
@@ -16,35 +23,72 @@ const INTERVAL: Duration = Duration::from_secs(10);
 /// One question and answer; the reader answers from its accept loop.
 const DEADLINE: Duration = Duration::from_secs(2);
 
+/// The latest attempt.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+enum Latest {
+    /// No socket, or no well-formed answer: a dormant or busy reader, so
+    /// nothing is listed.
+    #[default]
+    Silent,
+    /// Core took the reader's answer.
+    Accepted(Option<StrandedReads>),
+    /// A socket is there and core refuses it, since then.
+    Refused(SocketRefusal, i64),
+}
+
 /// The latest answer, shared with core's health response.
 #[derive(Clone, Default)]
-pub(crate) struct Status(Arc<Mutex<Option<StrandedReads>>>);
+pub(crate) struct Status(Arc<Mutex<Latest>>);
 impl Status {
     /// The reader as a degraded subsystem, if its latest answer reported a
-    /// stuck read. An unreachable reader (it is dormant until an operator
-    /// starts it) is not listed: nothing is known to be wrong with it.
+    /// stuck read, or core refuses its socket. An unreachable reader (it is
+    /// dormant until an operator starts it) is not listed: nothing is known
+    /// to be wrong with it.
     pub(crate) fn degraded(&self) -> Option<DegradedSubsystem> {
-        let stranded = self
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()?;
-        Some(DegradedSubsystem {
-            subsystem: Subsystem::StorageReader,
-            detail: Some(DegradedDetail {
+        let detail = match &*self.0.lock().unwrap_or_else(PoisonError::into_inner) {
+            Latest::Accepted(Some(stranded)) => DegradedDetail {
                 code: ErrorCode::Unavailable,
                 since: stranded.since,
                 count: stranded.count,
-            }),
+            },
+            Latest::Refused(_, since) => DegradedDetail {
+                code: ErrorCode::Forbidden,
+                since: *since,
+                count: 0,
+            },
+            _ => return None,
+        };
+        Some(DegradedSubsystem {
+            subsystem: Subsystem::StorageReader,
+            detail: Some(detail),
         })
     }
-    fn set(&self, value: Option<StrandedReads>) {
+    fn set(&self, value: Latest) {
         let mut current = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        if value.is_some() && current.is_none() {
+        let stranded = |l: &Latest| matches!(l, Latest::Accepted(Some(_)));
+        match (&*current, &value) {
+            (Latest::Refused(before, since), Latest::Refused(now, _)) => {
+                // Still refused: keep when it began; log a changed reason.
+                if before != now {
+                    tracing::warn!(reason = %now, "core still refuses the storage reader's socket, now because: {now}");
+                }
+                *current = Latest::Refused(*now, *since);
+                return;
+            }
+            (_, Latest::Refused(reason, _)) => tracing::warn!(
+                reason = %reason,
+                "core refuses the storage reader's socket and takes no storage, stack or container-health answer from it: {reason}. The reader must run as its own account (limeos-storage-reader) from its runtime directory; check for a drop-in with systemctl cat limeos-storage-reader"
+            ),
+            (Latest::Refused(..), _) => {
+                tracing::info!("core accepts the storage reader's socket again")
+            }
+            _ => {}
+        }
+        if stranded(&value) && !stranded(&current) {
             tracing::warn!(
                 "the storage reader has a storage read stuck past its deadline; storage inventory is refused until it returns"
             );
-        } else if value.is_none() && current.is_some() {
+        } else if !stranded(&value) && stranded(&current) {
             tracing::info!("the storage reader's stuck read returned");
         }
         *current = value;
@@ -54,8 +98,8 @@ impl Status {
 #[derive(Clone)]
 pub(crate) struct Watcher {
     socket: PathBuf,
-    /// The reader runs as its own account; a socket that account does not
-    /// own and answer (`limeos_contracts::ExecutorOwner`) is ignored.
+    /// The reader runs as its own account; a socket the rule refuses
+    /// (`limeos_contracts::ExecutorOwner`) is never asked anything.
     owner: limeos_contracts::ExecutorOwner,
     status: Status,
 }
@@ -82,20 +126,51 @@ impl Watcher {
             tokio::time::sleep(INTERVAL).await;
         }
     }
-    /// One question; whatever the reader cannot answer clears the entry, so
-    /// it always describes the latest answer.
-    pub(crate) async fn check(&self) {
-        let answer = tokio::time::timeout(DEADLINE, self.ask())
-            .await
-            .unwrap_or(Err(Error(ErrorCode::Unavailable)));
-        self.status.set(answer.ok().flatten());
+    /// One question; the entry always describes the latest attempt. What it
+    /// found, as `limeosctl reader-status` reports it.
+    pub(crate) async fn check(&self) -> ReaderStatus {
+        let latest = match tokio::time::timeout(DEADLINE, self.ask()).await {
+            Ok(Ok(stranded)) => Latest::Accepted(stranded),
+            Ok(Err(Some(refusal))) => Latest::Refused(refusal, super::now()),
+            Ok(Err(None)) | Err(_) => Latest::Silent,
+        };
+        let status = match &latest {
+            Latest::Accepted(_) => ReaderStatus {
+                state: ReaderState::Accepted,
+                reason: None,
+            },
+            Latest::Refused(refusal, _) => ReaderStatus {
+                state: ReaderState::Refused,
+                reason: Some(refusal.message().into()),
+            },
+            Latest::Silent => ReaderStatus {
+                state: if self.owner.open(&self.socket).err() == Some(SocketRefusal::Missing) {
+                    ReaderState::Unreachable
+                } else {
+                    ReaderState::Unanswered
+                },
+                reason: None,
+            },
+        };
+        self.status.set(latest);
+        status
     }
-    async fn ask(&self) -> Result<Option<StrandedReads>> {
-        let mut stream = self.owner.connect(&self.socket).await?;
-        limeos_contracts::write_frame(&mut stream, &Request::Health { version: VERSION }).await?;
-        let receipt: Receipt = limeos_contracts::read_frame(&mut stream).await?;
+    /// The reader's answer; `Err(Some(_))` for a socket the rule refuses,
+    /// `Err(None)` for no socket or no well-formed answer.
+    async fn ask(&self) -> std::result::Result<Option<StrandedReads>, Option<SocketRefusal>> {
+        let mut stream = match self.owner.connect_explained(&self.socket).await {
+            Ok(stream) => stream,
+            Err(SocketRefusal::Missing) => return Err(None),
+            Err(refusal) => return Err(Some(refusal)),
+        };
+        limeos_contracts::write_frame(&mut stream, &Request::Health { version: VERSION })
+            .await
+            .map_err(|_| None)?;
+        let receipt: Receipt = limeos_contracts::read_frame(&mut stream)
+            .await
+            .map_err(|_| None)?;
         if receipt.version != VERSION || !receipt.ready || receipt.error.is_some() {
-            return Err(Error(ErrorCode::Unavailable));
+            return Err(None);
         }
         Ok(receipt.stranded_reads)
     }
@@ -124,7 +199,7 @@ mod tests {
     #[tokio::test]
     async fn a_stuck_reader_read_is_listed_with_its_time_and_cleared_when_it_returns() {
         let dir = tempfile::tempdir().unwrap();
-        let socket = dir.path().join("reader.sock");
+        let socket = crate::health_collection::test_socket(dir.path());
         let answer = Arc::new(Mutex::new(None));
         reader(UnixListener::bind(&socket).unwrap(), answer.clone());
         let status = Status::default();
@@ -153,20 +228,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_unreachable_or_foreign_reader_is_not_listed() {
+    async fn an_unreachable_reader_is_not_listed_and_a_refused_one_is_listed_forbidden() {
         let dir = tempfile::tempdir().unwrap();
-        let socket = dir.path().join("reader.sock");
+        let socket = crate::health_collection::test_socket(dir.path());
         let status = Status::default();
-        status.set(Some(StrandedReads { count: 1, since: 1 }));
+        status.set(Latest::Accepted(Some(StrandedReads { count: 1, since: 1 })));
         Watcher::for_test(socket.clone(), status.clone())
             .check()
             .await;
         assert_eq!(status.degraded(), None);
         let answer = Arc::new(Mutex::new(Some(StrandedReads { count: 1, since: 1 })));
         reader(UnixListener::bind(&socket).unwrap(), answer);
-        // Under the production rule this test's user is core, so a socket it
-        // serves is core's own and is not taken for the reader's.
-        Watcher::new(socket, status.clone()).check().await;
+        // Under the production rule this socket is outside root's /run, and
+        // as core's own account it is core's: never taken for the reader's.
+        // Its stuck read is not listed; the refusal is, with code forbidden.
+        let uid = rustix::process::geteuid().as_raw();
+        for owner in [
+            limeos_contracts::ExecutorOwner::with_anchor_owner(uid, uid),
+            crate::storage::executor_owner(),
+        ] {
+            let watcher = Watcher {
+                socket: socket.clone(),
+                owner,
+                status: status.clone(),
+            };
+            let probe = watcher.check().await;
+            assert_eq!(probe.state, ReaderState::Refused);
+            assert!(probe.reason.is_some());
+            let listed = status.degraded().unwrap();
+            assert_eq!(listed.subsystem, Subsystem::StorageReader);
+            assert_eq!(listed.detail.unwrap().code, ErrorCode::Forbidden);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_reader_is_listed_from_when_it_was_first_refused_and_cleared_once_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = crate::health_collection::test_socket(dir.path());
+        let answer = Arc::new(Mutex::new(None));
+        reader(UnixListener::bind(&socket).unwrap(), answer);
+        let status = Status::default();
+        let uid = rustix::process::geteuid().as_raw();
+        let refused = Watcher {
+            socket: socket.clone(),
+            owner: limeos_contracts::ExecutorOwner::with_anchor_owner(uid, uid),
+            status: status.clone(),
+        };
+        refused.check().await;
+        let since = status.degraded().unwrap().detail.unwrap().since;
+        status.set(Latest::Refused(SocketRefusal::WrongOwner, since + 50));
+        assert_eq!(status.degraded().unwrap().detail.unwrap().since, since);
+        let accepted = Watcher::for_test(socket.clone(), status.clone())
+            .check()
+            .await;
+        assert_eq!(accepted.state, ReaderState::Accepted);
+        assert_eq!(status.degraded(), None);
+        // A reader that is not there at all is unreachable, and not listed.
+        std::fs::remove_file(&socket).unwrap();
+        let gone = Watcher::for_test(socket, status.clone()).check().await;
+        assert_eq!(gone.state, ReaderState::Unreachable);
         assert_eq!(status.degraded(), None);
     }
 }

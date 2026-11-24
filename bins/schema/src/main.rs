@@ -362,6 +362,8 @@ fn main() {
     ts!(limeos_contracts::DegradedSubsystem);
     ts!(limeos_contracts::DegradedDetail);
     ts!(limeos_contracts::Health);
+    ts!(limeos_contracts::ReaderState);
+    ts!(limeos_contracts::ReaderStatus);
     ts!(limeos_contracts::SessionView);
     ts!(limeos_contracts::ErrorEnvelope);
     ts!(limeos_contracts::CoreRequest);
@@ -700,7 +702,7 @@ fn main() {
     openapi["paths"]["/api/v1/storage/mounts/plans/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owner-scoped saved proposal; database read only, no hardware or renewed expiry","content":{"application/json":{"schema":schema_for!(limeos_domain::PlannedStorageMount)}}}}}});
     openapi["paths"]["/api/v1/storage/mounts/jobs"]["get"] = serde_json::json!({"security":[{"session":[]}],"responses":{"200":{"description":"Latest 32 currently authorized owned mount jobs; database only","content":{"application/json":{"schema":schema_for!(Vec<limeos_domain::StorageMountJob>)}}}}});
     openapi["paths"]["/api/v1/storage/mounts/jobs/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owned durable mount status; database only, no dispatch","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageMountJob)}}}}}});
-    openapi["paths"]["/api/v1/storage/inventory"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Fresh, root-reader evidence under a four-second deadline. Administrator storage grant required; fstab credentials stay private.","responses":{"200":{"description":"Disk/mount/fstab identity and revision","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageInventoryView)}}}}}});
+    openapi["paths"]["/api/v1/storage/inventory"] = serde_json::json!({"get":{"security":[{"session":[]}],"description":"Fresh storage-reader evidence under a four-second deadline. Administrator storage grant required; fstab credentials stay private.","responses":{"200":{"description":"Disk/mount/fstab identity and revision","content":{"application/json":{"schema":schema_for!(limeos_domain::StorageInventoryView)}}}}}});
     openapi["paths"]["/api/v1/storage/plans/{id}"] = serde_json::json!({"get":{"security":[{"session":[]}],"responses":{"200":{"description":"Owner-scoped durable preview; no inspection or expiry refresh","content":{"application/json":{"schema":schema_for!(limeos_domain::PlannedStorageSetup)}}}}}});
     openapi["paths"]["/api/v1/storage/plans"]["post"]["description"] = serde_json::json!(
         "Persist guided assignments and a generated managed fstab section against fresh evidence. Preview only; storage execution requires a new operation version and new approval."

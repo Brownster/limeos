@@ -12,7 +12,7 @@ pub use resolution::*;
 mod service;
 pub use service::*;
 mod executor_socket;
-pub use executor_socket::ExecutorOwner;
+pub use executor_socket::{ExecutorOwner, ExecutorSocket, SocketRefusal};
 
 pub const VERSION: u16 = 1;
 pub const FRAME_LIMIT: usize = 64 * 1024;
@@ -116,7 +116,10 @@ pub enum Subsystem {
     ObservationRuntime,
     /// The storage reader has a storage read stuck past its deadline (a
     /// failing disk, typically); it refuses storage inventory until the read
-    /// returns and serves everything else.
+    /// returns and serves everything else. Or core refuses the reader's
+    /// socket (code `forbidden`): it is not served by the reader's own
+    /// account from its runtime directory (`ExecutorOwner`), so core takes
+    /// no storage, stack or container-health answer from it.
     StorageReader,
     /// The store's single writer thread has been on one item for too long
     /// (a hung fsync, a lock held from outside), or did not answer a probe
@@ -138,16 +141,19 @@ pub struct DegradedSubsystem {
 #[serde(deny_unknown_fields)]
 pub struct DegradedDetail {
     /// The error that describes the current state: for the observation
-    /// runtime, the one that ended its latest run; for the storage reader
-    /// and the store, `unavailable`.
+    /// runtime, the one that ended its latest run; for the storage reader,
+    /// `unavailable` for a stuck read and `forbidden` for a socket core
+    /// refuses; for the store, `unavailable`.
     pub code: ErrorCode,
     /// When the current state began (Unix seconds): for the storage reader,
-    /// when its oldest stuck read was abandoned; for the store, when its
+    /// when its oldest stuck read was abandoned, or when core first refused
+    /// its socket; for the store, when its
     /// writer started the item it is still on.
     #[ts(type = "number")]
     pub since: i64,
     /// For the observation runtime, failures in the current run; it restarts
-    /// after a longer wait each time. For the storage reader, reads stuck.
+    /// after a longer wait each time. For the storage reader, reads stuck
+    /// (0 for a refused socket).
     /// For the store, calls waiting for its writer.
     pub count: u32,
 }
@@ -202,6 +208,12 @@ pub enum CoreRequest {
     ImportLegacyUsers {
         version: u16,
         users: Vec<LegacyUser>,
+    },
+    /// Root-peer only. Asks the storage reader for its health now, under the
+    /// rule core trusts its socket by, and says whether core accepted the
+    /// answer. For deployment checks (`scripts/cutover/activate.sh`).
+    ReaderStatus {
+        version: u16,
     },
     /// Root-peer only. Read-only evidence for a stuck job, as the named
     /// administrator would see it over HTTP. `admin` is a username; core
@@ -291,7 +303,28 @@ pub enum CoreResponse {
     ContainerJob(limeos_domain::ContainerJob),
     ContainerLogs(limeos_domain::ContainerLogs),
     ComposePlan(limeos_domain::PlannedCompose),
+    ReaderStatus(ReaderStatus),
     Error(ErrorEnvelope),
+}
+/// What happened when core asked the storage reader just now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum ReaderState {
+    /// Core trusted the socket and took a well-formed answer.
+    Accepted,
+    /// A socket is there but core refuses it (`reason` says why).
+    Refused,
+    /// Core trusted the socket, but no well-formed answer came in time.
+    Unanswered,
+    /// No socket: the reader is not running.
+    Unreachable,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct ReaderStatus {
+    pub state: ReaderState,
+    /// Why core refused the socket, for `refused`.
+    pub reason: Option<String>,
 }
 
 /// Reads one frame: a big-endian `u32` length, then that many bytes of JSON.
