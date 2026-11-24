@@ -1017,7 +1017,7 @@ fn watermark_day(watermark: i64) -> String {
 /// Authority events in core's store, read on a side connection.
 fn authority_events(core: &Connection) -> i64 {
     core.query_row(
-        "SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded')",
+        "SELECT count(*) FROM events WHERE json_extract(kind,'$.kind') IN ('bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded','job_canceled_by_administrator')",
         [],
         |r| r.get(0),
     )

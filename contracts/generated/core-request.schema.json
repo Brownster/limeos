@@ -166,6 +166,69 @@
       ]
     },
     {
+      "description": "Root-peer only. Every principal's jobs in `states`, oldest first, at\nmost `limit` (1 to `limeos_domain::MAX_OPERATOR_JOBS`). Read-only.",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "request": {
+          "type": "string",
+          "const": "list_jobs"
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JobState"
+          }
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "states",
+        "limit"
+      ]
+    },
+    {
+      "description": "Root-peer only. Cancel one queued job on its owner's behalf. As for\n`ResolveJob`, `admin` names a current administrator, recorded as the\nactor; the root peer is the re-authentication.",
+      "type": "object",
+      "properties": {
+        "admin": {
+          "type": "string"
+        },
+        "job": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string",
+          "const": "cancel_job"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version",
+        "admin",
+        "job"
+      ]
+    },
+    {
       "type": "object",
       "properties": {
         "operation": {
@@ -535,6 +598,31 @@
         "token",
         "username",
         "password"
+      ]
+    },
+    "JobState": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "planned",
+            "waiting_approval",
+            "queued",
+            "running",
+            "verifying",
+            "succeeded",
+            "failed",
+            "canceled",
+            "precondition_changed",
+            "outcome_unknown",
+            "needs_intervention"
+          ]
+        },
+        {
+          "description": "An administrator settled an uncertain job on evidence. Terminal and\nlock-releasing; the original job, plan and receipts stay unchanged.",
+          "type": "string",
+          "const": "resolved"
+        }
       ]
     },
     "LegacyUser": {

@@ -1408,6 +1408,7 @@ mod compose;
 mod core_lock;
 mod identity_enablement;
 mod identity_store;
+mod job_admin;
 mod job_resolutions;
 mod jobs;
 mod migrations;

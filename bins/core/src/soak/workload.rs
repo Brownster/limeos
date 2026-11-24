@@ -1053,7 +1053,7 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
 /// events rule's own candidates (`retention::loose_candidates`,
 /// `settled_candidates`), read on the side connection.
 fn prunable_before(sim: &mut Sim, cursor: i64, job: &str) -> i64 {
-    let authority = "'bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded'";
+    let authority = "'bootstrap_issued','administrator_enrolled','legacy_identity_imported','grants_revised','job_resolution_requested','job_resolution_withdrawn','job_resolution_superseded','job_canceled_by_administrator'";
     sim.side()
         .query_row(
             &format!(

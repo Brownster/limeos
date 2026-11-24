@@ -1392,3 +1392,74 @@ async fn health_checks_a_session_beside_a_stuck_writer_without_queueing() {
     release.send(()).unwrap();
     task.abort();
 }
+
+/// The host operator cancels a queued job while the dispatcher, having read
+/// it as queued, is inspecting its container. Both go through the store's
+/// writer and the claim is a compare-and-set on `queued`, so the cancel wins
+/// and the claim changes nothing: no execute is ever sent, now or on a later
+/// pass.
+#[tokio::test]
+async fn an_operator_cancel_between_inspection_and_claim_wins_and_nothing_is_sent() {
+    let (_dir, core, token, csrf, state, entered, release, task) = fixture().await;
+    let resource = state.lock().unwrap().current.resource.clone();
+    let (job, _) = queued(&core, &token, &csrf, resource).await;
+    let principal = core.session(token.clone(), None).await.unwrap().principal;
+    state.lock().unwrap().hold = true;
+    let (dispatcher, queued_job) = (core.clone(), job.clone());
+    let dispatch =
+        tokio::spawn(async move { dispatcher.dispatch_one(principal, queued_job).await });
+    entered.notified().await;
+    let answer = core
+        .rpc_cancel_job("admin".into(), job.id.clone())
+        .await
+        .unwrap();
+    assert_eq!(answer.outcome, limeos_domain::CancelOutcome::Canceled);
+    state.lock().unwrap().hold = false;
+    release.notify_one();
+    assert_eq!(dispatch.await.unwrap().unwrap_err().0, ErrorCode::Conflict);
+    core.dispatcher_pass(&mut Default::default()).await;
+    let progress = core.restart_progress(token, job.id, 0).await.unwrap();
+    assert_eq!(progress.job.state, JobState::Canceled);
+    let fixture = state.lock().unwrap();
+    assert_eq!((fixture.executes, fixture.posts), (0, 0));
+    drop(fixture);
+    task.abort();
+}
+
+/// Once the dispatcher's claim has committed, the job is no longer queued:
+/// the operator's cancel is refused, changes nothing, and the job runs once.
+#[tokio::test]
+async fn an_operator_cancel_after_the_claim_is_refused_and_the_job_runs_once() {
+    let (_dir, core, token, csrf, state, entered, release, task) = fixture().await;
+    let resource = state.lock().unwrap().current.resource.clone();
+    let (job, _) = queued(&core, &token, &csrf, resource).await;
+    let principal = core.session(token.clone(), None).await.unwrap().principal;
+    state.lock().unwrap().hold = true;
+    let (dispatcher, queued_job) = (core.clone(), job.clone());
+    let dispatch =
+        tokio::spawn(async move { dispatcher.dispatch_one(principal, queued_job).await });
+    // The first inspection precedes the claim; the second is verification,
+    // after the execute was sent.
+    entered.notified().await;
+    release.notify_one();
+    entered.notified().await;
+    let answer = core
+        .rpc_cancel_job("admin".into(), job.id.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        (answer.outcome, answer.refusal, answer.state),
+        (
+            limeos_domain::CancelOutcome::Refused,
+            Some(limeos_domain::CancelRefusal::NotQueued),
+            JobState::Verifying
+        )
+    );
+    state.lock().unwrap().hold = false;
+    release.notify_one();
+    dispatch.await.unwrap().unwrap();
+    let progress = core.restart_progress(token, job.id, 0).await.unwrap();
+    assert_eq!(progress.job.state, JobState::Succeeded);
+    assert_eq!(state.lock().unwrap().posts, 1);
+    task.abort();
+}

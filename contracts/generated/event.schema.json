@@ -333,6 +333,20 @@
           ]
         },
         {
+          "description": "The host operator cancelled this queued job on its owner's behalf\n(`limeosctl job cancel`, a root peer naming an administrator). The\nevent's principal is that administrator; the owner's history shows\nthe `canceled` transition, written in the same transaction.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "job_canceled_by_administrator"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "kind": {

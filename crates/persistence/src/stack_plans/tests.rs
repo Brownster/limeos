@@ -832,3 +832,31 @@ fn a_stack_closure_after_a_store_epoch_change_is_refused() {
         }
     }
 }
+
+#[test]
+fn an_administrator_cancels_a_queued_stack_job_and_its_claim_is_refused() {
+    let (_dir, mut store, p) = setup();
+    let job = queued(&mut store, &p, ContainerAction::Restart, "one", 210);
+    crate::job_admin::tests::cancel_on_behalf(
+        &mut store,
+        &p,
+        &job.id,
+        limeos_domain::JobFamily::Stack,
+        215,
+    );
+    assert_eq!(
+        store
+            .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 216)
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
+    assert!(locks(&store, &job.id).is_empty());
+    assert!(
+        store
+            .stack_candidates()
+            .unwrap()
+            .iter()
+            .all(|(_, j)| j.id != job.id)
+    );
+}

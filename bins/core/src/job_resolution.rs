@@ -625,7 +625,7 @@ impl Core {
     }
 
     /// The root peer names an administrator; that user's current role decides.
-    async fn rpc_administrator(&self, username: String) -> Result<Principal> {
+    pub(super) async fn rpc_administrator(&self, username: String) -> Result<Principal> {
         if !limeos_domain::identifier(&username) {
             return Err(Error(ErrorCode::InvalidInput));
         }

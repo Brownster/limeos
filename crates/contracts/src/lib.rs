@@ -220,6 +220,21 @@ pub enum CoreRequest {
         reason: String,
         evidence_digest: String,
     },
+    /// Root-peer only. Every principal's jobs in `states`, oldest first, at
+    /// most `limit` (1 to `limeos_domain::MAX_OPERATOR_JOBS`). Read-only.
+    ListJobs {
+        version: u16,
+        states: Vec<limeos_domain::JobState>,
+        limit: u32,
+    },
+    /// Root-peer only. Cancel one queued job on its owner's behalf. As for
+    /// `ResolveJob`, `admin` names a current administrator, recorded as the
+    /// actor; the root peer is the re-authentication.
+    CancelJob {
+        version: u16,
+        admin: String,
+        job: String,
+    },
     CheckTask {
         version: u16,
         token: String,
@@ -283,6 +298,8 @@ pub enum CoreResponse {
     Authorized,
     Resolution(ResolutionView),
     Resolved(ResolveJobResponse),
+    Jobs(limeos_domain::OperatorJobPage),
+    JobCanceled(limeos_domain::OperatorCancel),
     RestartPlan(limeos_domain::PlannedRestart),
     RestartJob(limeos_domain::RestartJob),
     ContainerPlan(limeos_domain::PlannedContainerAction),

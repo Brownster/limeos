@@ -46,8 +46,8 @@
 //! [`AUTHORITY_BUDGET`] and removes older ones oldest first. So the newest
 //! prunable authority event is never removed while an older one exists.
 //!
-//! Only resolution requests, withdrawals and supersessions carry a job, so only they can be
-//! pinned, and only for as long as their job's history: while the job is
+//! Only resolution requests, withdrawals and supersessions and administrator
+//! cancellations carry a job, so only they can be pinned, and only for as long as their job's history: while the job is
 //! unsettled or has an open request, and then until the events rule prunes
 //! the settled job (its `job_queued` first), after which they are prunable
 //! and count against the budget. Until then they are bounded like the rest
@@ -142,12 +142,13 @@ const UNREAD_AUTOMATION_KINDS: [&str; 2] = [
 
 /// Low-volume, high-value events, kept apart from the bulk: who issued a
 /// bootstrap token, who enrolled or imported an administrator, who revised
-/// grants, and what was declared in a resolution request and that it was
+/// grants, what was declared in a resolution request and that it was
 /// withdrawn or superseded (such a request's row is deleted, so its events
-/// are the only record). Not `task_issued`: once assistant tasks issue tokens it is one per
+/// are the only record), and which administrator cancelled someone else's
+/// queued job (the event is the only record of who did). Not `task_issued`: once assistant tasks issue tokens it is one per
 /// task, for authority that expires within the hour and with the core
 /// generation. Not session events, the bulk of the table.
-pub(super) const AUTHORITY_KINDS: [&str; 7] = [
+pub(super) const AUTHORITY_KINDS: [&str; 8] = [
     "bootstrap_issued",
     "administrator_enrolled",
     "legacy_identity_imported",
@@ -155,6 +156,7 @@ pub(super) const AUTHORITY_KINDS: [&str; 7] = [
     "job_resolution_requested",
     "job_resolution_withdrawn",
     "job_resolution_superseded",
+    "job_canceled_by_administrator",
 ];
 fn quoted(kinds: &[&str]) -> String {
     kinds
