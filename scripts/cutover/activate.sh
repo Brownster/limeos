@@ -327,17 +327,36 @@ fct_units_active() { # unit...
     done
     if [[ -n "${unknown}" ]]; then HEALTH_DETAIL="systemd did not report the state of${unknown}"; return 2; fi
 }
-# The stack reader (started, never enabled) is up, listening, and has never restarted. A restart
-# count that cannot be read is not zero: the reader's crash history is then unverified.
+# The stack reader (started, never enabled) is up, listening as its own account, has never
+# restarted, and core takes an answer from it. A restart count that cannot be read is not zero:
+# the reader's crash history is then unverified. A socket owned by another account (a drop-in
+# setting User=root, say) is a reader core refuses: stack status and storage inventory would stay
+# unavailable while everything else looks healthy, so it fails activation. `limeosctl
+# reader-status` has core ask the reader now under its socket rule and fails unless core accepted
+# the answer.
 fct_reader_ready() {
-    local restarts
+    local restarts owner rc=0 answer
     fct_units_active "${STACK_READER}" || return
     if [[ ! -S "${CUTOVER_ROOT}${STACK_READER_SOCKET}" ]]; then HEALTH_DETAIL="${STACK_READER_SOCKET} is not listening"; return 1; fi
+    if ! owner="$(stat -c %U -- "${CUTOVER_ROOT}${STACK_READER_SOCKET}" 2>/dev/null)" || [[ -z "${owner}" ]]; then
+        HEALTH_DETAIL="could not read the owner of ${STACK_READER_SOCKET}"
+        return 2
+    fi
+    if [[ "${owner}" != "${STACK_READER_ACCOUNT}" ]]; then
+        HEALTH_DETAIL="${STACK_READER_SOCKET} is owned by ${owner}, not ${STACK_READER_ACCOUNT}: core refuses it (look for a drop-in: systemctl cat ${STACK_READER})"
+        return 1
+    fi
     if ! restarts="$(fct_unit_property NRestarts "${STACK_READER}")" || [[ ! "${restarts}" =~ ^[0-9]+$ ]]; then
         HEALTH_DETAIL="systemd did not report the restart count (NRestarts) of ${STACK_READER}"
         return 2
     fi
     if (( restarts != 0 )); then HEALTH_DETAIL="${STACK_READER} has restarted ${restarts} time(s)"; return 1; fi
+    answer="$(fct_query "${LIMEOSCTL}" --socket "${CORE_SOCKET}" reader-status)" || rc=$?
+    case "${rc}" in
+        0) ;;
+        124) HEALTH_DETAIL="limeosctl reader-status did not answer within ${QUERY_TIMEOUT}s"; return 2 ;;
+        *) HEALTH_DETAIL="core did not accept an answer from ${STACK_READER} (limeosctl reader-status exit ${rc}: ${answer})"; return 1 ;;
+    esac
 }
 # A curl probe through the proxy: curl's exit 28 (no answer within --max-time) is unknown; any
 # other failure (refused, an HTTP error with -f, a broken reply) is a definite no.
@@ -543,7 +562,14 @@ fct_main() {
     for unit in "${RUST_UNITS[@]}"; do fct_do systemctl start "${unit}"; done
     fct_retry 'Rust services active' fct_units_active "${RUST_UNITS[@]}"
     # Stack status and whole-stack actions stay unavailable until the reader runs. It has no
-    # Install section on purpose: start it now, never enable it; return.sh stops it.
+    # Install section on purpose: start it now, never enable it; return.sh stops it. Drop-ins on
+    # the LimeOS units are named first: they change what the packaged units run as.
+    if (( ! DRY_RUN )); then
+        local dropin
+        while IFS= read -r dropin; do
+            fct_warn "LimeOS unit drop-in (systemctl cat to read it): ${dropin}"
+        done < <(fct_dropin_report)
+    fi
     fct_do systemctl start "${STACK_READER}"
 
     # 3. HTTPS proxy on the public port, now that the frozen app has released it.

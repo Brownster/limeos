@@ -274,6 +274,17 @@ fct_main() {
     fi
     rm -f -- "${body}"
 
+    # Operator drop-ins on the LimeOS units, reported (never changed): one setting User= on the
+    # stack reader makes core refuse it, which activation then fails on.
+    local dropin
+    while IFS= read -r dropin; do
+        if [[ "${dropin}" == *' unknown' ]]; then
+            warnings+=("could not list the drop-ins of ${dropin% unknown} (systemctl show -p DropInPaths, named above)")
+        else
+            warnings+=("LimeOS unit drop-in, which changes what the packaged unit runs as (systemctl cat to read it): ${dropin}")
+        fi
+    done < <(fct_dropin_report)
+
     local verdict=pass msg
     (( ${#refusals[@]} == 0 )) || verdict=refused
     {

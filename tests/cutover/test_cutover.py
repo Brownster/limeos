@@ -173,6 +173,8 @@ class Harness(unittest.TestCase):
         self._write("/" + CATALOG, '{"version":1}\n')
         (self.root / CATALOG).chmod(0o644)
         self.reader_listens()
+        # The stack reader's socket is owned by its own account (PR-32).
+        (self.stub / "socket_owner").write_text("limeos-storage-reader\n")
         self._write("/etc/caddy/Caddyfile", "import /etc/caddy/conf.d/*.caddy\n")
         self._write("/pkg/limeos_1.0.0_arm64.deb", "deb")
         # The cgroup2 unified hierarchy with cgroup.kill (kernel 5.14 or newer), as on Debian 12.
@@ -403,6 +405,20 @@ class PreflightTests(Harness):
         # Only the snapshot directory is new.
         shutil.rmtree(self.root / "var/lib/limeos-cutover")
         self.assertEqual(before, (tree_digest(self.root), tree_digest(self.stub / "units")))
+
+    def test_drop_ins_on_limeos_units_are_reported_and_left_alone(self):
+        dropin = "/etc/systemd/system/limeos-storage-reader.service.d/user.conf"
+        (self.stub / "units" / f"{READER}.dropins").write_text(dropin + "\n")
+        result = self.preflight()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = f"LimeOS unit drop-in, which changes what the packaged unit runs as (systemctl cat to read it): {READER} {dropin}"
+        self.assertIn(expected, result.stderr)
+        self.assertIn("WARN: " + expected, (self.snap / "findings.txt").read_text())
+        self.assertEqual(self.mutating_calls(), [])
+        # Without drop-ins, nothing is said.
+        self.setUp()
+        result = self.preflight()
+        self.assertNotIn("drop-in", result.stderr)
 
     def test_snapshot_never_holds_file_contents(self):
         self.preflight()
@@ -917,6 +933,8 @@ class ActivateTests(Harness):
             "systemctl enable caddy.service",
             "systemctl start caddy.service",
             "limeosctl --socket /run/limeos-core/core.sock status",
+            # Core does not accept the reader's answer (PR-32).
+            "limeosctl --socket /run/limeos-core/core.sock reader-status",
         ]
         for point in points:
             with self.subTest(point=point):
@@ -1802,6 +1820,35 @@ class ActivateTests(Harness):
         self.assert_rolled_back(result)
         self.assertEqual(self.unit_state(READER), ("inactive", "disabled"))
         self.assertIn(f"systemctl stop {READER}", self.calls())
+
+    def test_a_reader_socket_owned_by_root_rolls_back_and_is_stopped(self):
+        """A drop-in left on the host runs the reader as root: core refuses every answer
+        from it, so stack status and inventory would be unavailable while the rest looks
+        healthy. Activation must fail and roll back, naming the owner."""
+        self.passing_snapshot()
+        (self.stub / "socket_owner").write_text("root\n")
+        result = self.approved()
+        self.assertIn("health check failed: stack reader ready: was false", result.stderr)
+        self.assertIn("is owned by root, not limeos-storage-reader", result.stderr)
+        self.assertNotIn("reader-status", "\n".join(self.calls()))
+        self.assert_reader_stopped_by_rollback(result)
+
+    def test_core_not_accepting_the_reader_rolls_back_and_is_stopped(self):
+        self.passing_snapshot()
+        self.inject("limeosctl --socket /run/limeos-core/core.sock reader-status")
+        result = self.approved()
+        self.assertIn("health check failed: stack reader ready: was false", result.stderr)
+        self.assertIn("core did not accept an answer from limeos-storage-reader.service", result.stderr)
+        self.assert_reader_stopped_by_rollback(result)
+
+    def test_activation_names_drop_ins_on_the_limeos_units(self):
+        self.passing_snapshot()
+        dropin = "/etc/systemd/system/limeos-storage-reader.service.d/override.conf"
+        (self.stub / "units" / f"{READER}.dropins").write_text(dropin + "\n")
+        result = self.approved()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"LimeOS unit drop-in (systemctl cat to read it): {READER} {dropin}", result.stderr)
+        self.assertIn("limeosctl --socket /run/limeos-core/core.sock reader-status", self.calls())
 
     def test_reader_start_failure_rolls_back(self):
         self.passing_snapshot()

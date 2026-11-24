@@ -147,6 +147,11 @@ case "${tool}" in
             if [[ -e "${STUB_DIR}/cgroupfs-tmpfs" ]]; then echo tmpfs; else echo cgroup2fs; fi
             exit 0
         fi
+        # stat -c %U: the account $STUB_DIR/socket_owner names (the stack reader's socket owner).
+        if [[ "${1:-} ${2:-}" == '-c %U' && -f "${STUB_DIR}/socket_owner" ]]; then
+            cat -- "${STUB_DIR}/socket_owner"
+            exit 0
+        fi
         command -p stat "$@"; exit ;;
     systemctl)
         verb="${1:-}"; shift || true
@@ -230,6 +235,7 @@ case "${tool}" in
                     MainPID) printf '%s\n' "$(get_unit "${args[-1]}" mainpid 0)" ;;
                     ControlGroup) printf '%s\n' "$(get_unit "${args[-1]}" cgroup '')" ;;
                     LoadState) printf '%s\n' "$(get_unit "${args[-1]}" loadstate loaded)" ;;
+                    DropInPaths) printf '%s\n' "$(get_unit "${args[-1]}" dropins '')" ;;
                     *) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
                 esac ;;
             daemon-reload|reload|reset-failed) ;;
