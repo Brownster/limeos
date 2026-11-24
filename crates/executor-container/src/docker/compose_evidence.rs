@@ -110,11 +110,12 @@ impl EngineComposeEvidence {
     }
 }
 
-/// Unregistered UID-0 reader. No caller-selected endpoint/policy/profile/clock/cap.
+/// Unregistered fixed reader. No caller-selected endpoint/policy/profile/clock/cap.
+/// What authenticates it is the Engine's socket: root-owned at its fixed path,
+/// answered by a root peer (`EnginePeerPolicy::root`); reaching it takes
+/// Docker socket access, which the storage reader's stack worker has through
+/// the `docker` group and no capability (PR-32). It sends GET requests only.
 pub async fn inspect_compose_membership() -> Result<EngineComposeEvidence> {
-    if !rustix::process::geteuid().is_root() {
-        return Err(Error(ErrorCode::Forbidden));
-    }
     let inner = process_evidence::inspect_compose(
         &Docker::new("/run/docker.sock".into()),
         EnginePeerPolicy::root(),

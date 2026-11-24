@@ -136,10 +136,10 @@ impl EngineHealthEvidence {
 /// alert/health-policy automation behind `allow_container_health_read`, which
 /// the basic cutover leaves off. Raise it with an `EngineWideV1`-style profile
 /// before enabling that read on an Engine of more than 16 containers.
+/// Authenticated by the Engine's root-owned socket and root peer, like
+/// `inspect_compose_membership`; GET requests only; runs in the reader's
+/// health worker with the `docker` group and no capability (PR-32).
 pub async fn inspect_container_health() -> Result<EngineHealthEvidence> {
-    if !rustix::process::geteuid().is_root() {
-        return Err(Error(ErrorCode::Forbidden));
-    }
     let inner = process_evidence::inspect_health(
         &Docker::new("/run/docker.sock".into()),
         EnginePeerPolicy::root(),

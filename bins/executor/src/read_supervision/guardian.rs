@@ -51,6 +51,11 @@ pub fn write_worker_report(body: &[u8]) -> Result<()> {
 pub fn write_worker_refusal() -> Result<()> {
     write_frame(1, &[])
 }
+/// The worker's refusal because it holds a capability, relayed to the
+/// manager as `Refusal::WorkerCapability` so it can say so.
+pub fn write_worker_capability_refusal() -> Result<()> {
+    write_frame(7, &[])
+}
 fn write_frame(status: u8, body: &[u8]) -> Result<()> {
     if body.len() > REPORT {
         return Err(Refusal::InvalidOutput);
@@ -72,6 +77,7 @@ fn code(error: Refusal) -> u8 {
         Refusal::Cancelled => 3,
         Refusal::InvalidOutput => 4,
         Refusal::WorkerExit => 5,
+        Refusal::WorkerCapability => 7,
         _ => 6,
     }
 }

@@ -215,24 +215,16 @@ impl Cache {
 }
 
 /// Background-only RPC. Every browser uses the same cache; GET has no wake-up.
-pub fn start_proxy(socket: PathBuf) -> Cache {
+/// The reader at `socket` is trusted by `owner`'s rule: a socket owned by
+/// neither root nor core, answered by its owner.
+pub fn start_proxy(socket: PathBuf, owner: limeos_contracts::ExecutorOwner) -> Cache {
     let cache = Cache::new();
     let writer = cache.clone();
     tokio::spawn(async move {
         loop {
             let result = tokio::time::timeout(Duration::from_secs(5), async {
                 let started = Instant::now();
-                use std::os::unix::fs::{FileTypeExt, MetadataExt};
-                let metadata = std::fs::symlink_metadata(&socket).map_err(|_| ())?;
-                if !metadata.file_type().is_socket() || metadata.uid() != 0 {
-                    return Err(());
-                }
-                let mut stream = tokio::net::UnixStream::connect(&socket)
-                    .await
-                    .map_err(|_| ())?;
-                if stream.peer_cred().map_err(|_| ())?.uid() != 0 {
-                    return Err(());
-                }
+                let mut stream = owner.connect(&socket).await.map_err(|_| ())?;
                 limeos_contracts::write_frame(
                     &mut stream,
                     &limeos_executor_protocol::Request::StackInventory {

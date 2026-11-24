@@ -255,7 +255,7 @@ def main(package_version=fixture.VERSION):
         meta = Path(probe.SOCKET).lstat()
         require(
             stat.S_ISSOCK(meta.st_mode)
-            and meta.st_uid == 0
+            and meta.st_uid == pwd.getpwnam("limeos-storage-reader").pw_uid
             and meta.st_nlink == 1
             and not meta.st_mode & 0o002,
             "unsafe reader socket",

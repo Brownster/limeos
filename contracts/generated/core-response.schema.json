@@ -480,6 +480,42 @@
     {
       "type": "object",
       "properties": {
+        "read": {
+          "description": "The read asked for, if any, and how it went.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderReadOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reason": {
+          "description": "Why core refused the socket (`refused`) or got no answer (`unanswered`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "response": {
+          "type": "string",
+          "const": "reader_status"
+        },
+        "state": {
+          "$ref": "#/$defs/ReaderState"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "response",
+        "state"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
         "audit_id": {
           "type": "string"
         },
@@ -1026,17 +1062,17 @@
       "type": "object",
       "properties": {
         "code": {
-          "description": "The error that describes the current state: for the observation\nruntime, the one that ended its latest run; for the storage reader\nand the store, `unavailable`.",
+          "description": "The error that describes the current state: for the observation\nruntime, the one that ended its latest run; for the storage reader,\n`unavailable` for a stuck read and `forbidden` for a socket core\nrefuses; for the store, `unavailable`.",
           "$ref": "#/$defs/ErrorCode"
         },
         "count": {
-          "description": "For the observation runtime, failures in the current run; it restarts\nafter a longer wait each time. For the storage reader, reads stuck.\nFor the store, calls waiting for its writer.",
+          "description": "For the observation runtime, failures in the current run; it restarts\nafter a longer wait each time. For the storage reader, reads stuck\n(0 for a refused socket).\nFor the store, calls waiting for its writer.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
         "since": {
-          "description": "When the current state began (Unix seconds): for the storage reader,\nwhen its oldest stuck read was abandoned; for the store, when its\nwriter started the item it is still on.",
+          "description": "When the current state began (Unix seconds): for the storage reader,\nwhen its oldest stuck read was abandoned, or when core first refused\nits socket; for the store, when its\nwriter started the item it is still on.",
           "type": "integer",
           "format": "int64"
         }
@@ -1293,6 +1329,92 @@
       "enum": [
         "tcp",
         "udp"
+      ]
+    },
+    "ReadResult": {
+      "oneOf": [
+        {
+          "description": "Core got a valid, fresh answer.",
+          "type": "string",
+          "const": "accepted"
+        },
+        {
+          "description": "The reader's ceiling does not grant this read.",
+          "type": "string",
+          "const": "not_granted"
+        },
+        {
+          "description": "It failed; `reason` says how.",
+          "type": "string",
+          "const": "failed"
+        }
+      ]
+    },
+    "ReaderRead": {
+      "description": "A read the storage reader serves, made by core through it.",
+      "oneOf": [
+        {
+          "description": "Stack status: the reader's latest stack scan (catalog and Engine,\nthrough its worker), which must be fresh in both.",
+          "type": "string",
+          "const": "stack"
+        },
+        {
+          "description": "A storage inventory (sysfs, block devices, blkid), as core reads it\nfor storage planning.",
+          "type": "string",
+          "const": "storage"
+        },
+        {
+          "description": "A container-health read (Engine, through the health worker).",
+          "type": "string",
+          "const": "container_health"
+        }
+      ]
+    },
+    "ReaderReadOutcome": {
+      "type": "object",
+      "properties": {
+        "read": {
+          "$ref": "#/$defs/ReaderRead"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/ReadResult"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "result"
+      ]
+    },
+    "ReaderState": {
+      "description": "What happened when core asked the storage reader just now.",
+      "oneOf": [
+        {
+          "description": "Core trusted the socket and took a well-formed answer.",
+          "type": "string",
+          "const": "accepted"
+        },
+        {
+          "description": "A socket is there but core refuses it, or may not reach it (`reason`\nsays why).",
+          "type": "string",
+          "const": "refused"
+        },
+        {
+          "description": "Core could not try (out of descriptors or memory, a system call\nfailed), or trusted the socket but got no well-formed answer in time.",
+          "type": "string",
+          "const": "unanswered"
+        },
+        {
+          "description": "No socket, or nothing listening on it: the reader is not running.",
+          "type": "string",
+          "const": "unreachable"
+        }
       ]
     },
     "ResolutionEvidence": {
@@ -1554,7 +1676,7 @@
           "const": "observation_runtime"
         },
         {
-          "description": "The storage reader has a storage read stuck past its deadline (a\nfailing disk, typically); it refuses storage inventory until the read\nreturns and serves everything else.",
+          "description": "The storage reader has a storage read stuck past its deadline (a\nfailing disk, typically); it refuses storage inventory until the read\nreturns and serves everything else. Or core refuses the reader's\nsocket (code `forbidden`): it is not served by the reader's own\naccount from its runtime directory (`ExecutorOwner`), so core takes\nno storage, stack or container-health answer from it.",
           "type": "string",
           "const": "storage_reader"
         },

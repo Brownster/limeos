@@ -204,12 +204,11 @@ async fn storage_authority_is_checked_before_contacting_a_reader_and_tasks_canno
     );
 }
 #[tokio::test]
-async fn an_unprivileged_reader_socket_cannot_forge_storage_evidence() {
-    use std::os::unix::fs::MetadataExt;
+async fn a_reader_socket_core_or_root_owns_cannot_forge_storage_evidence() {
+    // The test process is core here, so its socket is core's own (or root's,
+    // run as root): the reader's rule refuses it before connecting, exactly
+    // as for the container executor.
     let dir = tempfile::tempdir().unwrap();
-    if dir.path().metadata().unwrap().uid() == 0 {
-        return;
-    }
     let path = dir.path().join("reader.sock");
     let listener = UnixListener::bind(&path).unwrap();
     let core = Core {
@@ -233,7 +232,9 @@ async fn an_unprivileged_reader_socket_cannot_forge_storage_evidence() {
         core.fresh_storage().await.unwrap_err().0,
         ErrorCode::Forbidden
     );
-    let (mut stream, _) = listener.accept().await.unwrap();
-    use tokio::io::AsyncReadExt;
-    assert_eq!(stream.read(&mut [0u8; 4]).await.unwrap(), 0);
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(20), listener.accept())
+            .await
+            .is_err()
+    );
 }

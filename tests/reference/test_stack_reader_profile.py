@@ -71,15 +71,16 @@ class StackReaderProfileTests(unittest.TestCase):
         self.assertIn("continue", preserved)
         self.assertNotIn("allow_container_health_read", preserved)
 
-    def test_protected_open_is_compatible_without_capabilities_or_larger_limits(self):
+    def test_protected_open_is_compatible_with_one_read_capability_and_no_larger_limits(self):
         for shadow in (False, True):
             with self.subTest(shadow=shadow):
                 values = properties(package.profile_text(UNIT.read_text(), shadow))
                 for key, expected in {
-                    "User": "root",
+                    "User": "limeos-shadow-storage-reader" if shadow else "limeos-storage-reader",
+                    "SupplementaryGroups": "docker",
                     "NoNewPrivileges": "yes",
-                    "CapabilityBoundingSet": "",
-                    "AmbientCapabilities": "",
+                    "CapabilityBoundingSet": "CAP_DAC_READ_SEARCH",
+                    "AmbientCapabilities": "CAP_DAC_READ_SEARCH",
                     "RestrictSUIDSGID": "no",
                     "PrivateMounts": "no",
                     "PrivateDevices": "no",
@@ -139,18 +140,23 @@ class StackReaderProfileTests(unittest.TestCase):
     def test_installation_cannot_enable_or_start_the_reader(self):
         self.assertNotIn("[Install]", UNIT.read_text())
         self.assertFalse(UNIT.with_suffix(".socket").exists())
-        # postinst names the reader only on its restart allowlist, where it
-        # starts it again after an upgrade or abort when prerm recorded it
-        # running (PR-24, tests/repository/test_maintainer_scripts.py), and in
-        # the map from a refused ceiling to the unit it keeps from starting.
+        # postinst names the reader's unit only on its restart allowlist,
+        # where it starts it again after an upgrade or abort when prerm
+        # recorded it running (PR-24, tests/repository/test_maintainer_scripts.py),
+        # in the map from a refused ceiling to the unit it keeps from
+        # starting, and in the guard that leaves a refused storage.json alone.
+        # Its account is created with the others (PR-32). Nothing else.
         lines = [
             line.strip()
             for line in (ROOT / "packaging/debian/postinst").read_text().splitlines()
-            if "storage-reader" in line
+            if "storage-reader" in line and not line.lstrip().startswith("#")
         ]
-        self.assertEqual(len(lines), 2, lines)
+        self.assertEqual(len(lines), 4, lines)
         self.assertTrue(lines[0].startswith("RESTARTED_UNITS=("))
         self.assertEqual(lines[1], "storage) printf '%s\\n' limeos-storage-reader.service ;;")
+        self.assertTrue(lines[2].startswith("for account in ") and lines[2].endswith('do fct_account "${account}"; done'))
+        self.assertEqual(lines[3], 'if [[ " ${refused[*]-} " != *" limeos-storage-reader.service "* ]]; then')
+        self.assertFalse([line for line in lines if "systemctl" in line and "enable" in line])
         self.assertNotIn(
             "storage-reader",
             (ROOT / "packaging/systemd/limeos-core.service").read_text(),

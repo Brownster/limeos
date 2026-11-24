@@ -105,6 +105,20 @@ pub struct Verification {
     pub mounts: Vec<VerifiedMount>,
 }
 
+/// Whether this thread reads files as root would: it runs as root, or it
+/// holds `CAP_DAC_READ_SEARCH` in its effective set. The fixed readers of
+/// storage, Compose and Engine evidence refuse to run otherwise, so their
+/// evidence is never a partial view taken by an account that cannot open
+/// every block device and protected file. The storage reader runs as its own
+/// account with that one capability (`limeos-storage-reader.service`); the
+/// root roles pass as root.
+pub fn full_read_access() -> bool {
+    rustix::process::geteuid().is_root()
+        || rustix::thread::capabilities(None).is_ok_and(|sets| {
+            sets.effective
+                .contains(rustix::thread::CapabilitySet::DAC_READ_SEARCH)
+        })
+}
 pub fn read_plan(file: &Path) -> Result<StorageMountWaitPlan> {
     path::plan(file)
 }

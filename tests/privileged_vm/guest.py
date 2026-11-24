@@ -385,6 +385,52 @@ def main(package_version="0.1.0", upgrade_version="0.1.1"):
             "import socket; s=socket.socket(socket.AF_UNIX); s.connect('/run/limeos-test-docker.sock')",
         )
     passed("forged authority, oversized RPC and socket access denied")
+    # PR-32: the storage reader (static, started by hand or by the cutover)
+    # runs as its own account with CAP_DAC_READ_SEARCH alone, owns its socket,
+    # serves core's UID and refuses any other account.
+    from p04_fixture_readiness import (
+        READER_ACCOUNT,
+        READER_SOCKET,
+        reader_confined,
+        reader_status,
+    )
+
+    reader = pwd.getpwnam(READER_ACCOUNT)
+    assert 100 <= reader.pw_uid < 1000 and reader.pw_shell == "/usr/sbin/nologin"
+    assert READER_ACCOUNT not in grp.getgrnam("docker").gr_mem
+    ceiling = Path("/etc/limeos/system-policy/storage.json").stat()
+    assert (ceiling.st_uid, ceiling.st_gid, ceiling.st_mode & 0o7777) == (
+        0,
+        grp.getgrnam("limeos-host-access").gr_gid,
+        0o640,
+    ), ceiling
+    assert (
+        run("systemctl", "is-enabled", "limeos-storage-reader", check=False).stdout.strip()
+        == "static"
+    )
+    run("systemctl", "start", "limeos-storage-reader")
+    started = time.monotonic()
+    while not READER_SOCKET.is_socket():
+        assert time.monotonic() - started < 10, "reader socket not ready"
+        time.sleep(0.05)
+    assert READER_SOCKET.lstat().st_uid == reader.pw_uid
+    reader_pid = int(
+        run("systemctl", "show", "limeos-storage-reader", "-p", "MainPID", "--value").stdout
+    )
+    assert reader_confined(reader_status(reader_pid)), reader_status(reader_pid)
+    reader_args = ["--", "python3", "-c", probe, str(READER_SOCKET)]
+    served = run(
+        "runuser", "-u", "limeos-core", "-g", "limeos-host-access", *reader_args,
+        json.dumps({"operation": "health", "version": 1}),
+    )
+    assert json.loads(served.stdout)["ready"] is True, served.stdout
+    refused = run(
+        "runuser", "-u", "nobody", "-g", "limeos-host-access", *reader_args,
+        json.dumps({"operation": "health", "version": 1}),
+    )
+    assert refused_executor_reply(refused.stdout, "forbidden"), refused.stdout
+    run("systemctl", "stop", "limeos-storage-reader")
+    passed("storage reader runs as its own account with CAP_DAC_READ_SEARCH alone")
     with socket.create_connection(("127.0.0.1", 8003), timeout=7) as slow:
         slow.sendall(b"G")
         start = time.monotonic()

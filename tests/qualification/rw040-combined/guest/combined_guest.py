@@ -55,6 +55,10 @@ LIFECYCLE_KEYS = {
 SHOW_NAMES = {
     "User": ["User"],
     "Group": ["Group"],
+    # PR-32: the reader's own account reaches the Docker socket through its
+    # unit's supplementary group, and its IPC objects go with it.
+    "SupplementaryGroups": ["SupplementaryGroups"],
+    "RemoveIPC": ["RemoveIPC"],
     "UMask": ["UMask"],
     "LimitCORE": ["LimitCORE", "LimitCORESoft"],
     "MemorySwapMax": ["MemorySwapMax"],

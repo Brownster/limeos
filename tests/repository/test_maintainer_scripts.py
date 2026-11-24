@@ -132,6 +132,8 @@ if [[ -f "${STUB_STATE}/fail" ]]; then
 fi
 case "${tool}" in
     getent)
+        # $STUB_STATE/absent-NAME: no such account or group yet.
+        [[ ! -f "${STUB_STATE}/absent-${2}" ]] || exit 2
         if [[ "${1}" == passwd ]]; then printf '%s:x:150:150::/nonexistent:/usr/sbin/nologin\n' "${2}"; else printf '%s:x:150:\n' "${2}"; fi ;;
     id)
         if [[ "${1}" == -u ]]; then printf '150\n'; else printf '%s\n' "${2}"; fi ;;
@@ -835,7 +837,8 @@ class PostinstTests(SandboxTest):
         box = self.sandbox()
         box.installed(running=[*ENABLED, READER])
         self.assertOk(box.run("prerm", "upgrade", "1.0"))
-        _, check = self.check_ceiling(box, "storage")
+        policy, check = self.check_ceiling(box, "storage")
+        policy.chmod(0o600)
         box.fail(check)
         box.clear()
         result = box.run("postinst", "configure")
@@ -843,6 +846,71 @@ class PostinstTests(SandboxTest):
         self.assertIn(f"{READER} is not (re)started", result.stderr)
         self.assertEqual(box.manager(), CONFIGURE_TAIL)
         self.assertStates(box, ENABLED)
+        # Left exactly as the operator wrote it.
+        self.assertNotIn(f"chown root:limeos-host-access {policy}", box.calls())
+        self.assertEqual(policy.stat().st_mode & 0o777, 0o600)
+
+    def test_upgrade_from_a_root_reader_hands_its_account_the_ceiling_and_starts_it_after_core(self):
+        """An older package ran the reader as root and left storage.json
+        root:root, possibly 0600. Configure creates the reader's account,
+        hands the ceiling to the unit's group before anything is restarted,
+        and starts the reader (as the new account, after daemon-reload) only
+        once core runs again."""
+        box = self.sandbox()
+        box.installed(running=[*ENABLED, READER])
+        self.assertOk(box.run("prerm", "upgrade", "1.0"))
+        policy = box.root / "etc/limeos/system-policy/storage.json"
+        policy.chmod(0o600)
+        (box.state / "absent-limeos-storage-reader").write_text("")
+        box.clear()
+        self.assertOk(box.run("postinst", "configure"))
+        calls = box.calls()
+        create = ("adduser --system --group --no-create-home --home /nonexistent "
+                  "--shell /usr/sbin/nologin limeos-storage-reader")
+        handed = f"chown root:limeos-host-access {policy}"
+        self.assertIn(create, calls)
+        self.assertIn(handed, calls)
+        self.assertLess(calls.index(create), calls.index(handed))
+        self.assertLess(calls.index(handed), calls.index("daemon-reload"))
+        self.assertEqual(policy.stat().st_mode & 0o777, 0o640)
+        self.assertEqual(box.manager(), [*CONFIGURE_TAIL, f"start {READER}"])
+        self.assertStates(box, [*ENABLED, READER])
+        self.assertFalse(box.record_exists())
+
+    def test_a_fresh_install_creates_the_reader_account_without_docker_and_starts_nothing_optional(self):
+        box = self.sandbox()
+        box.installed(enabled=False)
+        (box.state / "absent-limeos-storage-reader").write_text("")
+        self.assertOk(box.run("postinst", "configure"))
+        created = [c for c in box.calls() if c.startswith("adduser ")]
+        self.assertEqual(
+            created,
+            ["adduser --system --group --no-create-home --home /nonexistent "
+             "--shell /usr/sbin/nologin limeos-storage-reader"],
+        )
+        # Docker access comes from the unit's SupplementaryGroups only; the
+        # account itself is refused if it is ever added to the docker group.
+        self.assertFalse([c for c in box.calls() if "docker" in c and c.startswith(("adduser", "usermod"))])
+        self.assertEqual(box.manager(), CONFIGURE_TAIL)
+        self.assertEqual(
+            (box.root / "etc/limeos/system-policy/storage.json").stat().st_mode & 0o777, 0o640
+        )
+
+    def test_the_reader_account_in_the_docker_group_fails_configure(self):
+        box = self.sandbox()
+        box.installed()
+        id_stub = box.bin / "id"
+        id_stub.unlink()
+        box.executable(id_stub, (
+            "#!/bin/bash\n"
+            'if [[ "${1}" == -u ]]; then printf "150\\n"; '
+            'elif [[ "${2}" == limeos-storage-reader ]]; then printf "limeos-storage-reader docker\\n"; '
+            'else printf "%s\\n" "${2}"; fi\n'
+        ))
+        result = box.run("postinst", "configure")
+        self.assertFailed(result)
+        self.assertIn("Refusing Docker access for service account: limeos-storage-reader", result.stderr)
+        self.assertEqual(box.manager(), [])
 
     def test_the_shadow_postinst_checks_its_container_ceiling_as_read_only(self):
         script = load_build().maintainer_script("postinst", True)
@@ -1134,6 +1202,56 @@ class PackageConsistencyTests(unittest.TestCase):
                 for name in ALL:
                     self.assertNotIn(f" {name}", shadow)
                     self.assertNotIn(f"({name}", shadow)
+
+    def packaged_units(self, build, shadow):
+        units = {}
+        for path in SYSTEMD.glob("*.service"):
+            if build.exclude_effect_unit(path.name, shadow):
+                continue
+            name = path.name.replace("limeos-", "limeos-shadow-") if shadow else path.name
+            units[name] = build.profile_text(path.read_text(), shadow)
+        return units
+
+    def test_every_service_account_is_created_and_the_shadow_keeps_its_own(self):
+        build = load_build()
+        for shadow in (False, True):
+            with self.subTest(shadow=shadow):
+                units = self.packaged_units(build, shadow)
+                postinst = build.maintainer_script("postinst", shadow)
+                build.check_service_accounts(units, postinst, shadow)
+                reader = "limeos-shadow-storage-reader" if shadow else "limeos-storage-reader"
+                self.assertIn(f"User={reader}", units[f"{reader}.service"].splitlines())
+                self.assertIn(reader, build.ACCOUNT_LOOP.search(postinst)[1].split())
+
+    def test_a_lost_shadow_rewrite_fails_the_build(self):
+        build = load_build()
+        units = self.packaged_units(build, True)
+        postinst = build.maintainer_script("postinst", True)
+        reader = "limeos-shadow-storage-reader.service"
+        # The unit runs as the standard package's reader account.
+        lost = dict(units)
+        lost[reader] = lost[reader].replace("User=limeos-shadow-storage-reader", "User=limeos-storage-reader")
+        with self.assertRaises(SystemExit):
+            build.check_service_accounts(lost, postinst, True)
+        # Or postinst no longer creates the account the unit names.
+        with self.assertRaises(SystemExit):
+            build.check_service_accounts(
+                units, postinst.replace(" limeos-shadow-storage-reader ", " "), True
+            )
+        # Or the shadow postinst creates a standard account.
+        with self.assertRaises(SystemExit):
+            build.check_service_accounts(
+                units, postinst.replace("limeos-shadow-storage-reader", "limeos-storage-reader"), True
+            )
+        # Or the unit's group is the standard package's.
+        lost[reader] = units[reader].replace("Group=limeos-shadow-host-access", "Group=limeos-host-access")
+        with self.assertRaises(SystemExit):
+            build.check_service_accounts(lost, postinst, True)
+        # And the standard profile must not name a shadow account.
+        standard = self.packaged_units(build, False)
+        standard["limeos-storage-reader.service"] += "\nSupplementaryGroups=limeos-shadow-host-access\n"
+        with self.assertRaises(SystemExit):
+            build.check_service_accounts(standard, build.maintainer_script("postinst", False), False)
 
     def test_scripts_use_strict_mode(self):
         for script in ("prerm", "postrm", "postinst"):

@@ -109,7 +109,7 @@ async fn an_unprivileged_target_socket_cannot_forge_evidence_and_receives_no_fra
     assert_eq!(stream.read(&mut [0u8; 4]).await.unwrap(), 0);
 }
 
-/// The storage target fixture's current state, as the root reader reports it.
+/// The storage target fixture's current state, as the storage reader reports it.
 fn snapshot(contract: &StorageContract) -> StorageTargetSnapshot {
     StorageTargetSnapshot {
         inventory: limeos_domain::StorageInventory {

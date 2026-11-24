@@ -112,8 +112,16 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    (`limeos-storage-reader`, started but never enabled); installs the Caddy site; then checks
    core health and the login page through the proxy, `limeosctl status`, `docker
    ps` IDs and StartedAt of the managed containers against the snapshot (naming
-   any that changed; other containers that changed are warned about by name), that the reader is active, listening and not
-   restarting (twice, three seconds apart), and that `limeops-*`,
+   any that changed; other containers that changed are warned about by name), that the reader is active, listening, its socket
+   owned by `limeos-storage-reader` (a drop-in running it as root fails here), not restarting,
+   and that core reads through it (`limeosctl reader-status --read stack|storage|container-health`):
+   the stack scan must be fresh from both the management catalog and the Engine, and a storage
+   inventory and a container-health read must succeed unless the reader's ceiling does not grant
+   them. That proves core accepts the reader's socket and that the reader, as installed, can read
+   the devices, the catalog and the Engine (a drop-in that took away its capability or its Docker
+   group fails here); it does not prove the inventory is the one you expect, which planning shows
+   (twice, three seconds apart). Preflight and activation (dry runs included) name any drop-in on
+   a LimeOS unit, and that `limeops-*`,
    `limeos-agent` and `flask-shutdown` are unchanged. Any failure runs
    `return.sh` and exits non-zero; so do SIGINT, SIGTERM, SIGHUP and any
    unexpected exit after the first change. Each step runs in its own session, so

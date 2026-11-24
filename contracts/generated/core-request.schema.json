@@ -96,6 +96,38 @@
       ]
     },
     {
+      "description": "Root-peer only. Asks the storage reader for its health now, under the\nrule core trusts its socket by, and says whether core accepted the\nanswer; with `read`, core then also makes that read through the\nreader as it would for a user and says whether it succeeded. For\ndeployment checks (`scripts/cutover/activate.sh`).",
+      "type": "object",
+      "properties": {
+        "read": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReaderRead"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "request": {
+          "type": "string",
+          "const": "reader_status"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "request",
+        "version"
+      ]
+    },
+    {
       "description": "Root-peer only. Read-only evidence for a stuck job, as the named\nadministrator would see it over HTTP. `admin` is a username; core\nrefuses anyone who is not currently an administrator.",
       "type": "object",
       "properties": {
@@ -797,6 +829,26 @@
         "proposal",
         "approval",
         "idempotency_key"
+      ]
+    },
+    "ReaderRead": {
+      "description": "A read the storage reader serves, made by core through it.",
+      "oneOf": [
+        {
+          "description": "Stack status: the reader's latest stack scan (catalog and Engine,\nthrough its worker), which must be fresh in both.",
+          "type": "string",
+          "const": "stack"
+        },
+        {
+          "description": "A storage inventory (sysfs, block devices, blkid), as core reads it\nfor storage planning.",
+          "type": "string",
+          "const": "storage"
+        },
+        {
+          "description": "A container-health read (Engine, through the health worker).",
+          "type": "string",
+          "const": "container_health"
+        }
       ]
     }
   }

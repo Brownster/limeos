@@ -41,8 +41,10 @@ with socket.socket(socket.AF_UNIX) as stream:
     stream.settimeout(remaining())
     stream.connect('/run/limeos-storage-reader/executor.sock')
     pid, peer_uid, gid = struct.unpack('3i', stream.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
-    if pid <= 1 or peer_uid != 0:
-        raise PermissionError('real root reader peer required')
+    # PR-32: the reader's own account owns the socket and is the peer.
+    reader_uid = pwd.getpwnam('limeos-storage-reader').pw_uid
+    if pid <= 1 or peer_uid != reader_uid or os.stat('/run/limeos-storage-reader/executor.sock').st_uid != reader_uid:
+        raise PermissionError('real reader account peer required')
     body = json.dumps({'operation': 'container_health', 'version': 1, 'nonce': nonce}).encode()
     stream.settimeout(remaining())
     stream.sendall(struct.pack('!I', len(body)) + body)
@@ -126,9 +128,11 @@ def service_snapshot(name):
     selected = (
         "Uid",
         "Gid",
+        "Groups",
         "CapEff",
         "CapPrm",
         "CapBnd",
+        "CapAmb",
         "NoNewPrivs",
         "Threads",
         "VmRSS",
@@ -552,15 +556,18 @@ def main(package_version=VERSION):
         )
         run("systemctl", "start", "limeos-storage-reader")
         from guest import executor_probe_code
-        from p04_fixture_readiness import wait_storage_reader
+        from p04_fixture_readiness import (
+            reader_confined,
+            reader_status,
+            wait_storage_reader,
+        )
 
         evidence["reader_ready"] = wait_storage_reader(run, executor_probe_code())
         evidence["reader_unit"] = unit("limeos-storage-reader")
         pid = int(evidence["reader_unit"]["MainPID"])
-        status = Path(f"/proc/{pid}/status").read_text()
         require(
-            "CapEff:\t0000000000000000" in status and "NoNewPrivs:\t1" in status,
-            "reader gained capabilities",
+            reader_confined(reader_status(pid)),
+            "reader is not its own account with CAP_DAC_READ_SEARCH alone",
         )
         require(
             evidence["reader_unit"]["MemoryMax"] == "67108864"

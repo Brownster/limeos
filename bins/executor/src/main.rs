@@ -271,7 +271,7 @@ async fn run() -> std::io::Result<()> {
         tokio::spawn(async move {
             use limeos_executor::read_gate;
             loop {
-                // A revoked or unreadable ceiling stops the root scan too,
+                // A revoked or unreadable ceiling stops the stack scan too,
                 // not only the answers.
                 if !ceilings.load().is_ok_and(|c| c.allow_stack_read) {
                     tokio::time::sleep(std::time::Duration::from_secs(30)).await;

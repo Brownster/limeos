@@ -34,6 +34,8 @@ FROZEN_PORT_DEFAULT=8002
 # Stack status and whole-stack actions: the dormant read-only reader (never enabled) loads this catalog.
 STACK_READER=limeos-storage-reader.service
 STACK_READER_SOCKET=/run/limeos-storage-reader/executor.sock
+# The account the stack reader runs as (PR-32); core refuses a reader socket anyone else owns.
+STACK_READER_ACCOUNT=limeos-storage-reader
 CATALOG_PATH=/etc/limeos/management-catalog.json
 LIMEOSCTL="${LIMEOSCTL:-/usr/lib/limeos/limeosctl}"
 CORE_SOCKET="${CORE_SOCKET:-/run/limeos-core/core.sock}"
@@ -280,6 +282,22 @@ fct_unit_property() { # property unit
         return 2
     fi
     printf '%s\n' "${out}"
+}
+
+# Every unit the limeos package ships (the standard profile this cutover installs; the shadow
+# profile's units are named limeos-shadow-*). Their drop-ins are reported: an operator override (a
+# User= line, say) changes what the packaged unit runs as, and is easy to miss.
+SHIPPED_UNITS=("${RUST_UNITS[@]}" "${STACK_READER}" limeos-storage-ready.service limeos-storage-targets.service limeos-storage-mounts.service)
+# One line per shipped unit with drop-ins, "UNIT PATH...", or "UNIT unknown" when systemd did not
+# answer. Read-only.
+fct_dropin_report() {
+    local unit paths rc
+    for unit in "${SHIPPED_UNITS[@]}"; do
+        rc=0
+        paths="$(fct_unit_property DropInPaths "${unit}")" || rc=$?
+        if (( rc != 0 )); then printf '%s unknown\n' "${unit}"; continue; fi
+        [[ -z "${paths//[[:space:]]/}" ]] || printf '%s %s\n' "${unit}" "${paths}"
+    done
 }
 
 # limeos-* units, discovered (names only), from the list of every unit file: a host always has

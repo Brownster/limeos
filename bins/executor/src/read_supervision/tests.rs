@@ -57,6 +57,21 @@ fn whole_json_and_exact_body_bound_are_required() {
     ));
 }
 #[test]
+fn a_worker_refusing_for_a_held_capability_reaches_the_manager_as_such() {
+    // Worker to guardian, then guardian (code 7) to manager.
+    for worker in [true, false] {
+        assert_eq!(
+            frame(7, b"").finish(worker).unwrap().result().err(),
+            Some(Refusal::WorkerCapability)
+        );
+    }
+    // Any other worker status but a plain refusal stays forged output.
+    assert!(matches!(
+        frame(5, b"").finish(true),
+        Err(Refusal::InvalidOutput)
+    ));
+}
+#[test]
 fn worker_status_cannot_forge_a_guardian_cleanup_refusal() {
     assert!(matches!(
         frame(4, b"").finish(true),
@@ -66,7 +81,7 @@ fn worker_status_cannot_forge_a_guardian_cleanup_refusal() {
         frame(4, b"").finish(false).unwrap().result(),
         Err(Refusal::InvalidOutput)
     ));
-    for status in [7, 255] {
+    for status in [8, 255] {
         assert!(matches!(
             frame(status, b"").finish(false),
             Err(Refusal::InvalidOutput)
@@ -164,4 +179,22 @@ fn preparation_deadline_reaches_the_monitor_without_a_new_window() {
         thread::sleep(TICK);
     }
     assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn a_read_role_clears_its_ambient_set_and_a_worker_with_any_capability_is_refused() {
+    // A test process holds no capability, so this shows the calls succeed
+    // under the reader's syscall filter shape (prctl, capget; no capset) and
+    // that a capability-free worker passes. The account-with-capability case
+    // is asserted on an installed reader (tests/privileged_vm).
+    clear_ambient_capabilities().unwrap();
+    assert!(
+        !rustix::thread::capability_is_in_ambient_set(
+            rustix::thread::CapabilitySet::DAC_READ_SEARCH
+        )
+        .unwrap()
+    );
+    if !rustix::process::geteuid().is_root() {
+        assert!(worker_holds_no_capability());
+    }
 }

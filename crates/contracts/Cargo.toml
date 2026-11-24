@@ -9,10 +9,19 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Test-only constructors (`ExecutorOwner::with_anchor_owner`); enabled only by
+# dev-dependencies, never by a shipped binary.
+[features]
+test-support = []
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
 ts-rs.workspace = true
 tokio.workspace = true
+rustix.workspace = true
 limeos-domain = { path = "../domain", version = "=0.2.0" }
+
+[dev-dependencies]
+tempfile.workspace = true

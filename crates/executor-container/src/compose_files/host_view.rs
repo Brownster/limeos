@@ -22,9 +22,17 @@ pub(super) fn authenticate(anchor: &ComposeObjectIdentity) -> Result<()> {
     // The caller retains the root descriptor, preventing mount-ID recycling.
     // Each proc table is released before the next allocation. Only the bounded
     // root entry survives; paths in unrelated entries need not be UTF-8.
-    let current = read_root("/proc/self/mountinfo")?;
-    let host = read_root("/proc/1/mountinfo")?;
+    let (current, host) = root_entries()?;
     agree(anchor, &current, &host)
+}
+
+/// The root entries of this process's mount table and PID 1's. This
+/// process's table is owned by its own account (root, or the storage
+/// reader's), PID 1's by root.
+fn root_entries() -> Result<(RootMount, RootMount)> {
+    let current = read_root("/proc/self/mountinfo", rustix::process::geteuid().as_raw())?;
+    let host = read_root("/proc/1/mountinfo", 0)?;
+    Ok((current, host))
 }
 
 fn agree(anchor: &ComposeObjectIdentity, current: &RootMount, host: &RootMount) -> Result<()> {
@@ -38,14 +46,14 @@ fn agree(anchor: &ComposeObjectIdentity, current: &RootMount, host: &RootMount) 
     Ok(())
 }
 
-fn read_root(path: &'static str) -> Result<RootMount> {
+fn read_root(path: &'static str, owner: u32) -> Result<RootMount> {
     let fd = rustix::fs::open(
         path,
         OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
         Mode::empty(),
     )
     .map_err(|_| unavailable())?;
-    require_proc(&fd)?;
+    require_proc(&fd, owner)?;
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(TABLE_BYTES)
@@ -68,13 +76,13 @@ fn read_root(path: &'static str) -> Result<RootMount> {
     root_mount(&bytes)
 }
 
-fn require_proc(fd: &OwnedFd) -> Result<()> {
+fn require_proc(fd: &OwnedFd, owner: u32) -> Result<()> {
     // Linux PROC_SUPER_MAGIC. Ordinary files cannot supply a host-view proof.
     let fs = rustix::fs::fstatfs(fd).map_err(|_| unavailable())?;
     let stat = rustix::fs::fstat(fd).map_err(|_| unavailable())?;
     if fs.f_type != 0x9fa0
         || stat.st_mode & 0o170000 != 0o100000
-        || stat.st_uid != 0
+        || stat.st_uid != owner
         || stat.st_nlink == 0
     {
         return Err(unavailable());
@@ -282,11 +290,30 @@ mod tests {
     #[test]
     fn ordinary_descriptors_cannot_supply_proc_evidence() {
         let fd = rustix::fs::open("/", OFlags::PATH | OFlags::CLOEXEC, Mode::empty()).unwrap();
-        assert!(require_proc(&fd).is_err());
+        assert!(require_proc(&fd, 0).is_err());
     }
     #[test]
     fn actual_pid1_proc_table_is_bounded_and_has_a_root() {
-        let root = read_root("/proc/1/mountinfo").unwrap();
+        let root = read_root("/proc/1/mountinfo", 0).unwrap();
         assert!(root.id > 0);
+    }
+    #[test]
+    fn this_process_table_must_be_owned_by_its_own_account() {
+        // As the storage reader's account reads it: not root-owned.
+        let uid = rustix::process::geteuid().as_raw();
+        let own = read_root("/proc/self/mountinfo", uid).unwrap();
+        assert!(own.id > 0);
+        assert!(read_root("/proc/self/mountinfo", uid.wrapping_add(1)).is_err());
+    }
+    #[test]
+    fn authenticate_reads_this_accounts_own_proc_table() {
+        // `authenticate` reads both tables through `root_entries`, which must
+        // expect /proc/self/mountinfo to be owned by this process's account:
+        // as root's, every non-root run (the storage reader's account, and
+        // this test's) would be refused. Whether the root entries then agree
+        // with the held root depends on the filesystem (a btrfs subvolume's
+        // device differs from the one mountinfo names) and is not judged here.
+        let (own, host) = root_entries().unwrap();
+        assert!(own.id > 0 && host.id > 0);
     }
 }

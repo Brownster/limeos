@@ -601,10 +601,12 @@ fn current_view() -> Result<View> {
         identity,
     })
 }
+/// The host's root directory, authenticated against PID 1's mount table.
+/// No privilege check of its own: it opens `/` and reads world-readable proc
+/// tables, and what it authenticates (this process sees the host's mounts) is
+/// the same for any account. Callers that read protected files check their
+/// own privilege (`inspect_compose_files`).
 pub(crate) fn host_root() -> Result<Root> {
-    if !rustix::process::geteuid().is_root() {
-        return Err(Error(ErrorCode::Forbidden));
-    }
     let original = current_view()?;
     let fd = rustix::fs::open(
         "/",
@@ -613,9 +615,10 @@ pub(crate) fn host_root() -> Result<Root> {
     )
     .map_err(|_| unavailable())?;
     let identity = directory(&fd, 0)?;
-    // Empty-capability UID 0 cannot dereference PID 1's namespace link. The
-    // held root mount instead pins the kernel identity compared with both
-    // genuine proc tables; cloned namespaces have distinct mount objects.
+    // Without CAP_SYS_PTRACE no account (root included) can dereference PID
+    // 1's namespace link. The held root mount instead pins the kernel
+    // identity compared with both genuine proc tables; cloned namespaces
+    // have distinct mount objects.
     host_view::authenticate(&identity)?;
     if current_view()?.identity != original.identity || directory(&fd, 0)? != identity {
         return Err(conflict());

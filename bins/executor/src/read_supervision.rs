@@ -2,7 +2,10 @@
 //! A guardian acknowledgment proves cleanup, never retained storage authority.
 mod guardian;
 use crate::read_budget::{FlightGuard, SingleFlight};
-pub use guardian::{WorkerBootstrap, guardian, write_worker_refusal, write_worker_report};
+pub use guardian::{
+    WorkerBootstrap, guardian, write_worker_capability_refusal, write_worker_refusal,
+    write_worker_report,
+};
 use rustix::{fd::AsFd, fs::OFlags};
 use serde::Deserialize;
 use std::{
@@ -16,6 +19,38 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+/// The stack and health guardians and workers read the 0644 management
+/// catalog, world-readable proc tables and the Engine socket (through the
+/// `docker` group): no capability. The storage reader holds
+/// `CAP_DAC_READ_SEARCH` in its ambient set for `blkid`'s device reads
+/// (`limeos-storage-reader.service`), and every process it starts inherits
+/// it. Each of these roles clears its ambient set first, so no process it
+/// starts inherits the capability: a worker, started by a guardian with an
+/// empty ambient set, holds none. The guardian itself keeps it in its
+/// permitted set until it exits: dropping that needs `capset`, which the
+/// unit's `SystemCallFilter=~@privileged` refuses (with SIGSYS).
+pub fn clear_ambient_capabilities() -> io::Result<()> {
+    rustix::thread::clear_ambient_capability_set().map_err(io::Error::from)
+}
+/// Logs, once per process, a read that failed because its worker held a
+/// capability; every other refusal is reported as the read being unavailable.
+pub fn note_refusal(refusal: &Refusal) {
+    static LOGGED: AtomicBool = AtomicBool::new(false);
+    if *refusal == Refusal::WorkerCapability && !LOGGED.swap(true, Ordering::Relaxed) {
+        tracing::warn!(
+            "a storage-reader worker refused to collect because it holds a capability (its guardian did not clear the ambient set); stack and container-health reads are unavailable until that is fixed"
+        );
+    }
+}
+/// Whether a worker may collect: as any account but root it must hold no
+/// capability at all (root's are not reduced by this design and root is not
+/// how the reader runs).
+pub fn worker_holds_no_capability() -> bool {
+    rustix::process::geteuid().is_root()
+        || rustix::thread::capabilities(None)
+            .is_ok_and(|sets| sets.effective.is_empty() && sets.permitted.is_empty())
+}
 
 #[cfg(test)]
 mod tests;
@@ -34,6 +69,9 @@ pub enum Refusal {
     InvalidOutput,
     WorkerExit,
     CleanupUnconfirmed,
+    /// The worker refused to collect because it held a capability
+    /// (`worker_holds_no_capability`): its guardian did not clear it.
+    WorkerCapability,
 }
 pub type Result<T> = std::result::Result<T, Refusal>;
 
@@ -368,7 +406,8 @@ impl Capture {
             self.bytes.copy_within(HEADER.., 0);
             self.bytes.truncate(length);
             Ok(Frame::Report(SupervisedReport(self.bytes)))
-        } else if length != 0 || (worker && status != 1) || !(1..=6).contains(&status) {
+        } else if length != 0 || (worker && !matches!(status, 1 | 7)) || !(1..=7).contains(&status)
+        {
             Err(Refusal::InvalidOutput)
         } else {
             Ok(Frame::Refused(match status {
@@ -377,6 +416,7 @@ impl Capture {
                 3 => Refusal::Cancelled,
                 4 => Refusal::InvalidOutput,
                 5 => Refusal::WorkerExit,
+                7 => Refusal::WorkerCapability,
                 _ => Refusal::Unavailable,
             }))
         }
