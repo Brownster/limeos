@@ -24,6 +24,7 @@ pub use closure::Lookup;
 pub use limit::ActionRecord;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
+
 /// Rows of `actions` the store holds at most: an execute that would pass it is
 /// refused `Overloaded`, a last resort retention keeps far away.
 const MAX_ACTION_ROWS: u32 = 8192;

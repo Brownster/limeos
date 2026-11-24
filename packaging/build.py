@@ -48,6 +48,43 @@ def maintainer_script(name: str, shadow: bool) -> str:
     return script
 
 
+ACCOUNT_LOOP = re.compile(r"for account in ([^;]+); do fct_account")
+
+
+def check_service_accounts(units: dict[str, str], postinst: str, shadow: bool) -> None:
+    """Every unprivileged unit runs as an account the package creates, and in
+    the shadow profile every LimeOS account, group and unit name is the
+    shadow's: a rewrite lost in profile_text fails the build here instead of
+    installing a shadow unit that runs as (or shares a group with) the
+    standard package's service."""
+    found = ACCOUNT_LOOP.search(postinst)
+    if not found:
+        raise SystemExit("postinst creates no service accounts")
+    created = found[1].split()
+    expected = "limeos-shadow-" if shadow else "limeos-"
+    for account in created:
+        if not account.startswith(expected) or (
+            not shadow and account.startswith("limeos-shadow-")
+        ):
+            raise SystemExit(f"postinst creates an account of the wrong profile: {account}")
+    for name, text in units.items():
+        if shadow and not name.startswith("limeos-shadow-"):
+            raise SystemExit(f"Shadow unit keeps the standard name: {name}")
+        for line in text.splitlines():
+            key, _, value = line.partition("=")
+            if key not in {"User", "Group", "SupplementaryGroups", "RuntimeDirectory", "StateDirectory"}:
+                continue
+            for word in value.split():
+                if not word.startswith("limeos"):
+                    continue
+                # A state directory is a path under /var/lib/limeos(-shadow).
+                want = expected if key != "StateDirectory" else expected[:-1] + "/"
+                if not word.startswith(want) or (not shadow and word.startswith("limeos-shadow")):
+                    raise SystemExit(f"{name}: {key}={word} is not the {want}* name")
+            if key == "User" and value != "root" and value not in created:
+                raise SystemExit(f"{name}: User={value} is not an account postinst creates")
+
+
 def exclude_effect_unit(name: str, shadow: bool) -> bool:
     return shadow and name in {
         "limeos-storage-targets.service",
@@ -122,6 +159,7 @@ def main() -> None:
         shutil.copytree(ROOT / "contracts/generated", lib / "contracts")
         units = stage / "lib/systemd/system"
         units.mkdir(parents=True)
+        written: dict[str, str] = {}
         for unit in (ROOT / "packaging/systemd").glob("*.service"):
             if exclude_effect_unit(unit.name, shadow):
                 continue
@@ -139,6 +177,8 @@ def main() -> None:
                     "/executors/container\n", "/executors/container read-only\n", 1
                 )
             (units / name).write_text(content)
+            written[name] = content
+        check_service_accounts(written, maintainer_script("postinst", shadow), shadow)
         etc = stage / "etc" / package
         etc.mkdir(parents=True)
         config = json.loads((ROOT / "packaging/config/core.json").read_text())

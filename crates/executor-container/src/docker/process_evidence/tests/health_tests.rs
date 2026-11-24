@@ -1,7 +1,5 @@
 use super::*;
-use crate::docker::health_evidence::{
-    EngineHealthEvidence, HealthStatus, RestartMode, inspect_container_health,
-};
+use crate::docker::health_evidence::{EngineHealthEvidence, HealthStatus, RestartMode};
 use limeos_domain::automation::SignalStatus;
 
 fn fields(policy: &str, check: Value, status: Value) -> Value {
@@ -435,12 +433,10 @@ async fn joint_report_limit_refuses_amplification_without_clipping_the_inventory
 }
 
 #[tokio::test]
-async fn production_nonroot_and_wrong_kernel_peer_refuse_before_any_http_request() {
-    assert!(!rustix::process::geteuid().is_root());
-    assert!(matches!(
-        inspect_container_health().await,
-        Err(Error(ErrorCode::Forbidden))
-    ));
+async fn production_root_policy_and_wrong_kernel_peer_refuse_before_any_http_request() {
+    // The fixed public reader (`inspect_container_health`) reaches the host's
+    // /run/docker.sock, so it is not called here; the same collection under
+    // the root policy is, against this test's socket.
     let f = fixture(config()).await;
     assert!(matches!(
         inspect_health(&f.docker, EnginePeerPolicy::root()).await,

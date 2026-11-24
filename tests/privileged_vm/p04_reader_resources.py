@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from p04_automation_guest import disposable_guard, require
+from p04_fixture_readiness import reader_confined
 
 GROUP = Path("/sys/fs/cgroup/system.slice/limeos-storage-reader.service")
 
@@ -96,9 +97,13 @@ class ReaderResources:
             in (
                 "PPid",
                 "Uid",
+                "Gid",
+                "Groups",
+                "CapInh",
                 "CapEff",
                 "CapPrm",
                 "CapBnd",
+                "CapAmb",
                 "NoNewPrivs",
                 "Threads",
                 "VmHWM",
@@ -141,13 +146,13 @@ class ReaderResources:
             role = "storage-worker"
         else:
             raise ValueError("unexpected reader process image")
+        # PR-32: every reader process runs as the reader's account; the
+        # manager holds CAP_DAC_READ_SEARCH, the guardians only until they
+        # exit (ambient cleared), the workers none.
+        require(reader_confined(status, role), "reader process confinement differs")
         require(
-            all(
-                status[key] == "0000000000000000"
-                for key in ("CapEff", "CapPrm", "CapBnd")
-            )
-            and status["NoNewPrivs"] == "1",
-            "reader process confinement differs",
+            (proc).stat().st_uid == int(status["Uid"].split()[0]),
+            "reader process is not dumpable (its /proc entry is root's)",
         )
         self.value["processes"][identity] = {
             "pid": pid,

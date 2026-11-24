@@ -770,12 +770,41 @@ def induce_spare(label, name):
     return induce_bad_start_container(label, name)
 
 
+def watchdog_seconds(unit):
+    """The unit's systemd watchdog period (`WatchdogSec=`), in seconds; 0 when it has none."""
+    value = fx.run("systemctl", "show", unit, "-p", "WatchdogUSec", "--value").stdout.strip()
+    units = {"h": 3600.0, "min": 60.0, "s": 1.0, "ms": 0.001, "us": 0.000001}
+    parts = re.findall(r"([0-9.]+)\s*(h|min|ms|us|s)", value)
+    check(parts or value in ("0", "infinity", ""), "unreadable WatchdogUSec", value=value)
+    return sum(float(n) * units[u] for n, u in parts)
+
+
+def process_state(pid):
+    """The kernel's one-letter state of `pid` (`T` when stopped), or None once it is gone."""
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return None
+
+
 def run_crash(label, mode):
-    """Drive one resolution POST and crash the core at a chosen point; return facts about the crash state."""
+    """Drive one resolution POST and crash the core at a chosen point; return facts about the crash state.
+
+    "recorded": core and the executor are killed as soon as the request is recorded.
+    "frozen": core is stopped (SIGSTOP) once the request is recorded and the executor has received its
+    ResolveAction, the executor frees its row and answers into the frozen core's socket, the state is
+    captured, and core is killed. A stopped core sends no watchdog keep-alive; it sends three per period, so systemd kills it
+    between two and three thirds of `WatchdogSec` after the stop. The frozen window is therefore kept to at
+    most about six seconds and checked against a third of the period, and the capture counts only if the very
+    process that was stopped is still stopped after it (a core the watchdog killed and systemd restarted
+    would already have completed the resolution, which is not the crash point this case is about).
+    The POST runs on its own thread: with core frozen it would block until its own 40 s timeout.
+    """
     facts = jobs[label]
     wait_quiet()
     digest = fresh_view(facts)["evidence_digest"]
     core_pid, executor_pid, docker_pid = pid_of("limeos-core"), pid_of(EXEC_UNIT), dockerd_pid()
+    watchdog = watchdog_seconds("limeos-core")
     mark = sl.mark()
     stop = threading.Event()
     seen = {}
@@ -800,28 +829,50 @@ def run_crash(label, mode):
                     os.kill(docker_pid, signal.SIGSTOP)  # hold the executor inside its Engine re-inspection
                     time.sleep(0.05)  # core has sent ResolveAction by now
                     os.kill(core_pid, signal.SIGSTOP)  # core cannot read the executor's reply
+                    seen["frozen_at"] = time.monotonic()
                     os.kill(docker_pid, signal.SIGCONT)
                 return
 
     def capture(f):
         return {"executor_rows": executor_rows(f["job"]), "request": resolution_row(f["job"]), "core_job_state": core_job(f["job"]), "core_locks": job_locks(f["job"])}
 
+    def post():
+        try:
+            hx(resolution_path(facts["job"]), "POST", {"declared": "not_done", "reason": "Start failed at the runtime; nothing started (crash test).", "evidence_digest": digest, "password": PASSWORD})
+        except Exception as error:  # noqa: BLE001 - the connection dies with the core
+            seen["post_error"] = repr(error)[:120]
+
     thread = threading.Thread(target=poll)
+    sender = threading.Thread(target=post, daemon=True)
     pace()
     thread.start()
-    try:
-        hx(resolution_path(facts["job"]), "POST", {"declared": "not_done", "reason": "Start failed at the runtime; nothing started (crash test).", "evidence_digest": digest, "password": PASSWORD})
-    except Exception as error:  # noqa: BLE001 - the connection dies with the core
-        seen["post_error"] = repr(error)[:120]
-    thread.join(10)
+    sender.start()
+    thread.join(45)  # the POST measures the evidence and records the request well within its own 40 s timeout
     stop.set()
+    thread.join(5)
     check("at" in seen, "never observed the recorded request", seen=seen)
     if mode == "frozen":
-        time.sleep(1.5)  # the executor answers into the frozen core's socket
-        crash = capture(facts)
-        os.kill(core_pid, signal.SIGKILL)
+        try:
+            # The executor re-inspects, frees its row and answers into the frozen core's socket. Wait for
+            # its row to show that (at most 6 s, well inside a third of the watchdog period), then capture.
+            settle = seen["frozen_at"] + 6
+            while time.monotonic() < settle and not settled(executor_rows(facts["job"]), "container"):
+                time.sleep(0.1)
+            time.sleep(0.2)  # its answer reaches core's socket after the row commits
+            crash = capture(facts)
+            frozen_for = time.monotonic() - seen["frozen_at"]
+            state = process_state(core_pid)
+            crash["frozen_seconds"] = round(frozen_for, 2)
+            crash["watchdog_seconds"] = watchdog
+            check(state == "T", "the stopped core is no longer that stopped process (watchdog kill or restart): the capture is not the intended crash point",
+                  state=state, frozen_for=frozen_for, watchdog=watchdog)
+            check(not watchdog or frozen_for < watchdog / 3, "core stayed frozen too close to its watchdog", frozen_for=frozen_for, watchdog=watchdog)
+        finally:
+            if process_state(core_pid) is not None:
+                os.kill(core_pid, signal.SIGKILL)
     else:
         crash = seen["crash"]
+    sender.join(15)
     return facts, crash, mark
 
 
@@ -879,12 +930,20 @@ def zero_effects():
     # Each case above asserted an empty lifecycle-event window around its resolution; this checks the log as a whole:
     # every start/stop/restart/kill in the log must be attributable to induction, a planned job or a hand fixture step.
     total = lifecycle_events(0)
+    # Core's start limit (ten starts in six hours, reset by the package's postinst) is not reached: this suite
+    # starts core at installation and restarts it only through 7a's kill and 7b's one or two (no watchdog
+    # kills: the frozen windows stay under a third of the watchdog period), so no reset-failed is needed.
+    starts = sum("Started limeos-core.service" in line for line in fx.run("journalctl", "-u", "limeos-core.service", "-o", "cat", "--no-pager").stdout.splitlines())
+    burst = int(fx.run("systemctl", "show", "limeos-core", "-p", "StartLimitBurst", "--value").stdout.strip())
+    watchdog_kills = sum("Failed with result 'watchdog'" in line for line in fx.run("journalctl", "-u", "limeos-core.service", "-o", "cat", "--no-pager").stdout.splitlines())
+    check(watchdog_kills == 0, "core was killed by its watchdog during the suite", kills=watchdog_kills)
+    check(starts < burst, "core started as often as its start limit allows", starts=starts, burst=burst)
     # The job the operator cancelled behind H (case 1b) stayed cancelled after H's lock was freed (4a) and never reached the executor.
     behind = jobs.get("H", {}).get("canceled_behind")
     if behind:
         check(core_job(behind) == "canceled" and executor_rows(behind) == {"stack_actions": [], "actions": []},
               "cancelled job ran after its lock was freed", state=core_job(behind), rows=executor_rows(behind))
-    return {"lifecycle_events_total": len(total), "canceled_behind_h": behind,
+    return {"lifecycle_events_total": len(total), "canceled_behind_h": behind, "core_starts": starts, "core_start_limit": burst,
             "note": "per-resolution windows asserted empty in cases 1b, 3, 4a-4c, 6a, 6b, 7a, 7b"}
 
 

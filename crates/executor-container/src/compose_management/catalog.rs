@@ -535,13 +535,14 @@ fn collect(
     Ok(evidence)
 }
 /// Unregistered protected configuration reader with fixed bounds and no policy overrides.
+/// It has no privilege check of its own: every path component must be
+/// root-owned and not group- or world-writable, which no account but root can
+/// arrange, and the catalog is installed 0644. It runs in the storage
+/// reader's stack worker, which holds no capability (PR-32).
 pub fn inspect_management_catalog(
     path: &Path,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ManagementCatalogEvidence> {
-    if !rustix::process::geteuid().is_root() {
-        return Err(Error(ErrorCode::Forbidden));
-    }
     admit(path)?;
     let at = files::now()?;
     let budget = Budget {

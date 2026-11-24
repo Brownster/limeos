@@ -7,6 +7,9 @@ use limeos_executor::{
 use rustix::process::Pid;
 
 fn run() -> Result<(), ()> {
+    // Before anything else: nothing this process starts inherits the
+    // reader's CAP_DAC_READ_SEARCH (`read_supervision::clear_ambient_capabilities`).
+    read_supervision::clear_ambient_capabilities().map_err(|_| ())?;
     let mut args = std::env::args_os().skip(1);
     let role = args.next().ok_or(())?;
     if args.next().is_some() || role.len() > 16 {
@@ -25,6 +28,9 @@ fn run() -> Result<(), ()> {
             .and_then(Pid::from_raw)
             .ok_or(())?;
         let boot = WorkerBootstrap::establish(parent).map_err(|_| ())?;
+        if !read_supervision::worker_holds_no_capability() {
+            return read_supervision::write_worker_capability_refusal().map_err(|_| ());
+        }
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .max_blocking_threads(1)
@@ -50,6 +56,9 @@ fn run() -> Result<(), ()> {
                 .and_then(Pid::from_raw)
                 .ok_or(())?;
             let boot = WorkerBootstrap::establish(parent).map_err(|_| ())?;
+            if !read_supervision::worker_holds_no_capability() {
+                return read_supervision::write_worker_capability_refusal().map_err(|_| ());
+            }
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .max_blocking_threads(1)

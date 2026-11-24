@@ -49,6 +49,11 @@ pub(super) async fn interactive_permit(
         .map_err(|_| Error(ErrorCode::Overloaded))?
         .map_err(|_| Error(ErrorCode::Unavailable))
 }
+/// The rule core trusts an unprivileged executor's socket by (the container
+/// executor's and the storage reader's), for this process's UID.
+pub(super) fn executor_owner() -> limeos_contracts::ExecutorOwner {
+    limeos_contracts::ExecutorOwner::new(rustix::process::geteuid().as_raw())
+}
 impl Core {
     pub(super) async fn interactive_storage_read(
         &self,
@@ -58,29 +63,12 @@ impl Core {
     pub(super) async fn fresh_container_storage(
         &self,
     ) -> Result<limeos_domain::ContainerStorageInventory> {
-        use std::os::unix::fs::{FileTypeExt, MetadataExt};
         let _permit = self.interactive_storage_read().await?;
         let requested_at = now();
         tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
-            let owner = std::fs::symlink_metadata(self.container_socket.as_ref())
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
-            let core_uid = std::fs::metadata("/proc/self")
-                .map_err(|_| Error(ErrorCode::Unavailable))?
-                .uid();
-            if !owner.file_type().is_socket() || owner.uid() == 0 || owner.uid() == core_uid {
-                return Err(Error(ErrorCode::Forbidden));
-            }
-            let mut stream = UnixStream::connect(self.container_socket.as_ref())
-                .await
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
-            if stream
-                .peer_cred()
-                .map_err(|_| Error(ErrorCode::Unavailable))?
-                .uid()
-                != owner.uid()
-            {
-                return Err(Error(ErrorCode::Forbidden));
-            }
+            let mut stream = executor_owner()
+                .connect(self.container_socket.as_ref())
+                .await?;
             limeos_contracts::write_frame(
                 &mut stream,
                 &limeos_executor_protocol::Request::ContainerStorageInventory { version: VERSION },
@@ -124,36 +112,55 @@ impl Core {
     }
     pub(super) async fn fresh_storage(&self) -> Result<StorageInventory> {
         let _permit = self.interactive_storage_read().await?;
+        let receipt = self.storage_exchange().await?;
+        if receipt.version != VERSION || !receipt.ready {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        if let Some(error) = receipt.error {
+            return Err(Error(error));
+        }
+        let inventory = receipt.storage.ok_or(Error(ErrorCode::Unavailable))?;
+        inventory.validate()?;
+        Ok(inventory)
+    }
+    /// A storage inventory for `limeosctl reader-status --read storage`:
+    /// the same exchange as `fresh_storage`, but it takes the read gate only
+    /// if it is free (a busy gate is `Overloaded`; the caller retries), and
+    /// keeps the reader's own refusal (`Forbidden` for a ceiling that does
+    /// not grant the read).
+    pub(super) async fn probe_storage(&self) -> Result<StorageInventory> {
+        let _permit = self
+            .storage_readers
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| Error(ErrorCode::Overloaded))?;
+        let receipt = self.storage_exchange().await?;
+        if let Some(error) = receipt.error {
+            return Err(Error(error));
+        }
+        if receipt.version != VERSION || !receipt.ready {
+            return Err(Error(ErrorCode::Unavailable));
+        }
+        let inventory = receipt.storage.ok_or(Error(ErrorCode::Unavailable))?;
+        inventory.validate()?;
+        Ok(inventory)
+    }
+    async fn storage_exchange(&self) -> Result<limeos_executor_protocol::Receipt> {
         tokio::time::timeout(limeos_contracts::RPC_DEADLINE, async {
-            let mut stream = UnixStream::connect(self.storage_socket.as_ref())
-                .await
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
-            // Kernel credentials on both ends; an unprivileged replacement
-            // socket cannot supply disk/fstab evidence to the core.
-            if stream
-                .peer_cred()
-                .map_err(|_| Error(ErrorCode::Unavailable))?
-                .uid()
-                != 0
-            {
-                return Err(Error(ErrorCode::Forbidden));
-            }
+            // The reader runs as its own account, as the container executor
+            // does, and is trusted by the same rule (`ExecutorOwner`): its
+            // socket in a directory only it can write, under root's /run,
+            // answered by its owner. So no other account, and not core
+            // itself, can supply disk or fstab evidence.
+            let mut stream = executor_owner()
+                .connect(self.storage_socket.as_ref())
+                .await?;
             limeos_contracts::write_frame(
                 &mut stream,
                 &limeos_executor_protocol::Request::StorageInventory { version: VERSION },
             )
             .await?;
-            let receipt: limeos_executor_protocol::Receipt =
-                limeos_contracts::read_frame(&mut stream).await?;
-            if receipt.version != VERSION || !receipt.ready {
-                return Err(Error(ErrorCode::Unavailable));
-            }
-            if let Some(error) = receipt.error {
-                return Err(Error(error));
-            }
-            let inventory = receipt.storage.ok_or(Error(ErrorCode::Unavailable))?;
-            inventory.validate()?;
-            Ok(inventory)
+            limeos_contracts::read_frame(&mut stream).await
         })
         .await
         .map_err(|_| Error(ErrorCode::Unavailable))?

@@ -394,19 +394,3 @@ fn catalog_path_admission_and_maximum_retained_handles() {
     assert_eq!(e.retained_descriptor_count() + 1, 18);
     assert!(admit(Path::new(&format!("/{dirs}/a/catalog.json"))).is_err());
 }
-#[test]
-fn public_catalog_nonroot_refusal_precedes_callback_and_target_access() {
-    assert!(!rustix::process::geteuid().is_root());
-    let called = Cell::new(false);
-    refusal(
-        inspect_management_catalog(
-            Path::new("/limeos-unregistered-missing-catalog.json"),
-            &|| {
-                called.set(true);
-                false
-            },
-        ),
-        ErrorCode::Forbidden,
-    );
-    assert!(!called.get());
-}

@@ -25,8 +25,11 @@ fct_directory() {
 # A ceiling loaded by an unprivileged role: root-owned, readable through the
 # group the role's unit runs with (its primary group, so no membership in
 # /etc/group is needed) and writable only by root. Applied on every configure,
-# because an older package created host.json root:root and an operator may
-# have left it 0600 or 0640, which limeos-storaged cannot read.
+# because older packages created host.json and storage.json root:root (when
+# their readers ran as root) and an operator may have left either 0600 or
+# 0640, which limeos-storaged cannot read. limeos-storage-reader holds
+# CAP_DAC_READ_SEARCH for its device reads and could read storage.json
+# anyway; the group keeps its ceiling readable without that capability.
 fct_reader_access() {
     local file="${1}" group="${2}"
     if [[ -L "${file}" || ! -f "${file}" ]]; then printf 'Refusing non-regular ceiling: %s\n' "${file}" >&2; return 1; fi
@@ -144,7 +147,7 @@ fct_execute_this() {
     fct_take_record
     /usr/lib/limeos/limeosctl check-config /etc/limeos/core.json
     local account group core_uid
-    for account in limeos-core limeos-containerd limeos-storaged limeos-assistant; do fct_account "${account}"; done
+    for account in limeos-core limeos-containerd limeos-storaged limeos-storage-reader limeos-assistant; do fct_account "${account}"; done
     for group in limeos-rpc limeos-host-access limeos-container-access docker; do
         getent group "${group}" >/dev/null || addgroup --system "${group}"
     done
@@ -186,14 +189,21 @@ fct_execute_this() {
         mv -fT "${temporary}" "/etc/limeos/system-policy/${target}.json"
         sync -f /etc/limeos/system-policy
     done
-    # limeos-storaged reads host.json (its directories are 0755 above); its
-    # runtime directory and socket are created at each start by systemd and
-    # the role, owned by it with group limeos-host-access, which core holds as
-    # a supplementary group; it has no state directory. container.json and
-    # storage.json keep their owners: their readers never changed.
-    # A refused host.json is left exactly as the operator wrote it.
+    # limeos-storaged reads host.json and limeos-storage-reader storage.json
+    # (their directories are 0755 above); each one's runtime directory and
+    # socket are created at each start by systemd and the role, owned by its
+    # account with group limeos-host-access, which core holds as a
+    # supplementary group; neither has a state directory. An older package
+    # ran the reader as root: its runtime directory went when prerm stopped
+    # it, systemd creates the new one owned by the account (and would chown
+    # a leftover one), and the reader left no other state. container.json
+    # keeps its owner: its reader never changed. A refused ceiling is left
+    # exactly as the operator wrote it.
     if [[ " ${refused[*]-} " != *" limeos-storaged.service "* ]]; then
         fct_reader_access /etc/limeos/system-policy/host.json limeos-host-access
+    fi
+    if [[ " ${refused[*]-} " != *" limeos-storage-reader.service "* ]]; then
+        fct_reader_access /etc/limeos/system-policy/storage.json limeos-host-access
     fi
     for unit in limeos-storaged.service limeos-containerd.service; do
         [[ " ${refused[*]-} " == *" ${unit} "* ]] || restart+=("${unit}")

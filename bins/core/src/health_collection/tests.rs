@@ -42,7 +42,7 @@ fn cohort(nonce: String, at: i64) -> ContainerHealthCohort {
 }
 async fn fixture(mode: u8, at: i64) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("reader.sock");
+    let path = super::test_socket(dir.path());
     let listener = UnixListener::bind(&path).unwrap();
     let requests = Arc::new(AtomicUsize::new(0));
     let seen = requests.clone();
@@ -105,9 +105,7 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
         }
     });
     let mut reader = HealthReader::new(path, Arc::new(Semaphore::new(1)));
-    let uid = rustix::process::geteuid().as_raw();
-    reader.test_socket_uid = Some(uid);
-    reader.test_peer_uid = Some(uid);
+    reader.owner = super::test_owner();
     let wall = clock.clone();
     reader.clock = Arc::new(move || wall.load(Ordering::SeqCst));
     Fixture {
@@ -148,19 +146,26 @@ async fn replay_wrong_payload_clock_version_and_socket_replacement_refuse() {
     }
 }
 #[tokio::test]
-async fn production_uid_wrong_kernel_peer_and_symlink_refuse_before_request_bytes() {
+async fn a_socket_core_owns_and_a_symlink_refuse_before_request_bytes() {
     let mut f = fixture(0, 120).await;
-    f.reader.test_socket_uid = None;
-    f.reader.test_peer_uid = None;
-    assert!(f.reader.read(deadline()).await.is_err());
+    // The socket this test process serves is core's own when core runs as
+    // this account, and outside root's /run under the production rule: both
+    // refused before connecting. (A peer other than the owner, a root-owned
+    // socket and unsafe directories are refused by the same rule,
+    // `limeos_contracts::ExecutorOwner`, whose tests cover them.)
+    let uid = rustix::process::geteuid().as_raw();
+    for owner in [
+        limeos_contracts::ExecutorOwner::with_anchor_owner(uid, uid),
+        crate::storage::executor_owner(),
+    ] {
+        f.reader.owner = owner;
+        assert_eq!(
+            f.reader.read(deadline()).await.err(),
+            Some(Error(ErrorCode::Forbidden))
+        );
+    }
     assert_eq!(f.requests.load(Ordering::SeqCst), 0);
-    f.reader.test_socket_uid = Some(rustix::process::geteuid().as_raw());
-    f.reader.test_peer_uid = Some(rustix::process::geteuid().as_raw() + 1);
-    assert_eq!(
-        f.reader.read(deadline()).await.err(),
-        Some(Error(ErrorCode::Forbidden))
-    );
-    assert_eq!(f.requests.load(Ordering::SeqCst), 0);
+    f.reader.owner = super::test_owner();
     let linked = f.dir.path().join("linked.sock");
     std::os::unix::fs::symlink(&f.reader.socket, &linked).unwrap();
     f.reader.socket = linked;

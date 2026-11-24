@@ -27,7 +27,10 @@ finally:
 
 
 class AutomationFixtureGuards(unittest.TestCase):
-    def probe(self, data, *, peer_uid=0, client_uid=1000, times=None):
+    # PR-32: the reader runs as its own account (999 here), core as 1000.
+    ACCOUNTS = {"limeos-core": 1000, "limeos-storage-reader": 999}
+
+    def probe(self, data, *, peer_uid=999, socket_uid=999, client_uid=1000, times=None):
         class Stream:
             def __init__(self):
                 self.remaining = data
@@ -65,7 +68,8 @@ class AutomationFixtureGuards(unittest.TestCase):
         with (
             mock.patch("socket.socket", return_value=stream),
             mock.patch("os.geteuid", return_value=client_uid),
-            mock.patch("pwd.getpwnam", return_value=mock.Mock(pw_uid=1000)),
+            mock.patch("pwd.getpwnam", side_effect=lambda name: mock.Mock(pw_uid=self.ACCOUNTS[name])),
+            mock.patch("os.stat", return_value=mock.Mock(st_uid=socket_uid)),
             mock.patch("sys.argv", ["probe", "a" * 64]),
             mock.patch("time.monotonic", side_effect=times, return_value=0),
             redirect_stdout(output),
@@ -93,10 +97,11 @@ class AutomationFixtureGuards(unittest.TestCase):
         ):
             with self.subTest(data=data), self.assertRaises((ValueError, EOFError)):
                 self.probe(data)
-        with self.assertRaises(PermissionError):
-            self.probe(struct.pack("!I", len(body)) + body, peer_uid=1000)
-        with self.assertRaises(PermissionError):
-            self.probe(struct.pack("!I", len(body)) + body, client_uid=0)
+        # Core, root, or a peer that does not own the socket is not the reader.
+        for options in (dict(peer_uid=1000), dict(peer_uid=0), dict(socket_uid=0),
+                        dict(peer_uid=0, socket_uid=0), dict(client_uid=0)):
+            with self.subTest(**options), self.assertRaises(PermissionError):
+                self.probe(struct.pack("!I", len(body)) + body, **options)
 
     def test_health_probe_keeps_one_absolute_deadline(self):
         with self.assertRaises(TimeoutError):

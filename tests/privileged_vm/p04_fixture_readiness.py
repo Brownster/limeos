@@ -1,8 +1,10 @@
 """Bounded disposable-guest setup observations, never production admission."""
 
+import grp
 import http.client
 import json
 import os
+import pwd
 import socket
 import struct
 import time
@@ -10,6 +12,53 @@ from pathlib import Path
 
 PROC = Path("/proc")
 READER_SOCKET = Path("/run/limeos-storage-reader/executor.sock")
+# PR-32: the reader runs as its own account, primary group limeos-host-access, supplementary
+# group docker, with CAP_DAC_READ_SEARCH (bit 2) and nothing else.
+READER_ACCOUNT = "limeos-storage-reader"
+READER_CAPABILITIES = "0000000000000004"
+NO_CAPABILITIES = "0000000000000000"
+# The capability sets each reader process must show, by role. The manager (the service's main
+# process) and blkid hold the capability in every set (ambient, so blkid inherits it). The read
+# guardians clear their ambient set first (read_supervision::clear_ambient_capabilities) and keep
+# it permitted, since capset is outside the unit's syscall filter; the workers they start hold
+# none (inheritable stays, unused without file capabilities, which no_new_privs ignores).
+READER_SETS = {
+    "manager": dict(CapInh=READER_CAPABILITIES, CapPrm=READER_CAPABILITIES, CapEff=READER_CAPABILITIES,
+                    CapBnd=READER_CAPABILITIES, CapAmb=READER_CAPABILITIES),
+    "guardian": dict(CapInh=READER_CAPABILITIES, CapPrm=READER_CAPABILITIES, CapEff=READER_CAPABILITIES,
+                     CapBnd=READER_CAPABILITIES, CapAmb=NO_CAPABILITIES),
+    "worker": dict(CapInh=READER_CAPABILITIES, CapPrm=NO_CAPABILITIES, CapEff=NO_CAPABILITIES,
+                   CapBnd=READER_CAPABILITIES, CapAmb=NO_CAPABILITIES),
+}
+READER_ROLES = {"health-guardian": "guardian", "health-worker": "worker", "storage-worker": "manager"}
+
+
+def reader_confined(status, role="manager"):
+    """Whether one reader process's /proc/PID/status fields (a dict of the stripped values) show
+    the reader's account, exactly its groups (limeos-host-access from Group= through systemd's
+    initgroups, docker from SupplementaryGroups=), exactly its role's capability sets and
+    no_new_privs."""
+    uid = str(pwd.getpwnam(READER_ACCOUNT).pw_uid)
+    gid = grp.getgrnam("limeos-host-access").gr_gid
+    docker = grp.getgrnam("docker").gr_gid
+    sets = READER_SETS[READER_ROLES.get(role, role)]
+    return (
+        status.get("Uid", "").split() == [uid] * 4
+        and status.get("Gid", "").split() == [str(gid)] * 4
+        and sorted(int(g) for g in status.get("Groups", "").split()) == sorted({gid, docker})
+        and all(status.get(key) == value for key, value in sets.items())
+        and status.get("NoNewPrivs") == "1"
+    )
+
+
+def reader_status(pid):
+    """The fields reader_confined reads, for a live process."""
+    return {
+        key: value.strip()
+        for line in (PROC / str(pid) / "status").read_text().splitlines()
+        if ":" in line
+        for key, value in [line.split(":", 1)]
+    }
 
 
 def _guest():

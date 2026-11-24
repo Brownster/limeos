@@ -56,7 +56,8 @@ fn owner_model_fits_preserved_service_caps_with_explicit_margin() {
         "MemoryMax=64M",
         "MemorySwapMax=0",
         "TasksMax=16",
-        "CapabilityBoundingSet=",
+        "CapabilityBoundingSet=CAP_DAC_READ_SEARCH",
+        "AmbientCapabilities=CAP_DAC_READ_SEARCH",
         "NoNewPrivileges=yes",
     ] {
         assert!(unit.lines().any(|s| s == line));

@@ -609,8 +609,11 @@ class ConfinementReproductionTests(unittest.TestCase):
         self.assertEqual(values["TasksMax"], "16")
         self.assertEqual(values["CPUQuota"], "50%")
         self.assertEqual(values["NoNewPrivileges"], "yes")
-        self.assertEqual(values["CapabilityBoundingSet"], "")
-        self.assertEqual(values["AmbientCapabilities"], "")
+        # PR-32: the reader's own account with one read capability.
+        self.assertEqual(values["User"], "limeos-storage-reader")
+        self.assertEqual(values["SupplementaryGroups"], "docker")
+        self.assertEqual(values["CapabilityBoundingSet"], "CAP_DAC_READ_SEARCH")
+        self.assertEqual(values["AmbientCapabilities"], "CAP_DAC_READ_SEARCH")
         self.assertEqual(
             [v for k, v in properties if k == "SystemCallFilter"],
             ["@system-service openat2", "~@privileged"],
@@ -633,8 +636,13 @@ class ConfinementReproductionTests(unittest.TestCase):
         ]
         self.assertEqual(properties, [f"{k}={v}" for k, v in Ctx.confinement])
         self.assertEqual(argv[-1], "/bin/true")
-        self.assertFalse(
-            any("Capability" in p and not p.endswith("=") for p in properties)
+        # The probe gets the reader's one capability and nothing more.
+        self.assertEqual(
+            [p for p in properties if "Capabilit" in p],
+            [
+                "CapabilityBoundingSet=CAP_DAC_READ_SEARCH",
+                "AmbientCapabilities=CAP_DAC_READ_SEARCH",
+            ],
         )
 
 

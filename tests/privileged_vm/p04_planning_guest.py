@@ -99,7 +99,9 @@ def main():
         assert (
             "[Install]" not in unit
             and "PrivateMounts=no" in unit
-            and "CapabilityBoundingSet=\n" in unit
+            and "CapabilityBoundingSet=CAP_DAC_READ_SEARCH\n" in unit
+            and f"User={prefix}-storage-reader\n" in unit
+            and "SupplementaryGroups=docker\n" in unit
         )
         assert (
             prefix + "/limeos-executor" in unit
@@ -135,17 +137,20 @@ def main():
     assert http(BASE + "/inventory", cookie=cookie)[0] == 503
     run("systemctl", "start", "limeos-storage-reader")
     from guest import executor_probe_code
-    from p04_fixture_readiness import wait_storage_reader
+    from p04_fixture_readiness import (
+        reader_confined,
+        reader_status,
+        wait_storage_reader,
+    )
 
     evidence["reader_startup"] = wait_storage_reader(run, executor_probe_code())
     print("FIXTURE_READER_READY " + json.dumps(evidence["reader_startup"]), flush=True)
     pid = run(
         "systemctl", "show", "limeos-storage-reader", "-p", "MainPID", "--value"
     ).stdout.strip()
-    status = Path(f"/proc/{pid}/status").read_text()
-    assert "CapEff:\t0000000000000000" in status and "NoNewPrivs:\t1" in status
+    assert reader_confined(reader_status(pid))
     passed(
-        f"schema {AUTHORITY_SCHEMA}, dormant standard/shadow reader payload and installed empty-capability host reader"
+        f"schema {AUTHORITY_SCHEMA}, dormant standard/shadow reader payload and installed reader as its own account with CAP_DAC_READ_SEARCH alone"
     )
 
     fstab = Path("/etc/fstab")

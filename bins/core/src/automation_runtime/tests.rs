@@ -40,7 +40,7 @@ fn csrf(index: usize) -> String {
 }
 async fn fixture(owners: usize, per_owner: usize) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("reader.sock");
+    let path = crate::health_collection::test_socket(dir.path());
     let at = crate::now();
     let mut store = Store::open(&dir.path().join("core.sqlite")).unwrap();
     let mut actors = Vec::new();

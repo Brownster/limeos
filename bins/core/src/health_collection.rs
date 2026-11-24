@@ -1,15 +1,13 @@
-//! Fresh root-reader responses. Only this private owner carries local freshness.
+//! Fresh storage-reader responses. Only this private owner carries local freshness.
+use limeos_contracts::ExecutorOwner;
 use limeos_domain::{Error, ErrorCode, Result, automation::ContainerHealthCohort};
 use limeos_executor_protocol::{Receipt, Request};
-use rustix::fs::{Mode, OFlags, ResolveFlags};
 use std::{
-    fs::File,
-    os::unix::fs::{FileTypeExt, MetadataExt},
     path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::{net::UnixStream, sync::Semaphore};
+use tokio::sync::Semaphore;
 type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
 /// The longest the 1 Hz background health read holds core's storage read
 /// gate.
@@ -23,10 +21,10 @@ pub struct HealthReader {
     socket: PathBuf,
     gate: Arc<Semaphore>,
     clock: Clock,
-    #[cfg(test)]
-    test_socket_uid: Option<u32>,
-    #[cfg(test)]
-    test_peer_uid: Option<u32>,
+    /// The rule the reader's socket must meet (`limeos_contracts::ExecutorOwner`):
+    /// in its owner's directory under a root-owned one, owned by neither
+    /// root nor core, answered by its owner.
+    owner: ExecutorOwner,
 }
 #[derive(Debug)]
 pub struct FreshContainerHealth {
@@ -51,68 +49,31 @@ fn live(deadline: Instant) -> Result<()> {
         Ok(())
     }
 }
-#[derive(PartialEq, Eq)]
-struct Identity {
-    device: u64,
-    inode: u64,
-    uid: u32,
-    mode: u32,
-}
-struct Socket {
-    file: File,
-    identity: Identity,
-}
-fn identity(file: &File, uid: u32) -> Result<Identity> {
-    let meta = file.metadata().map_err(|_| Error(ErrorCode::Unavailable))?;
-    if !meta.file_type().is_socket()
-        || meta.uid() != uid
-        || meta.mode() & 0o002 != 0
-        || meta.nlink() != 1
-    {
-        return Err(Error(ErrorCode::Forbidden));
-    }
-    Ok(Identity {
-        device: meta.dev(),
-        inode: meta.ino(),
-        uid: meta.uid(),
-        mode: meta.mode(),
-    })
-}
+/// The reader's socket as the shared rule opened it, rechecked by name and by
+/// descriptor around the exchange.
+struct Socket(limeos_contracts::ExecutorSocket);
 impl Socket {
-    fn open(path: &Path, uid: u32) -> Result<Self> {
-        if !path.is_absolute() || path.as_os_str().len() > 512 {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
-        let file = File::from(
-            rustix::fs::openat2(
-                rustix::fs::CWD,
-                path,
-                OFlags::PATH | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-                Mode::empty(),
-                ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
-            )
-            .map_err(|_| Error(ErrorCode::Unavailable))?,
-        );
-        let identity = identity(&file, uid)?;
-        Ok(Self { file, identity })
+    fn open(path: &Path, owner: ExecutorOwner) -> Result<Self> {
+        owner
+            .open(path)
+            .map(Self)
+            .map_err(limeos_contracts::SocketRefusal::error)
     }
-    fn revalidate(&self, path: &Path, uid: u32) -> Result<()> {
-        if identity(&self.file, uid)? != self.identity
-            || Socket::open(path, uid)?.identity != self.identity
-        {
+    fn revalidate(&self, path: &Path, owner: ExecutorOwner) -> Result<()> {
+        if !self.0.unchanged() || Socket::open(path, owner)?.0.identity != self.0.identity {
             return Err(Error(ErrorCode::Conflict));
         }
         Ok(())
     }
 }
 impl HealthReader {
+    /// A reader whose socket this test process serves: core is taken to run
+    /// under another UID, so the test's own socket is an executor's.
     #[cfg(test)]
     pub(crate) fn for_test(socket: PathBuf, gate: Arc<Semaphore>, clock: Clock) -> Self {
-        let uid = rustix::process::geteuid().as_raw();
         let mut reader = Self::new(socket, gate);
         reader.clock = clock;
-        reader.test_socket_uid = Some(uid);
-        reader.test_peer_uid = Some(uid);
+        reader.owner = test_owner();
         reader
     }
     /// Trusted package/configuration path and the existing Core read gate, never HTTP input.
@@ -121,10 +82,7 @@ impl HealthReader {
             socket,
             gate,
             clock: Arc::new(super::now),
-            #[cfg(test)]
-            test_socket_uid: None,
-            #[cfg(test)]
-            test_peer_uid: None,
+            owner: crate::storage::executor_owner(),
         }
     }
     pub async fn read(&self, outer_deadline: Instant) -> Result<FreshContainerHealth> {
@@ -138,27 +96,17 @@ impl HealthReader {
             .map_err(|_| Error(ErrorCode::Overloaded))?;
         let nonce = limeos_identity::opaque().map_err(|_| Error(ErrorCode::Unavailable))?;
         let requested = (self.clock)();
-        let socket_uid = 0;
-        let peer_uid = 0;
-        #[cfg(test)]
-        let socket_uid = self.test_socket_uid.unwrap_or(socket_uid);
-        #[cfg(test)]
-        let peer_uid = self.test_peer_uid.unwrap_or(peer_uid);
+        let owner = self.owner;
         let cohort = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), async {
-            let socket = Socket::open(&self.socket, socket_uid)?;
+            let socket = Socket::open(&self.socket, owner)?;
             live(deadline)?;
-            let mut stream = UnixStream::connect(&self.socket)
+            // Connects to the opened inode and checks the kernel's peer.
+            let mut stream = socket
+                .0
+                .connect()
                 .await
-                .map_err(|_| Error(ErrorCode::Unavailable))?;
-            socket.revalidate(&self.socket, socket_uid)?;
-            if stream
-                .peer_cred()
-                .map_err(|_| Error(ErrorCode::Forbidden))?
-                .uid()
-                != peer_uid
-            {
-                return Err(Error(ErrorCode::Forbidden));
-            }
+                .map_err(limeos_contracts::SocketRefusal::error)?;
+            socket.revalidate(&self.socket, owner)?;
             live(deadline)?;
             limeos_contracts::write_frame(
                 &mut stream,
@@ -170,7 +118,7 @@ impl HealthReader {
             .await?;
             let receipt: Receipt = limeos_contracts::read_frame(&mut stream).await?;
             live(deadline)?;
-            socket.revalidate(&self.socket, socket_uid)?;
+            socket.revalidate(&self.socket, owner)?;
             let cohort = only_health(receipt)?;
             if cohort.nonce() != nonce {
                 return Err(Error(ErrorCode::Conflict));
@@ -242,6 +190,27 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         return Err(Error(ErrorCode::Unavailable));
     }
     container_health.ok_or(Error(ErrorCode::Unavailable))
+}
+
+/// Core as tests model it: running under a UID other than the test
+/// process's, whose sockets therefore stand in for an executor's, with the
+/// test's own directories standing in for root's `/run`.
+#[cfg(test)]
+pub(crate) fn test_owner() -> ExecutorOwner {
+    let uid = rustix::process::geteuid().as_raw();
+    ExecutorOwner::with_anchor_owner(uid.wrapping_add(1), uid)
+}
+/// Where a test executor binds, laid out as packaged: `DIR/run` (0755, for
+/// `/run`) and `DIR/run/reader` (0750, the unit's runtime directory).
+#[cfg(test)]
+pub(crate) fn test_socket(dir: &Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let run = dir.join("run");
+    let runtime = run.join("reader");
+    std::fs::create_dir_all(&runtime).unwrap();
+    std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o750)).unwrap();
+    runtime.join("reader.sock")
 }
 
 #[cfg(test)]
