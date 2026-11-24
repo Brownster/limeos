@@ -144,12 +144,8 @@ it. Eight owners' checks each walked `jobs` to find the jobs of their
 operation by `json_extract(intent,'$.operation')`, and the lock invariants
 walked it again. Startup now walks `jobs` once (`JOB_WALK`): it holds every
 job to its resource-set invariant and lists the jobs those checks read
-through the primary key; every listed job must be found by key at the row
-the walk read (`LISTED_BY_KEY`), so a `jobs` index that disagrees with its
-table, which `quick_check` does not see, is refused as the eight walks
-refused it (found in review). No check was narrowed, and `quick_check` and
-the foreign-key check run in full as before. No migration. Open, older than
-this: the lock invariants find lock-holding jobs through `jobs_state` alone. At 5,113 jobs the
+through the primary key. No check was narrowed, and `quick_check` and the
+foreign-key check run in full as before. No migration. At 5,113 jobs the
 open reads 37,873 pages cold (2.72 a page) instead of 53,388; at 257 jobs
 2.10 instead of 2.18. The bound is now 3.0, and CI's soak job holds the
 operating point (5,120 jobs, built directly) to every startup bound
@@ -160,6 +156,37 @@ the reads removed are re-reads the kernel's page cache normally serves, so
 the gain there is CPU and system calls (estimated 0.1 to 0.3 s a start at
 5,113 jobs in release), SD reads only under memory pressure.
 `docs/soak.md`, "Core startup at high job counts".
+
+**Indexes that disagree with their tables (review of the startup change,
+24 November).** `quick_check` (3.54.1) checks structure, the free list,
+record decoding, NOT NULL, CHECK, STRICT types and the entry count of every
+non-partial index; it does not check that each row has an entry with the
+same key and rowid, UNIQUE, partial indexes, or non-BINARY collation
+values, so a count-preserving disagreement or any disagreement in a partial
+index survives it: what a lost write on an SD card leaves. Startup reads
+through indexes for locks (the lock invariants), recovery (the interrupted
+jobs) and dispatch (the queued jobs, the idempotency key, the lock tables),
+so it now holds each such index to its table's content
+(`resources/accounting.rs`): the primary key, idempotency key, `jobs_state`
+and partial `jobs_resource_lock` of `jobs` against the walk; the unsettled
+jobs' `job_resources` rows against their index; `integrity_check` of
+`resource_locks` and `job_resolutions`. Before it, a job the table said was
+`verifying` while `jobs_state` still filed it as settled was accepted, never
+marked for intervention, and its resources were open to another dispatch;
+a primary key held twice let the occurrence check pass. Known limits of
+relying on `quick_check` (not accounted): settled jobs' `job_resources`,
+`jobs_retention`, the owners' event proofs (`events_job`, `events_kind`,
+`events_notification`) and the automation tables' indexes, and the session,
+token and plan indexes; `docs/soak.md`, "The table and its index", says
+what each could let through. The alternative considered, SQLite's own check
+targeted: on a synthetic 50 MiB store (5,120 jobs, about 170,000 events,
+x86, page cache warm) `quick_check` 78 ms, the full `integrity_check` 550
+ms (`integrity_check(events)` alone 439 ms, its `json_extract` expression
+indexes), `integrity_check(jobs)` 41 ms, `integrity_check(job_resources)`
+21 ms; those two with the lock tables cost about 0.8 of a `quick_check` and
+would put the open past the soak's 3.0 factor at 5,113 jobs, so the
+accounting is used for `jobs` and `job_resources`, and `integrity_check`
+only for the two small lock tables.
 
 ## Phase 4 — Footprint gates
 
