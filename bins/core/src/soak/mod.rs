@@ -21,9 +21,11 @@
 //!   once a simulated minute, with no help from the harness.
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
 //!   measured (`--ignored`; not a pass/fail gate of the shipped scope).
-//! - `startup_at_high_retained_job_count`: core's open at 3,700 to 5,500
-//!   retained jobs, where its startup reads pass their bound; measured
-//!   (`--ignored`, not a gate; `docs/soak.md`).
+//! - `caps::soak_core_startup_at_high_retained_job_count`: core's open at
+//!   5,120 retained jobs, built directly, held to the startup bounds.
+//! - `startup_at_high_retained_job_count`: core's open as the jobs grow to
+//!   about 5,100 through 40 simulated days of a hammering storm; measured
+//!   (`--ignored`, not a gate, about 8.5 minutes; `docs/soak.md`).
 //!
 //! The ignored tests named `soak_*` are CI's soak job.
 mod automation;
@@ -120,10 +122,12 @@ async fn soak_ninety_days_restarts() {
 /// at high job counts"): the restart scenario with a four-day storm that
 /// hammers throughout, for 40 days, so several thousand jobs are kept
 /// through retention's 30 days (a four-day storm backing off after its first
-/// day keeps about 2,700, at the bound). Not a gate: it prints, per nightly copy, the
-/// jobs, pages, cold startup reads per page against the bound's factor and
-/// the open's time, and the statements reading most at the worst point, and
-/// asserts only that the operating point was reached.
+/// day keeps about 2,700). Not a gate (CI holds the same operating point to
+/// the startup bounds in `caps::soak_core_startup_at_high_retained_job_count`,
+/// built directly): it prints, per nightly copy, the jobs, pages, cold
+/// startup reads per page against the bound's factor and the open's time,
+/// and the statements reading most at the worst point, and asserts only
+/// that the operating point was reached.
 const HIGH_JOBS: Profile = Profile {
     name: "high-jobs",
     days: 40,

@@ -796,10 +796,12 @@ fn queued_hint(id: &str, intent: &str) -> Result<ObservationJob> {
     })
 }
 
-pub(super) fn check(conn: &Connection) -> Result<()> {
-    check::check(conn)?;
+pub(super) fn check(conn: &Connection, walked: &crate::resources::Walked) -> Result<()> {
+    check::check(conn, walked)?;
     polling::check(conn)
 }
 
+#[cfg(test)]
+pub(crate) use check::OBSERVATION_RESULTS;
 #[cfg(test)]
 mod tests;

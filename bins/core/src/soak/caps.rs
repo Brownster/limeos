@@ -1,6 +1,8 @@
 //! The states normal traffic never reaches, built directly and checked in
 //! seconds: the core store at and past its audit cap, a retention backlog far
-//! larger than one batch, and the receipt store at its row and size caps.
+//! larger than one batch, the receipt store at its row and size caps, and
+//! core's open with the jobs a busy household keeps (5,120, the household
+//! runs keep at most about 1,600).
 //!
 //! Separate tests rather than phases of the 90-day run: each state is built
 //! in one step (rows written with SQL where only their number matters), so a
@@ -18,7 +20,8 @@ use super::{
 };
 use limeos_contracts::VERSION;
 use limeos_domain::{
-    ContainerAction, ContainerSnapshot, Error, ErrorCode, Principal, RestartRequest,
+    ContainerAction, ContainerSnapshot, Error, ErrorCode, EventKind, JobState, Principal,
+    RestartRequest, StackSnapshot,
 };
 use limeos_executor_container::limits;
 use limeos_executor_protocol::Request;
@@ -587,5 +590,189 @@ async fn soak_receipt_store_at_its_caps() {
         problems.is_empty(),
         "receipt store at its caps:\n{}",
         problems.join("\n")
+    );
+}
+
+/// Jobs job-row retention keeps at 170 a day for its 30 days: the operating
+/// point `startup_at_high_retained_job_count` reaches in 40 simulated days
+/// (5,102 to 5,116 retained), built here in seconds.
+const RETAINED_JOBS: i64 = 5_120;
+
+/// A core store holding `jobs` settled jobs, as the store of a busy
+/// household looks once job-row retention has kept 30 days of them: half
+/// container restarts and half restarts of a four-container stack (at
+/// 5,113 jobs the restart scenario kept 2,610 container and 2,503 stack
+/// jobs, the stack jobs with 4.9 resources each), each with its plan,
+/// result, resource set and four events (queued, running, verifying,
+/// succeeded), and session events up to the events budget. One job of each
+/// kind goes through the store (plan, approval, queue); its rows are the
+/// pattern for the rest, written with SQL: startup walks jobs and their
+/// resource sets, it does not interpret container or stack jobs. The ids
+/// are digests, as random as real ones (an index probed in their order
+/// finds no locality).
+fn retained_jobs_store(dir: &Path, jobs: i64) -> PathBuf {
+    let (path, admin) = core_store(dir);
+    let mut store = Store::open(&path).unwrap();
+    let container_job = job(&mut store, &admin, "pihole", false);
+    let members = ["jellyfin", "sonarr", "radarr", "prowlarr"]
+        .iter()
+        .map(|name| container(name))
+        .collect();
+    let stack = StackSnapshot::new("media", members).unwrap();
+    let proposal = store
+        .plan_stack(
+            &admin,
+            ContainerAction::Restart,
+            "registered",
+            &stack,
+            START,
+        )
+        .unwrap();
+    let approval = store
+        .approve_stack(&admin, &proposal.plan.id, &proposal.digest, START)
+        .unwrap();
+    let stack_job = store
+        .queue_stack(&admin, "stack", &proposal, &approval.token, &stack, START)
+        .unwrap()
+        .id;
+    drop(store);
+    let mut conn = writer(&path);
+    let tx = conn.transaction().unwrap();
+    let kinds: Vec<String> = [
+        EventKind::JobQueued,
+        EventKind::JobTransition {
+            state: JobState::Running,
+        },
+        EventKind::JobTransition {
+            state: JobState::Verifying,
+        },
+        EventKind::JobTransition {
+            state: JobState::Succeeded,
+        },
+    ]
+    .iter()
+    .map(|kind| serde_json::to_string(kind).unwrap())
+    .collect();
+    {
+        let mut job_row = tx
+            .prepare(
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+                 SELECT ?2,principal,?3,intent,digest,resource,'queued',generation,revision,deadline FROM jobs WHERE id=?1",
+            )
+            .unwrap();
+        // The resources beyond the primary one (which the insert trigger
+        // adds), while the copy is queued, as the queue path adds them.
+        let mut resources = tx
+            .prepare(
+                "INSERT INTO job_resources(job,resource) SELECT ?2,r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE r.job=?1 AND r.resource<>j.resource",
+            )
+            .unwrap();
+        let mut copies = Vec::new();
+        for table in ["container", "stack"] {
+            let plan = tx
+                .prepare(&format!(
+                    "INSERT INTO {table}_plans(id,principal,body,digest,revision,expires,approval_digest,job,canceled)
+                     SELECT ?2,principal,body,digest,revision,expires,approval_digest,?3,0 FROM {table}_plans WHERE job=?1"
+                ))
+                .unwrap();
+            let result = tx
+                .prepare(&format!(
+                    "INSERT INTO {table}_results(job,receipt,verification,recorded)
+                     SELECT ?2,body,NULL,?3 FROM {table}_plans WHERE job=?1"
+                ))
+                .unwrap();
+            copies.push((plan, result));
+        }
+        let mut event = tx
+            .prepare("INSERT INTO events(principal,job,kind,created) VALUES(?,?,?,?)")
+            .unwrap();
+        for n in 0..jobs {
+            let (template, (plan, result)) = if n % 2 == 0 {
+                (&container_job, &mut copies[0])
+            } else {
+                (&stack_job, &mut copies[1])
+            };
+            let id = limeos_identity::digest(&format!("retained job {n}"));
+            let at = START + n * 30 * DAY / jobs;
+            job_row
+                .execute(rusqlite::params![template, id, format!("retained-{n}")])
+                .unwrap();
+            resources.execute(rusqlite::params![template, id]).unwrap();
+            plan.execute(rusqlite::params![
+                template,
+                limeos_identity::digest(&format!("retained plan {n}")),
+                id
+            ])
+            .unwrap();
+            result.execute(rusqlite::params![template, id, at]).unwrap();
+            for (step, kind) in kinds.iter().enumerate() {
+                event
+                    .execute(rusqlite::params![admin.id, id, kind, at + step as i64])
+                    .unwrap();
+            }
+        }
+    }
+    tx.execute(
+        "UPDATE jobs SET state='succeeded' WHERE idempotency LIKE 'retained-%'",
+        [],
+    )
+    .unwrap();
+    tx.commit().unwrap();
+    drop(conn);
+    let (budget, _) = rule_limits("events");
+    let have = value(&path, "SELECT count(*) FROM events");
+    add_events(&path, &admin.id, None, SESSION, budget - have, START);
+    path
+}
+
+/// Core's open at the high retained-job operating point, on every CI run:
+/// within the startup bound per page of file, every statement's walks
+/// allowed and explained, as on every nightly copy of the household runs.
+/// Since 24 November startup walks `jobs` once (`JOB_WALK` in
+/// `limeos_persistence`'s `resources.rs`); the eight owners' walks it
+/// replaced read 3.83 pages per page of file here, past the bound.
+#[test]
+#[ignore = "core's open at 5,120 retained jobs: in CI's soak job (a few seconds, about 60 MiB)"]
+fn soak_core_startup_at_high_retained_job_count() {
+    let dir = soak_dir();
+    let path = retained_jobs_store(dir.path(), RETAINED_JOBS);
+    let copy = dir.path().join("startup-copy");
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&copy)
+        .unwrap();
+    let (start, refused) = super::startup::core_copy(&path, &copy, START);
+    assert_eq!(refused, None, "the store refused to open");
+    let trace = start.trace.as_ref().expect("the open's trace");
+    let jobs = trace.rows_of("jobs");
+    let pages = (start.file + start.wal) / super::checks::PAGE;
+    eprintln!(
+        "{jobs} jobs, {pages} pages of file and WAL, {} cold startup reads, {:.2} per page (bound factor {:.1}), {} ms",
+        trace.cold_but_defect(),
+        trace.cold_but_defect() as f64 / pages as f64,
+        super::checks::CORE_PAGE_FACTOR as f64 / 1000.0,
+        start.opened.elapsed.as_millis()
+    );
+    let mut statements: Vec<_> = trace.statements.iter().collect();
+    statements.sort_by_key(|s| std::cmp::Reverse(s.cold.unwrap_or(s.reads)));
+    for statement in statements.iter().take(6) {
+        eprintln!(
+            "  {:>7} cold, {:>9} VM steps, {:>6} full-scan steps: {}",
+            statement.cold.unwrap_or(statement.reads),
+            statement.vm_steps,
+            statement.full_scans,
+            statement.short()
+        );
+    }
+    assert!(jobs >= RETAINED_JOBS as u64, "the store holds {jobs} jobs");
+    let problems = super::checks::start_problems("core", &start, super::checks::CORE_OPEN_BOUND_MS);
+    assert!(
+        problems.is_empty(),
+        "core's open at {jobs} retained jobs:\n{}",
+        problems
+            .iter()
+            .map(|(check, problem)| format!("{check}: {problem}"))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }

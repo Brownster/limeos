@@ -1189,3 +1189,65 @@ fn an_administrator_is_told_to_pause_instead_and_the_observation_is_untouched() 
     drop(store);
     Store::open(&dir.path().join("core.sqlite")).unwrap();
 }
+
+/// An occurrence whose table row names an ordinary job while its entry in
+/// `automation_occurrences`' job index still names the observation job it
+/// was reserved for (the job id rewritten on the table page). Every other
+/// check reads the occurrence through that index, as the occurrence check
+/// did before it read the table (`NOT INDEXED`), and passes. Refused by the
+/// occurrence check.
+#[test]
+fn an_occurrence_naming_an_ordinary_job_on_its_table_page_refuses_startup() {
+    use std::time::{Duration, Instant};
+
+    let (dir, mut store, actor) = setup();
+    let row = create(&mut store, &actor);
+    assert!(matches!(
+        store.automation_reserve_current(
+            &row,
+            &settlement(&row, 200),
+            || 200,
+            Instant::now() + Duration::from_secs(10)
+        ),
+        Ok(Reservation::Queued(_))
+    ));
+    let ordinary = store
+        .queue_job(
+            &actor,
+            "ordinary",
+            &Intent::HealthProbe {
+                resource: "host:system".into(),
+            },
+            300,
+            200,
+        )
+        .unwrap();
+    let observed: String = store
+        .conn
+        .query_row("SELECT job FROM automation_occurrences", [], |r| r.get(0))
+        .unwrap();
+    drop(store);
+    let path = dir.path().join("core.sqlite");
+    // The store as built opens.
+    let generation = Store::open(&path).unwrap().generation;
+    assert_eq!(observed.len(), ordinary.len());
+    assert!(
+        crate::resources::tests::rewrite_in(&path, "automation_occurrences", &observed, &ordinary)
+            >= 1
+    );
+    crate::resources::tests::whole_file_checks_pass(&path);
+    let conn = Connection::open(&path).unwrap();
+    let job = |sql: &str| -> String { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+    assert_eq!(
+        job("SELECT job FROM automation_occurrences NOT INDEXED"),
+        ordinary
+    );
+    assert_eq!(
+        job(
+            "SELECT job FROM automation_occurrences INDEXED BY sqlite_autoindex_automation_occurrences_1"
+        ),
+        observed
+    );
+    drop(conn);
+    crate::resources::tests::refused_unchanged(&dir, generation, "occurrence");
+}

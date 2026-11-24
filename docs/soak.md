@@ -80,7 +80,8 @@ rusqlite's `trace`. Three things keep them out of shipped binaries:
 | `writer_thread_works_off_a_backlog_on_its_own` | The writer thread's periodic passes on simulated time, with nothing but the clock moving; every `cargo test` | <1 s |
 | `walks_are_read_from_bytecode_under_any_alias` | The bytecode reader the startup checks rely on: a walk under an alias and `NOT INDEXED`, an index walk told from a table walk, no walk in a seek, an error (not "no walks") for an unreadable program; every `cargo test` | <1 s |
 | `automation_limit_at_minimum_interval` | The known automation limit, measured; not a gate (about 14 minutes) | — |
-| `startup_at_high_retained_job_count` | Core's open at several thousand retained jobs (a four-day hammering storm), measured; not a gate (about 8.5 minutes); see "Core startup at high job counts" | — |
+| `soak_core_startup_at_high_retained_job_count` | Core's open at 5,120 retained jobs (170 a day for retention's 30 days), the store built directly, held to every startup bound; see "Core startup at high job counts" | 3 s |
+| `startup_at_high_retained_job_count` | Core's open as the retained jobs grow to about 5,100 (a four-day hammering storm, 40 days), measured; not a gate (about 8.5 minutes); see "Core startup at high job counts" | — |
 
 The ordinary `cargo test` runs the smoke, the backlog, receipt-cap and writer
 tests, the bytecode reader's and the generator's own tests: 11 to 14 s together (the smoke about 9 s
@@ -203,9 +204,9 @@ against full tables:
   (hammering on its first day, backing off as people do on the other three)
   made 3,700 and 4,550 jobs, and while
   retention kept them core's open read up to 3.45 pages per page of file
-  against the 3.2 its startup bound allows (in the restart scenario; a
+  against the 3.2 its startup bound then allowed (in the restart scenario; a
   property of core's startup scans at that job count, retained 30 days, not
-  of the budget; see "Core startup at high job counts"). The run asserts that only
+  of the budget; fixed since, see "Core startup at high job counts"). The run asserts that only
   the storm and the day its charges still count meet the budget (`BUDGET`).
 
   Measured on 24 November with the budget (debug, x86-64, tmpfs, the
@@ -229,48 +230,298 @@ against full tables:
   stack family's floor are 37 of the 39 resultless jobs that left (56 of
   57), the rest cancellations and stale-plan refusals.
 
-## Core startup at high job counts (open, not fixed here)
+## Core startup at high job counts
 
-Core's open reads more pages per page of its store as the retained jobs grow,
-and past about 2,700 retained jobs its startup statements read more than the
-3.2 pages per page of file and WAL the startup bound allows. That many jobs
-is reachable in production: job-row retention keeps every settled job for 30
-days (the floor of 128 newest per family is a minimum, not a cap), so 2,700
-jobs is 90 a day and 5,100 is 170 a day, a busy or scripted household, and
-jobs refused by the executor's effect budget count too. Found while trying a
-four-day storm for PR-30; `startup_at_high_retained_job_count`
-(`--ignored`, not part of CI's soak job, about 8.5 minutes) reproduces it:
-the restart scenario with a four-day storm hammering throughout, 40 days.
-Measured on 24 November (debug, x86-64, tmpfs), core's open on the nightly
-copies:
+Found while trying a four-day storm for PR-30, fixed on 24 November. Job-row
+retention keeps every settled job for 30 days (the floor of 128 newest per
+family is a minimum, not a cap), so 2,700 retained jobs is 90 a day and
+5,100 is 170 a day: a busy or scripted household, and jobs refused by the
+executor's effect budget count too. Core's open read more pages per page of
+its store as those jobs grew, and past about 2,700 its startup statements
+read more than the 3.2 pages per page of file and WAL the startup bound then
+allowed. `startup_at_high_retained_job_count` (`--ignored`, not part of CI's
+soak job, about 8.5 minutes) reproduces the growth: the restart scenario
+with a four-day storm hammering throughout, 40 days. Measured on the same
+nightly copies before and after the fix (debug, x86-64, tmpfs; the open's
+cold startup reads, but the proof check's, per page of file and WAL):
 
-| Retained jobs | Pages of file and WAL | Cold startup reads | Per page (bound 3.2) | Open, ms |
+| Retained jobs | Pages of file and WAL | Before: reads (per page) | After: reads (per page) | The walk of `jobs`, after |
 |---:|---:|---:|---:|---:|
-| 257 | 5,872 | 12,906 | 2.20 | 70 |
-| 1,073 | 7,228 | 18,961 | 2.62 | 90 |
-| 2,191 | 9,007 | 27,513 | 3.05 | 131 |
-| 2,718 | 10,322 | 33,200 | 3.22 | 139 |
-| 3,852 | 11,683 | 41,291 | 3.53 | 173 |
-| 5,113 | 13,890 | 53,384 | 3.84 | 210 |
+| 257 | 5,971 | 13,009 (2.18) | 12,564 (2.10) | 89 |
+| 1,073 | 7,319 | 19,051 (2.60) | 16,417 (2.24) | 471 |
+| 2,191 | 9,088 | 27,598 (3.04) | 21,577 (2.37) | 1,081 |
+| 3,852 | 11,762 | 41,431 (3.52) | 30,253 (2.57) | 2,970 |
+| 5,113 | 13,942 | 53,388 (3.83) | 37,873 (2.72) | 4,945 |
 
-(2,718 is from the same profile with the storm backing off after its first
-day; the other rows are from the hammering one.) The statements whose reads
-grow with the jobs, at 5,113 jobs, by cold page reads: the lock and resource
-invariants (`SELECT EXISTS(SELECT 1 FROM jobs j WHERE NOT EXISTS(SELECT 1 FROM
-job_resources ...`), 14,075, a walk of every job with a probe of its
-resources; the automation, storage target and mount, and backup-preparation
-checks that pick jobs by `json_extract(intent,'$.operation')`, about 2,050 to
-2,690 each, eight of them, each a full walk of `jobs` (5,108 full-scan steps)
-because the operation is inside the intent's JSON; and `PRAGMA quick_check`
-(22,680) and `PRAGMA foreign_key_check` (8,944), which read every page and
-grow with the file. The quick_check and foreign-key reads are a fixed
-multiple of the file; the job walks are what push the ratio up, roughly 2,000
-pages per walk at 5,100 jobs. The open still took a fifth of a second in a
-debug build; on the Pi in release it was not measured. Likely remedies, for a
-follow-up: an index on the operation (a generated column, or the operation
-stored beside the intent), or one walk of `jobs` that serves every check;
-or a bound stated in jobs rather than pages for these statements. The plan
-row PR-41 records it as open.
+Both columns are the same copies (kept from the run before the fix),
+opened by each build's measuring child. The 40-day run itself, after the
+fix, printed 2.72 at 5,102 to 5,116 jobs (its copies differ by a few
+pages: job ids are random). The 2,718-job point of the first report came
+from the same profile with the storm backing off after its first day; it
+was not measured again (2,191 and 3,852 bracket it).
+
+**What grew with the jobs.** At 5,113 jobs, by cold page reads: seven
+statements of the storage target, storage mount, backup preparation and
+automation checks found the jobs of their operation by
+`json_extract(intent,'$.operation')`, a walk of every job each (2,054 to
+2,691 reads; one backup statement walked `job_resources` too, eight walks
+in all, and the observation check went through `jobs_state` for every
+settled job): 17,527 reads, none of which found a job, since the shipped scope has no producer
+of those operations. The lock and resource invariants walked every job
+with a probe of its resource set (about 5,000 reads beside the foreign-key
+check they run). And `PRAGMA quick_check` (22,759) and the foreign-key check
+(9,003) read every page, a fixed multiple of the file, which grows with the
+jobs as with anything else.
+
+**The fix.** Startup now walks `jobs` once (`JOB_WALK` in
+`crates/persistence/src/resources.rs`). That walk asserts, for every job,
+what the lock invariants' walk asserted (its primary resource is in its
+resource set, and the set has at most 128 resources), and lists the jobs of
+the four operations an owner's check reads (`CHECKED_OPERATIONS`), each
+with the rowid it read it at. Each of those checks reads the listed jobs
+through the primary key (`json_each` of the ids, `CROSS JOIN jobs`),
+keeping its own operation test. The automation occurrence check asks
+whether every occurrence's job is a listed observation job. The rest of
+the lock invariants (every resource of a lock-holding job locked by it, no
+lock held by a job in any other state, resolutions matching `resolved`, the
+foreign keys) were already reached through `jobs_state`, the locks and the
+resolutions, and are unchanged. No check was narrowed, sampled or skipped:
+settled jobs are still held to their resource-set invariant, and
+`quick_check` and the foreign-key check still run in full at every start.
+No schema change.
+
+**The table and its index.** `PRAGMA quick_check` (SQLite 3.54.1, from its
+source) checks every b-tree's structure, the free list, that every record
+decodes, NOT NULL, CHECK and STRICT types, and that every index that is not
+partial holds as many entries as its table has rows. It does not check that
+each row has an entry with the same key and rowid, UNIQUE, a partial
+index's entries at all, or values under a collation other than BINARY. So
+what survives it is a disagreement that keeps the count (an entry under
+another key, or leading to another row, a key twice) or any disagreement in
+a partial index: what a lost or misdirected page write on an SD card
+leaves, and what someone editing pages would aim for. A statement that
+finds rows through such an index acts on what the index says. The eight
+walks read the table; reading the jobs they found by key instead, a job row
+the key did not find would have been listed and then read by no owner
+(found in review, 24 November, and fixed before merging), and the same
+class reached further than this change: the lock invariants, startup
+recovery and the dispatcher find jobs through `jobs_state`, and a job the
+table says is `verifying` while `jobs_state` still files it as `succeeded`
+was neither checked for its locks nor marked for intervention, its
+resources open to another dispatch.
+
+So startup now holds each index that locks, recovery or dispatch read
+through to its table's content (`crates/persistence/src/resources/accounting.rs`).
+The walk of `jobs` returns every row as the table holds it; each accounted
+index is read on its own (covering, the table never touched) and compared
+with the table's rows as a count and a sum of keyed hashes of each row's
+values and rowid (a disagreement passes with probability 2^-64; the keys
+are drawn afresh at every open). And each index read whole is read as
+stored, a plain scan with no sorter, and must be in order: `quick_check`
+checks key order in table b-trees only (3.54.1: the "Rowid out of order"
+check is under `if( pPage->intKey )`), never in an index, and an entry out
+of place keeps the multiset, so every tally passes, while a search, which
+binary-searches the index, misses it. Every entry (key, then rowid) must
+come strictly after the one before under SQLite's ordering of the types the
+columns hold (integers, then text by its bytes; any other type refuses),
+and in a unique index every key strictly after the one before, which also
+refuses a key held twice, adjacent or not. An index read in order has
+every entry where every search looks for it. Which statement refuses which
+disagreement:
+
+| Disagreement | Refused by |
+|---|---|
+| `jobs`: a row its primary key's index lacks, files under another id, or that an entry leads to from another id; an entry leading to another row | the primary key's tally (and `LISTED_BY_KEY`, exact, for the jobs the owners read) |
+| `jobs`: an id held by two rows, in the table only | the primary key's tally |
+| `jobs`: an id held twice in the index too, adjacent or not, or any primary-key entry out of place | the primary key's order (the foreign-key check, whose parent lookups search this index, often refuses an entry out of place as well) |
+| `jobs`: an idempotency entry under another key, or out of place, or a key held twice | that index's tally; its order |
+| `jobs`: a state or deadline `jobs_state` holds differently (a job in flight filed as settled, a queued one filed as failed) | `jobs_state`'s tally |
+| `jobs`: a `jobs_state` entry out of place (a running job no `state=?` search finds) | `jobs_state`'s order |
+| `jobs`: an entry of the partial `jobs_resource_lock` for a job that holds no lock, or under another job's primary resource, or a lock-holding job it lacks | its tally (and its order, for a resource held twice) |
+| `job_resources` of a job not yet settled: a row its index lacks, files under another resource, or holds out of place, or an entry leading elsewhere; a resource held twice in table and index alike | the unsettled jobs' resource rows read from the table, against the entries found by seeking each job (a misplaced entry is not found); no two of those entries alike (each seek's come in key order) |
+| `resource_locks` or `job_resolutions`: any disagreement with any of their indexes, order and UNIQUE included | `PRAGMA integrity_check` of each table (it seeks every row's entry in every index) |
+| any index entry leading to no row, where a statement follows it | that statement (SQLite reports the store corrupt) |
+| an occurrence naming an ordinary job on its table page | the occurrence check, which reads the occurrences table (`NOT INDEXED`) and the walk's list |
+
+Startup recovery (the interrupted jobs it marks `needs_intervention`) and
+the lock invariants run after this, through `jobs_state`, the primary keys
+and the lock tables' indexes, all held to the table by then.
+
+Not accounted (known limits of relying on `quick_check`; each disagreement
+would have to keep its index's count, or be in a partial index):
+
+- `job_resources` of settled jobs: the walk checks their resource sets
+  through the primary key's index, as the open always did. Nothing acts on
+  a settled job's resources; accounting them means walking the table
+  (509 pages at 5,113 jobs) and the index (595).
+- `jobs_retention` (partial): retention's candidates. A disagreement can
+  keep a job longer or offer one early, which the `jobs_delete` trigger
+  refuses unless the table row allows it.
+- The owners' proofs through `events_job`, `events_kind` and the partial
+  `events_notification`, and the automation tables' indexes (which the
+  occurrence listing reads through): only the checked operations use them,
+  which have no producer in the shipped scope. `integrity_check(events)`
+  costs 439 ms on a 50 MiB store (its expression indexes).
+- `sessions`, `task_tokens` and the plan tables' indexes: authentication
+  and plan lookups, not locks, recovery or dispatch.
+
+The alternative considered was SQLite's own check, targeted. On a synthetic
+50 MiB store (5,120 jobs, about 170,000 events, x86, page cache warm)
+`quick_check` took 78 ms, the full `integrity_check` 550 ms
+(`integrity_check(events)` alone 439 ms), `integrity_check(jobs)` 41 ms and
+`integrity_check(job_resources)` 21 ms: those two with the lock tables cost
+about 0.8 of a `quick_check`, which would put the open past the 3.0 factor
+at 5,113 jobs. For the two small lock tables `integrity_check` is the
+simplest sound check, and is what runs. The accounting read about 800 pages
+at 5,113 jobs while any job was unsettled, most of it the walk of the
+`job_resources` table for those jobs (586 pages in the CI store, which keeps
+two jobs queued). With none unsettled, the usual case on the Pi, that walk
+is skipped: both sides are then empty, which is known without reading.
+Measured after merging the job-admin work (whose operator, with its own
+random draws, changes the household's jobs): the 40-day run's copies read
+2.11, 2.30, 2.40, 2.63 and 2.74 pages a page at 266, 1,382, 2,092, 3,495 and
+5,100 jobs (2.72 at 5,113 before the accounting, 2.79 with it before the
+skip), the CI store 2.67, and the household runs at most 2.31 and 2.39.
+
+What the accounting keeps in memory grows with the unsettled jobs (their
+ids, for the `job_resources` comparison: in the shipped scope a few at a
+time, at most those queued or in flight) and with the jobs of the checked
+operations (their ids and the JSON `LISTED_BY_KEY` takes, about 100 bytes a
+job: none in the shipped scope, and at most the observation jobs, which
+retention never removes, 4,096 of them about 0.4 MB), not with the retained
+jobs: the walk streams, and every tally is two integers.
+
+Tests build each disagreement by rewriting bytes on the pages of one b-tree
+(`rewrite_in` in `resources/tests.rs`) or by moving one entry's cell
+pointer to the front of its page (`move_entry_first`: the entries and the
+count unchanged, only their order), confirm that `quick_check` and the
+foreign-key check pass on the result (`quick_check` only, for a misplaced
+primary-key entry), and that the open refuses; then each part of the
+accounting was removed in turn and the tests run again (24 November):
+
+| Part removed | Test that then fails (the store opened) |
+|---|---|
+| primary key's tally | `a_primary_key_the_table_holds_twice_refuses_startup` (the table-only duplicate); the two `a_listed_job_…` tests (for the operation nobody checks) |
+| primary key's order | `a_primary_key_the_table_holds_twice_refuses_startup` (the duplicate in the index too, adjacent; apart, the foreign-key check refuses it as well) |
+| idempotency key's tally | `an_idempotency_entry_that_disagrees_or_is_out_of_order_refuses_startup` (the key rewritten) |
+| idempotency key's order | the same (the entry moved) |
+| `jobs_state`'s tally | `a_state_or_deadline_jobs_state_does_not_hold_refuses_startup` (`failed` filed, `queued` in the table; a deadline) |
+| `jobs_state`'s order | `a_jobs_state_entry_out_of_order_refuses_startup` (the reviewer's running job without locks) |
+| `jobs_resource_lock`'s tally | `a_lock_index_entry_that_disagrees_refuses_startup` (an entry for a job holding no lock) |
+| `jobs_resource_lock`'s order | none alone: its only case, an entry under another job's primary resource, is refused by the tally too, and a resource held twice in the table never reaches it (the resource-set check, the lock invariants or the lock table's check refuses first) |
+| the unsettled jobs' `job_resources` | `a_running_jobs_resources_or_locks_their_index_disagrees_with_refuse_startup` (a resource renamed on the table page) |
+| no two alike among the unsettled jobs' entries | `a_resource_an_unsettled_job_holds_twice_refuses_startup` (third review) |
+| `integrity_check(resource_locks)` | the same (two locks' resources swapped) |
+| `integrity_check(job_resolutions)` | `resolutions_their_index_disagrees_with_refuse_startup` |
+| `NOT INDEXED` in the occurrence check | `an_occurrence_naming_an_ordinary_job_on_its_table_page_refuses_startup` |
+
+**What remains job-scaled, and why.** The walk: one read of every page of
+`jobs` (2,054 at 5,113 jobs) plus a probe of each job's resource set in
+`sqlite_autoindex_job_resources_1` (about 2,900 reads: the probes follow
+the walk's rowid order, the job ids are random, and the index, 523 pages
+at 5,113 jobs, does not stay in a 2,000 KiB cache while the table streams
+through it). Restricting the resource-set check to unsettled jobs would
+save those probes and most of the walk, but would stop asserting the
+invariant for settled jobs, which nothing else implies (it is kept by
+triggers, and the check exists for a store whose data no guarded write
+could leave); merging the job list with a walk of the index in Rust would
+halve the walk's reads, at the cost of moving an invariant out of SQL and
+holding every job id in memory during startup. Neither was done. And
+`quick_check` and the foreign-key check: 1.63 and 0.65 reads per page at
+5,113 jobs (1.45 and 0.44 at 257), more per page as the file's share of
+table pages grows, since `quick_check` reads every table's pages a second
+time for its constraints and the foreign-key check walks every table that
+has a foreign key, `jobs` and its dependents included. They run at every
+start because the Pi loses power without warning; they are left as they
+are.
+
+**Each statement, and when it must run.** Every statement of the open runs
+at every start; none only protects against what a migration could break.
+The schema comparison (`migrations::mismatch`, 70 lookups of
+`sqlite_schema`) costs nothing measurable; the data checks guard against
+corruption or a writer that bypassed the triggers, which can happen at any
+time, not only across an upgrade; startup recovery and the generation are
+what a restart is for. In order: the connection's settings and cache
+(no reads); `quick_check` (every page's structure and every table's
+constraints; whole file); the schema comparison (bounded); the walk
+(every job; `jobs` and its resource sets); the lock invariants with the
+foreign-key check nested in them (the locks, the lock-holding and resolved
+jobs, the resolutions; the foreign keys of every table, whole file); the
+owners' checks (their plans, results, occurrences, streams and policies,
+all bounded tables, and the listed jobs, none in the shipped scope); the
+audit reconciliation (`count(*)` of events through its smallest index,
+bounded by the events budget); startup recovery (the interrupted jobs,
+through `jobs_state`).
+
+**What the fix means on the Pi** (not measured there; assumptions stated).
+A page read here is one 4 KiB `pread` that missed SQLite's cache; the
+kernel serves it from its page cache when it holds that part of the file.
+`quick_check` reads every page, so at boot, with a cold page cache, the SD
+card is read once for the whole file either way (54 MiB at 5,113 jobs,
+23 MiB at 257), and the walks the fix removed re-read pages the kernel
+already holds: 15,500 fewer reads at 5,113 jobs (2,600 at 1,073; 445 at
+257), each a system call and a copy, and 36,000 fewer JSON extractions of
+an intent. On a Pi 5 in release that is of the order of 0.1 to 0.3 s per
+start at 5,113 jobs, not seconds: the start timeout and the watchdog were
+never close. If memory is short enough that the kernel drops the store's
+pages during the open (core's cgroup is limited to 128 MiB, and the page
+cache it reads is charged to it), each read saved can be an SD read
+instead: at 1,000 to 3,000 random 4 KiB reads a second, 5 to 15 s at 5,113
+jobs. In a debug build on tmpfs (seven opens of each build on the same
+copy, alternating, under the machine-wide build lock) the open at 5,113
+jobs took 209 ms before and 152 ms after (medians); at 257 jobs 70 and 71
+ms, no difference.
+
+**The gates.** The startup bound is now 3.0 pages per page of file and WAL
+(was 3.2): the household runs read at most 2.42 per page and the high-job
+copies 2.79 with the index accounting above (2.39 and 2.72 before it), so a
+further full pass over the store (1.0 a page) fails on every household copy,
+as it did against the old figures. In the household runs themselves (the
+same seeds, before and after, 24 November) the opens on copies read at most
+2.39 and 2.35 pages per page (3.02 and 2.97 before: the eight walks at about
+1,600 retained jobs, days 27 to 54, were already close to the old bound),
+20,246 to 20,616 pages a night on days 27 to 54 instead of 25,645 to 26,117
+in the main run, and 14,139 instead of 14,322 on the last night, when about
+420 jobs remain; over the last third startup reads grew 18 a night (9 in the
+restart scenario) against 23 (6) before (the restart scenario's rise follows
+its per-job tables, which gained 0.47 pages a night in this run and 0.13 in
+the one before: pages of indexes keyed by random ids), and the bound, now
+lower, is 8 (16) years away at that rate (7 and 25 before). Nothing else the
+soak asserts or reports moved beyond the run-to-run spread of the pages of
+indexes keyed by random ids. CI's soak job holds the operating point to
+every startup bound in `soak_core_startup_at_high_retained_job_count` (5,122
+jobs, half container and half stack restarts with their plans, results and
+resource sets, 15,451 pages: 41,234 cold reads, 2.67 a page, the walk 4,891
+of them and the accounting's walk of `job_resources` 586; 3 s), on a store
+built directly in a few seconds rather than through 40 simulated days; the
+scan allowances no longer let any owner's check walk `jobs`, so a check that
+finds its jobs by walking again fails `core startup reads nothing its checks
+do not explain` on every copy of every run, at any job count. And a
+persistence unit test (`only_the_walk_reads_every_job_at_startup`) reads the
+plan of every statement that takes the listed jobs. The trend bound on
+startup reads per per-job page is 6.5 (was 10): measured 3.2 between 257 and
+5,113 jobs (5.1 before the fix). Both bounds were checked on three more
+seeds of the two 90-day profiles (seed XOR 1, 2 and 3; not committed), with
+the accounting in place: the copies read at most 2.39, 2.41 / 2.29, 2.27 /
+2.27, 2.30 pages per page (main run / restart scenario), and over the last
+third startup reads grew 14.9, 10.0 / 17.6, 8.2 / 10.5, 18.1 a night while
+the per-job tables gained 1.07, 0.07 / 2.40, -0.40 / 0.20, 2.27 pages and
+the events table 3.5 to 4.3: in every run the events table alone explains
+the growth (the per-job term is not needed), and the check passes with 8.6
+to 17.7 reads a night to spare. So 3.0 leaves at least 0.59 a page above
+every household copy and fails a further full pass on each; the per-job
+factor of 6.5 is not exercised by any 90-day run, and is set from the
+high-job slope (3.2 measured, about 3.5 by construction: `quick_check` 1.6,
+the foreign-key check 0.65, one walk and the accounting up to 1.3; 3.26
+measured with the accounting). The CI store has no jobs of the checked
+operations, whose keyed reads (`LISTED_BY_KEY` and the owners' statements)
+therefore cost nothing there; they are not gated by it. Building observation
+jobs that pass their checks needs the automation proofs (events,
+occurrences, results) that only the automation measurement drives; with
+4,096 of them (the occurrence cap) beside 5,120 container jobs, measured
+with Python's sqlite3 module (SQLite 3.50.2) on the same schema, each keyed
+statement over them read about 612 pages, so the three that read observation
+jobs about 1,800, against the eight walks' 2,000 or more each.
 
 ## Measuring startup
 
@@ -649,10 +900,10 @@ CI (not re-measured this round).
 | every table within its budget | every table in both stores, found by walking `sqlite_master`; the events budget from the production rule, the receipt budgets from `limits`; the per-job tables at most 20 rows a job, and no settled container or stack job kept a day past job-row retention's horizon and floor (the newest 128 by settlement) with nothing that keeps it (no open request, no authority event, nothing newer, its settlement time included), counted by the soak's own query |
 | sizes and bounded tables flat across the last third | over days 60 to 90, every b-tree on its own (each table's and each index's bytes) and each row-budgeted table's rows: every b-tree outside the events table, fitted growth under 2% of its size or its floor (192 KiB for the per-job tables', 32 KiB for core's others, 256 KiB for the receipt store's); each events b-tree, fitted growth under the leaf cells of the rows appended to it (counted from the rows) at 90% fill for the table and 75% for an index, plus 16 KiB; the cells of a row appended in the third's second half at most 1.2 times the first half's; while the events table regains rows (no events or authority rule removal in the third, fitted rows up by 256 or more), every other b-tree at the end with the events table at its row budget at the bytes it gained per row kept (or its average, if more) within the 80 MiB file bound; the file's growth under 1 MiB beyond the events b-trees' ceilings (see "Fixed: the flatness check mis-modelled the events refill" for what this catches and what not); and the per-job tables on their own, from the first checkpoint of the third with at most a tenth more jobs than the last (the storm's jobs gone), each table net of its rows that are accounted for (every row but those of the jobs the soak's own query finds removable at that moment and, in a plan table, unqueued plans already expired) at that table's bytes a row, fitted growth under 64 KiB; those rows in all may grow only as the retained jobs do, at the starting rows a job, plus one result row for each resultless job that left, fitted growth beyond that under 64 rows; no job owns more rows of a table than one job can (17 resources, one plan, result and resolution), and no unqueued plan outlives the next plan creation of its table, which removes every expired one (also asserted at every checkpoint, `BUDGETS`); unit tests show an accumulation of expired unqueued plans and growing rows per job both fail (`per_job_model_tests`); jobs are not all one size (a job refused before any effect has no result row), and the per-family floor of 128 newest jobs keeps the storm's refused stack jobs into the last third, where household jobs replace them one for one; counted by jobs alone at the average size, that replacement read as 117 KiB of growth (`PER_JOB_NET_JOBS`, reported, with the settled jobs without a result at both ends of the tail) |
 | slow growth leaves at least five years | the per-job tables' growth, projected to the core file bound |
-| startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.2 per page of file and WAL, the receipt store's open at most 2.2 (its `quick_check` walks every page once and every table's pages again for their constraints, through a cache smaller than the store: at most 2.0, measured 1.87; another full pass fails); every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
+| startup under its bounds | every open's wall time (5 s core, 2 s receipts: the catastrophic only); on every copy and crash image, the cold page reads of core's startup statements (but a proof check that looks events up by kind, which its own check fails) at most 3.0 per page of file and WAL (3.2 until the walks of `jobs` became one; see "Core startup at high job counts"), the receipt store's open at most 2.2 (its `quick_check` walks every page once and every table's pages again for their constraints, through a cache smaller than the store: at most 2.0, measured 1.87; another full pass fails); every crash image opens and keeps every committed job and event unchanged (ids, and each event's cursor, principal, job, kind and time), adding only one recovery event per interrupted job |
 | core startup reads nothing its checks do not explain | on every copy and crash image, from every statement's bytecode and counters: every statement's program read, nested ones included; no statement walks the events table itself (only `quick_check` and the foreign-key check may); only the statements in `SCAN_ALLOWANCES` walk a table growing with history (`events` or a per-job table, or an index of one), each only its listed tables, with a reason; each statement's full-scan steps at most its listed tables' rows times its steps per row (0 or 1), plus its walks of bounded tables (their rows, once per run), plus 16; the counters measured (some VM and full-scan steps once a table walked one step a row holds 64 rows); the open's VM steps (but such a proof check's) at most 64 per retained row plus 200,000; at most 32 page reads outside every statement (measured 16) plus 2 per WAL frame replayed; the open reads at most what its statements read cold, plus 3%, 256 pages and 2 per WAL frame replayed |
 | the storage-mount proof check reads little without storage mounts | the statement that reads `storage_mount_results`: its plan does not look events up by kind, and it reads at most 64 pages cold (`PROOF_READS`) on every copy, whatever the jobs and events |
-| core startup work grows only with the history tables (events and per-job) | over the last third, the statements' cold reads grow by at most 10 per page the per-job tables gain plus 4 per page the events table gains (while it refills to its budget), plus 4 a night |
+| core startup work grows only with the history tables (events and per-job) | over the last third, the statements' cold reads grow by at most 6.5 per page the per-job tables gain plus 4 per page the events table gains (while it refills to its budget), plus 4 a night |
 | core / receipt-store startup work leaves at least five years | the nightly page reads, projected to the bound of a store at its file bound; the receipt store's no further than the reads of a store with every table at its budget |
 | an idle hour writes nothing | once retention has nothing left, an hour of dispatcher ticks and the writer's own passes changes no file of either store (database or WAL); every scheduled idle hour is measured or skipped for a recorded reason, and at least three in four are measured |
 | locks, ledger and retained history consistent after every restart | locks match job states; every job the workload queued exists, but those the writer thread's passes reported removing (each settled when last read, and never seen again), and no other does; unsettled and contested jobs keep their history; the executor holds no lock for a job core has released |
@@ -706,6 +957,8 @@ again:
 | Steady leaks over the last third, and its boundary cases | put into the measured third of `soak_ninety_days_restarts` (every b-tree's bytes and the events b-trees' appended cells, days 60 to 89) | `soak::checks::flatness_model`: `sessions` +300 KiB while `job_resources` releases 100, "core: sessions (of sessions) grew 300 KiB over the last third, more than 32 KiB"; `stack_results` +120 KiB; `sqlite_autoindex_jobs_1` +256 KiB while `jobs` releases as much; 72 KiB in `events`, `events_scope` or `events_kind` and 192 KiB in `events_job`, "core: events grew 436 KiB over the last third, more than the 426 KiB the rows appended to it explain"; 0.5 MiB with 3,000 rows regained, and at the steady state's 60 MiB; rows growing within the third, "rows appended to the events table in the second half of the last third take …"; an events index without a model. Boundaries that pass: a plateau then a gain (a finite end), falling rows (no projection), falling bytes (the end at the average row), a refill reaching the budget (projected until the events rule prunes) |
 | Job-row retention ignores an open resolution request | the candidate query loses `r.confirmation IS NULL OR` | `retention::jobs::tests::every_reference_keeps_its_job`: the batch fails (the `jobs_delete` trigger refuses the job: `StateNotDurable`) |
 | Job-row retention ignores authority events | the candidate query's authority-kind clause made false | `retention::jobs::tests::every_reference_keeps_its_job`: 9 jobs removed where 8 may be (the job with a withdrawal and its authority event gone) |
+| An owner's startup check finds its jobs by walking `jobs` again (24 November) | the storage mount check's job listing reads `FROM jobs j WHERE json_extract(j.intent,'$.operation')='storage_mount'` instead of the jobs the walk listed | `soak_smoke`, core startup reads nothing its checks do not explain: "core open on a copy at day 0.17: a startup statement walks jobs (a table growing with history) whole through jobs (Rewind) without an allowance: SELECT j.id,j.principal,j.intent,…", on every copy and crash image (7 failures); and `resources::tests::only_the_walk_reads_every_job_at_startup`. Dropping the resource-set invariant from the walk fails `settled_jobs_keep_their_resource_sets_and_hold_no_lock_at_startup` ("missing-primary"), and dropping an operation from its list fails `startup_checks_every_job_of_a_checked_operation_among_settled_jobs` ("storage_mount": the open succeeded) |
+| The walk's list read by key without accounting for it (found in review, 24 November) | `Walked::read` no longer compares `LISTED_BY_KEY`'s count with the jobs listed | `resources::tests::a_listed_job_the_key_does_not_find_refuses_startup` and `a_listed_job_the_key_finds_at_another_row_refuses_startup`: "storage_prepare_targets: left: None, right: Some(StateNotDurable)", the open accepting a forged job its owner never read |
 | A crash open that loses a committed event (the harness's own check) | `core_crash` deletes one committed event from the image before the child opens it | `soak_smoke`, startup under its bounds: "day 1 06:05:00: a crash image of the core store lost committed work in its open (18 WAL frames to replay): 1285 events through cursor 1286 digest to 74746d82… (committed: 1286 events, d09ef811…)", on both crash images |
 
 The stack-proposal shim and its mutation are gone with the shim: stack
@@ -747,8 +1000,8 @@ flatness judges the b-trees whose pages the random identifiers move
 (`events_job` and the per-job autoindexes) against ceilings or floors that
 measured at least 40 KiB above them, and the events table's end sits
 about 17 MiB inside the file bound (the old refill model sat within 5% of
-its threshold, which is how a page-count spread failed it), the startup factor 3.2 sits above the 2.5
-measured, and each pin is the range measured over the runs listed with it,
+its threshold, which is how a page-count spread failed it), the startup factor 3.0 sits above the
+2.72 measured at 5,113 retained jobs and 2.39 in the household runs, and each pin is the range measured over the runs listed with it,
 widened by that range on each side. VM and full-scan steps are exact for a
 given file, so their bounds are functions of the rows the copy holds, not
 tolerances.
@@ -770,6 +1023,9 @@ cargo test -p limeos-core --bin limeos-core -- --ignored --exact soak::soak_nine
 
 # The automation limit, measured (not a gate)
 cargo test -p limeos-core --bin limeos-core -- --ignored --exact soak::automation::automation_limit_at_minimum_interval --nocapture
+
+# Core's open as the retained jobs grow to about 5,100, measured (not a gate; about 8.5 minutes)
+cargo test -p limeos-core --bin limeos-core -- --ignored --exact soak::startup_at_high_retained_job_count --nocapture
 ```
 
 The stores go in `LIMEOS_SOAK_DIR` when set; otherwise on `/dev/shm` when it

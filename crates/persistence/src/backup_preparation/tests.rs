@@ -1,5 +1,10 @@
 use super::*;
 
+/// The backup check as startup runs it: on the jobs startup's walk listed.
+fn check(conn: &Connection) -> Result<()> {
+    super::check(conn, &crate::resources::Walked::read(conn)?)
+}
+
 fn binding() -> BackupPreparationBinding {
     BackupPreparationBinding {
         custody: limeos_domain::CustodyBinding {

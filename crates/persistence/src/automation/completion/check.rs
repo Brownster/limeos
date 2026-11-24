@@ -165,7 +165,12 @@ fn created_proofs(conn: &Connection, owner: &str, job: &str, at: i64, expected: 
     }
     require(count == expected)
 }
-pub(super) fn check(conn: &Connection) -> Result<()> {
+/// Every settled observation job has its result (of the observation jobs
+/// startup's walk of `jobs` listed, `?1`, `resources::JOB_WALK`, each read
+/// through the primary key); every result has its stream, job and owner;
+/// every notification was created once.
+pub(crate) const OBSERVATION_RESULTS: &str = "SELECT EXISTS(SELECT 1 FROM json_each(?1) w CROSS JOIN jobs j ON j.id=w.value WHERE json_extract(j.intent,'$.operation')='automation_observe_health' AND j.state IN ('succeeded','failed','precondition_changed') AND NOT EXISTS(SELECT 1 FROM automation_observation_results r WHERE r.job=j.id)) OR EXISTS(SELECT 1 FROM automation_observation_results r LEFT JOIN automation_streams s ON s.owner=r.owner LEFT JOIN jobs j ON j.id=r.job LEFT JOIN users u ON u.id=r.owner WHERE s.owner IS NULL OR j.id IS NULL OR u.id IS NULL) OR EXISTS(SELECT 1 FROM events WHERE json_extract(kind,'$.kind')='automation_notification_created' GROUP BY json_extract(kind,'$.notification') HAVING count(*)<>1)";
+pub(super) fn check(conn: &Connection, walked: &crate::resources::Walked) -> Result<()> {
     let counts:(i64,i64,i64,i64)=conn.query_row("SELECT (SELECT count(*) FROM automation_streams),(SELECT count(*) FROM automation_observation_results),(SELECT count(*) FROM automation_alerts),(SELECT count(*) FROM automation_notifications)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(durable)?;
     require(
         counts.0 <= MAX_SCHEDULES as i64
@@ -173,7 +178,13 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             && counts.2 <= MAX_ALERTS as i64
             && counts.3 <= MAX_NOTIFICATIONS as i64,
     )?;
-    let invalid:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM jobs j WHERE json_extract(j.intent,'$.operation')='automation_observe_health' AND j.state IN ('succeeded','failed','precondition_changed') AND NOT EXISTS(SELECT 1 FROM automation_observation_results r WHERE r.job=j.id)) OR EXISTS(SELECT 1 FROM automation_observation_results r LEFT JOIN automation_streams s ON s.owner=r.owner LEFT JOIN jobs j ON j.id=r.job LEFT JOIN users u ON u.id=r.owner WHERE s.owner IS NULL OR j.id IS NULL OR u.id IS NULL) OR EXISTS(SELECT 1 FROM events WHERE json_extract(kind,'$.kind')='automation_notification_created' GROUP BY json_extract(kind,'$.notification') HAVING count(*)<>1)",[],|r|r.get(0)).map_err(durable)?;
+    let invalid: bool = conn
+        .query_row(
+            OBSERVATION_RESULTS,
+            [walked.ids("automation_observe_health")?],
+            |r| r.get(0),
+        )
+        .map_err(durable)?;
     require(!invalid)?;
     let mut stmt = conn
         .prepare("SELECT owner,sequence,complete,owner_revision,recorded,alerts_digest,policy_revision FROM automation_streams")

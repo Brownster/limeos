@@ -187,11 +187,20 @@ pub const CORE_OPEN_BOUND_MS: u128 = 5_000;
 /// SQLite's page size in both stores.
 pub const PAGE: u64 = 4096;
 /// Page reads an open on a copy may make, per page of database and WAL,
-/// in thousandths, and a fixed allowance: see `startup_page_bound`. Core
-/// measured about 2.4 (quick_check 1.55, the foreign-key check 0.55, six
-/// scans of the jobs table, the audit count) beyond its proof check, and up
-/// to 2.8 while that check evicts the cache; with the writer's 1536 KiB
-/// cache (`limeos_persistence`'s `cache`) the opens measured up to 2.71.
+/// in thousandths, and a fixed allowance: see `startup_page_bound`. Core's
+/// statements but the proof check read 2.14 to 2.79 cold: `quick_check`
+/// 1.45 to 1.63 and the foreign-key check 0.44 to 0.65 (both more per page
+/// as the share of table pages grows), the one walk of `jobs` with its
+/// resource-set probes up to 0.35, the index accounting about 0.06, the
+/// audit count 0.07 to 0.17; the low end at the household runs' few hundred
+/// jobs, the high end at 5,113 retained jobs
+/// (`startup_at_high_retained_job_count`,
+/// `caps::soak_core_startup_at_high_retained_job_count`). The household
+/// copies read at most 2.27 to 2.42 a page on four seeds of each 90-day
+/// profile (24 November), so 3.0 fails a further full pass over the store
+/// (1.0 a page) on every one of them; it was 3.2 while eight owners' checks
+/// each walked `jobs` (2.4 to 3.0 in the household runs, 3.83 at 5,113
+/// jobs).
 ///
 /// The receipt store checks through a cache much smaller than a grown store
 /// (768 KiB), so `quick_check` reads what no cache keeps: one walk of every
@@ -206,7 +215,7 @@ pub const PAGE: u64 = 4096;
 /// receipts and a full log of the longest rows 1.84 (20,984 KiB read for
 /// 11,388 KiB, `measure_the_open_reads_of_a_full_store`), so a further full
 /// pass would still fail.
-pub const CORE_PAGE_FACTOR: u64 = 3200;
+pub const CORE_PAGE_FACTOR: u64 = 3000;
 pub const RECEIPT_PAGE_FACTOR: u64 = 2200;
 pub const PAGE_SLACK: u64 = 256;
 /// The page reads an open may make beyond what its known statements read
@@ -2093,12 +2102,16 @@ fn half_slope(points: &[(f64, f64)]) -> f64 {
     }
 }
 
-/// Startup page reads per page the history tables gain, at most: measured
-/// about 5 for per-job pages (quick_check and the foreign-key check read
-/// each new page, and six statements scan the jobs table), fewer for events
-/// pages; twice that is still the history component, more is growth from
-/// something else.
-pub const STARTUP_PER_JOB_MAX: f64 = 10.0;
+/// Startup page reads per page the per-job tables gain, at most: measured
+/// 3.26 between 257 and 5,113 retained jobs (`quick_check` and the
+/// foreign-key check read each new page, and the one walk of `jobs` and the
+/// index accounting their share of them; 5.1 while eight checks each walked
+/// `jobs`, when this was 10); twice that is still the history component,
+/// more is growth from something else. On four seeds of each 90-day profile
+/// the events table's growth alone explained the last third's (the per-job
+/// tables gained -0.4 to 2.4 pages a night), with 8.6 to 17.7 reads a night
+/// to spare.
+pub const STARTUP_PER_JOB_MAX: f64 = 6.5;
 /// Startup page reads per page the events table (with its indexes) gains,
 /// at most: `quick_check` and the foreign-key check read each new page
 /// once, and no other startup statement walks it (`EXPLAINED`); twice that.
@@ -2258,6 +2271,95 @@ fn per_job_model(tail: &[&Sample]) -> PerJob {
 }
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
+/// What `startup_bounds` finds wrong with one measured open of `store`
+/// (`core` or `receipts`) whose wall time is bounded by `bound`.
+pub fn start_problems(
+    store: &str,
+    s: &super::sim::Startup,
+    bound: u128,
+) -> Vec<(&'static str, String)> {
+    let mut problems = Vec::new();
+    let ms = s.opened.elapsed.as_millis();
+    let day = (s.at - START) as f64 / DAY as f64;
+    let file_pages = (s.file + s.wal) / PAGE;
+    if ms > bound {
+        problems.push((
+            STARTUP,
+            format!(
+                "{store} open at day {day:.2} ({}): {ms} ms (bound {bound})",
+                s.reason
+            ),
+        ));
+    }
+    if s.reason != COPY && s.reason != super::startup::CRASH {
+        return problems;
+    }
+    // Core: its statements but the proof check, cold; the receipt
+    // store: the open.
+    let (work, what) = match &s.trace {
+        Some(trace) => (
+            trace.cold_but_defect(),
+            "its startup statements but the proof check read",
+        ),
+        None => (pages(s), "the open read"),
+    };
+    let limit = startup_page_bound(store, s.file + s.wal);
+    if work > limit {
+        problems.push((
+            STARTUP,
+            format!(
+                "{store} open on a copy at day {day:.2}: {what} {work} pages for {file_pages} pages of file (bound {limit})"
+            ),
+        ));
+    }
+    let Some(trace) = &s.trace else {
+        return problems;
+    };
+    problems.extend(scan_problems(trace, s.replay).into_iter().map(|problem| {
+        (
+            EXPLAINED,
+            format!("core open on a copy at day {day:.2}: {problem}"),
+        )
+    }));
+    let cold = trace.cold();
+    let allowed = cold
+        + trace.cold_but_defect() * EXPLAIN_PERCENT / 100
+        + EXPLAIN_SLACK
+        + s.replay * REPLAY_READS;
+    if pages(s) > allowed {
+        problems.push((
+            EXPLAINED,
+            format!(
+                "core open on a copy at day {day:.2}: {} page reads, {} more than its statements read cold ({cold})",
+                pages(s),
+                pages(s) - cold
+            ),
+        ));
+    }
+    // The household has no storage mount: the proof check, driven from the
+    // mount plans, reads a few pages, whatever the jobs and events (it read
+    // 6.5 files' worth while it looked events up by kind for every job, and
+    // up to an eighth of the file while it visited every settled job).
+    for proof in trace.statements.iter().filter(|s| s.proof()) {
+        let reads = proof.cold.unwrap_or(proof.reads);
+        if proof.events_by_kind() || reads > PROOF_READS {
+            problems.push((
+                MOUNT_PROOF,
+                format!(
+                    "day {day:.2}: the storage-mount proof check reads {reads} pages cold ({:.2} files' worth){}",
+                    reads as f64 / file_pages.max(1) as f64,
+                    if proof.events_by_kind() {
+                        ", looking events up by kind"
+                    } else {
+                        ""
+                    }
+                ),
+            ));
+        }
+    }
+    problems
+}
+
 /// Every measured open within bounds. On each copy of core's store, from the
 /// open's own statement trace: every page read is inside one of the
 /// statements startup executes, but a few (`EXPLAINED`), no statement scans
@@ -2274,83 +2376,7 @@ fn startup_bounds(sim: &mut Sim) {
         ("receipts", &sim.executor_starts, RECEIPT_OPEN_BOUND_MS),
     ] {
         for s in starts {
-            let ms = s.opened.elapsed.as_millis();
-            let day = (s.at - START) as f64 / DAY as f64;
-            let file_pages = (s.file + s.wal) / PAGE;
-            if ms > bound {
-                problems.push((
-                    STARTUP,
-                    format!(
-                        "{store} open at day {day:.2} ({}): {ms} ms (bound {bound})",
-                        s.reason
-                    ),
-                ));
-            }
-            if s.reason != COPY && s.reason != super::startup::CRASH {
-                continue;
-            }
-            // Core: its statements but the proof check, cold; the receipt
-            // store: the open.
-            let (work, what) = match &s.trace {
-                Some(trace) => (
-                    trace.cold_but_defect(),
-                    "its startup statements but the proof check read",
-                ),
-                None => (pages(s), "the open read"),
-            };
-            let limit = startup_page_bound(store, s.file + s.wal);
-            if work > limit {
-                problems.push((
-                    STARTUP,
-                    format!(
-                        "{store} open on a copy at day {day:.2}: {what} {work} pages for {file_pages} pages of file (bound {limit})"
-                    ),
-                ));
-            }
-            let Some(trace) = &s.trace else { continue };
-            problems.extend(scan_problems(trace, s.replay).into_iter().map(|problem| {
-                (
-                    EXPLAINED,
-                    format!("core open on a copy at day {day:.2}: {problem}"),
-                )
-            }));
-            let cold = trace.cold();
-            let allowed = cold
-                + trace.cold_but_defect() * EXPLAIN_PERCENT / 100
-                + EXPLAIN_SLACK
-                + s.replay * REPLAY_READS;
-            if pages(s) > allowed {
-                problems.push((
-                    EXPLAINED,
-                    format!(
-                        "core open on a copy at day {day:.2}: {} page reads, {} more than its statements read cold ({cold})",
-                        pages(s),
-                        pages(s) - cold
-                    ),
-                ));
-            }
-            // The household has no storage mount: the proof check, driven
-            // from the mount plans, reads a few pages, whatever the jobs
-            // and events (it read 6.5 files' worth while it looked events
-            // up by kind for every job, and up to an eighth of the file
-            // while it visited every settled job).
-            for proof in trace.statements.iter().filter(|s| s.proof()) {
-                let reads = proof.cold.unwrap_or(proof.reads);
-                if proof.events_by_kind() || reads > PROOF_READS {
-                    problems.push((
-                        MOUNT_PROOF,
-                        format!(
-                            "day {day:.2}: the storage-mount proof check reads {reads} pages cold ({:.2} files' worth){}",
-                            reads as f64 / file_pages.max(1) as f64,
-                            if proof.events_by_kind() {
-                                ", looking events up by kind"
-                            } else {
-                                ""
-                            }
-                        ),
-                    ));
-                }
-            }
+            problems.extend(start_problems(store, s, bound));
         }
     }
     // The pins: the proof check, found in the open by its own text, looks
@@ -2398,9 +2424,14 @@ pub struct ScanAllowance {
 }
 
 /// Every startup statement that walks a table growing with history, found by
-/// reading every statement's bytecode on every copy. All but the first three
-/// are startup checks over the per-job tables, one walk of each listed table
-/// (one full-scan step per row), which grow with the pinned per-job defect.
+/// reading every statement's bytecode on every copy. After the first three
+/// (whole-file checks and the audit count): one walk of `jobs`, the
+/// accounting's reads of four indexes of `jobs` (each alone, covering) and
+/// of the `job_resources` table, and the lock invariants' walk of
+/// `job_resolutions`, one full-scan step per row. Until 24 November eight
+/// owners' checks each walked `jobs` (and one `job_resources`) to find the
+/// jobs of their operation; the walk now lists them, and a statement that
+/// walks `jobs` again fails here.
 pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
     ScanAllowance {
         marker: "PRAGMA quick_check",
@@ -2449,46 +2480,65 @@ pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
               (`Count`, no full-scan steps); the events table is bounded by retention",
     },
     ScanAllowance {
-        marker: "SELECT EXISTS( SELECT 1 FROM jobs j WHERE NOT EXISTS( SELECT 1 FROM job_resources r",
-        tables: &["jobs", "job_resolutions"],
-        events_table: false,
-        steps_per_row: 1,
-        why: "the lock and resource invariants walk every job",
-    },
-    ScanAllowance {
-        marker: "SELECT id,principal,intent,digest,resource,revision,deadline FROM jobs WHERE json_extract(intent,'$.operation')",
+        marker: "SELECT j.id,j.rowid,j.principal,j.idempotency,j.state,j.deadline,j.resource,json_extract(j.intent,'$.operation')",
         tables: &["jobs"],
         events_table: false,
         steps_per_row: 1,
-        why: "the storage target and mount checks list their jobs by operation, a walk of jobs",
+        why: "startup's one walk of every job: each job's resource set (its primary resource, at \
+              most 128), and the jobs of the operations an owner's check reads, which those \
+              checks then read through the primary key",
     },
     ScanAllowance {
-        marker: "SELECT EXISTS(SELECT 1 FROM backup_preparation_plans",
-        tables: &["jobs", "job_resources"],
-        events_table: false,
-        steps_per_row: 1,
-        why: "the backup-preparation check walks jobs and job resources once each",
-    },
-    ScanAllowance {
-        marker: "SELECT EXISTS(SELECT 1 FROM jobs j WHERE json_extract(j.intent,'$.operation')='backup_prepare_private",
+        marker: "SELECT id,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_1",
         tables: &["jobs"],
         events_table: false,
         steps_per_row: 1,
-        why: "the backup-preparation check walks jobs by operation",
+        why: "the accounting of the jobs primary key's index against the walk (an entry a job)",
     },
     ScanAllowance {
-        marker: "SELECT EXISTS(SELECT 1 FROM automation_occurrences o JOIN automation_schedules s",
+        marker: "SELECT principal,idempotency,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_2",
         tables: &["jobs"],
         events_table: false,
         steps_per_row: 1,
-        why: "the automation check walks jobs by operation",
+        why: "the accounting of the jobs idempotency key's index against the walk",
     },
     ScanAllowance {
-        marker: "SELECT j.id,j.principal,j.idempotency,j.intent,j.digest,j.resource,j.state,j.revision,j.deadline,o.s",
+        marker: "SELECT state,deadline,rowid FROM jobs INDEXED BY jobs_state",
         tables: &["jobs"],
         events_table: false,
         steps_per_row: 1,
-        why: "the automation job listing walks jobs by operation",
+        why: "the accounting of jobs_state against the walk",
+    },
+    ScanAllowance {
+        marker: "SELECT resource,rowid FROM jobs INDEXED BY jobs_resource_lock",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the accounting of the partial jobs_resource_lock against the walk (a lock-holding job \
+              an entry)",
+    },
+    ScanAllowance {
+        marker: "SELECT r.job,r.resource,r.rowid FROM job_resources r NOT INDEXED",
+        tables: &["job_resources"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the unsettled jobs' resource rows read from the table, for the accounting of \
+              job_resources' primary key",
+    },
+    ScanAllowance {
+        marker: "PRAGMA integrity_check(job_resolutions)",
+        tables: &["job_resolutions"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the resolutions checked against their indexes (one per resolved or resolving job)",
+    },
+    ScanAllowance {
+        marker: "SELECT EXISTS( SELECT 1 FROM job_resources r JOIN jobs j ON j.id=r.job LEFT JOIN resource_locks l",
+        tables: &["job_resolutions"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the lock invariants walk the resolutions (one per resolved or resolving job); \
+              they reach jobs only through `jobs_state` and the primary key",
     },
     ScanAllowance {
         marker: "UPDATE jobs SET state='needs_intervention' WHERE state IN ('running','verifying')",

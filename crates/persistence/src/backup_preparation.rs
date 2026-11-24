@@ -224,9 +224,21 @@ fn checked_plan(body: &str, digest: &str) -> Result<BackupPreparationJobPlan> {
     Ok(plan)
 }
 
+/// The saved plans' field bounds, and the backup preparation jobs startup's
+/// walk of `jobs` listed (`?1`, `resources::JOB_WALK`): their intent's size,
+/// their state and their resources' lengths, each job read through the
+/// primary key.
+pub(super) const BACKUP_JOBS: &str = "SELECT EXISTS(SELECT 1 FROM backup_preparation_plans WHERE length(CAST(body AS BLOB)) NOT BETWEEN 1 AND 16384 OR length(CAST(id AS BLOB))!=64 OR length(CAST(principal AS BLOB)) NOT BETWEEN 1 AND 128 OR length(CAST(digest AS BLOB))!=64 OR (approval_digest IS NOT NULL AND length(CAST(approval_digest AS BLOB))!=64) OR (consumed_approval_digest IS NOT NULL AND length(CAST(consumed_approval_digest AS BLOB))!=64) OR (job IS NOT NULL AND length(CAST(job AS BLOB))!=64)) OR EXISTS(SELECT 1 FROM json_each(?1) w CROSS JOIN jobs j ON j.id=w.value WHERE json_extract(j.intent,'$.operation')='backup_prepare_private' AND (length(CAST(j.intent AS BLOB))>17000 OR j.state NOT IN ('queued','canceled'))) OR EXISTS(SELECT 1 FROM json_each(?1) w CROSS JOIN jobs j ON j.id=w.value CROSS JOIN job_resources r ON r.job=j.id WHERE json_extract(j.intent,'$.operation')='backup_prepare_private' AND length(CAST(r.resource AS BLOB)) NOT BETWEEN 1 AND 768)";
+/// A listed backup preparation job (`?1`, as [`BACKUP_JOBS`]) that no plan
+/// names.
+pub(super) const UNLINKED_BACKUP_JOBS: &str = "SELECT EXISTS(SELECT 1 FROM json_each(?1) w CROSS JOIN jobs j ON j.id=w.value WHERE json_extract(j.intent,'$.operation')='backup_prepare_private' AND NOT EXISTS(SELECT 1 FROM backup_preparation_plans p WHERE p.job=j.id))";
+
 /// Before generation/recovery: validate every saved plan and every backup job.
-pub(super) fn check(conn: &Connection) -> Result<()> {
-    let invalid: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM backup_preparation_plans WHERE length(CAST(body AS BLOB)) NOT BETWEEN 1 AND 16384 OR length(CAST(id AS BLOB))!=64 OR length(CAST(principal AS BLOB)) NOT BETWEEN 1 AND 128 OR length(CAST(digest AS BLOB))!=64 OR (approval_digest IS NOT NULL AND length(CAST(approval_digest AS BLOB))!=64) OR (consumed_approval_digest IS NOT NULL AND length(CAST(consumed_approval_digest AS BLOB))!=64) OR (job IS NOT NULL AND length(CAST(job AS BLOB))!=64)) OR EXISTS(SELECT 1 FROM jobs WHERE json_extract(intent,'$.operation')='backup_prepare_private' AND (length(CAST(intent AS BLOB))>17000 OR state NOT IN ('queued','canceled'))) OR EXISTS(SELECT 1 FROM job_resources r JOIN jobs j ON j.id=r.job WHERE json_extract(j.intent,'$.operation')='backup_prepare_private' AND length(CAST(r.resource AS BLOB)) NOT BETWEEN 1 AND 768)",[],|r|r.get(0)).map_err(durable)?;
+pub(super) fn check(conn: &Connection, walked: &super::resources::Walked) -> Result<()> {
+    let listed = walked.ids("backup_prepare_private")?;
+    let invalid: bool = conn
+        .query_row(BACKUP_JOBS, [&listed], |r| r.get(0))
+        .map_err(durable)?;
     if invalid {
         return Err(Error(ErrorCode::StateNotDurable));
     }
@@ -278,7 +290,9 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             }
         }
     }
-    let unlinked: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM jobs j WHERE json_extract(j.intent,'$.operation')='backup_prepare_private' AND NOT EXISTS(SELECT 1 FROM backup_preparation_plans p WHERE p.job=j.id))",[],|r|r.get(0)).map_err(durable)?;
+    let unlinked: bool = conn
+        .query_row(UNLINKED_BACKUP_JOBS, [&listed], |r| r.get(0))
+        .map_err(durable)?;
     if unlinked {
         return Err(Error(ErrorCode::StateNotDurable));
     }

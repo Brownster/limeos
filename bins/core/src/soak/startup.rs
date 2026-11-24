@@ -75,26 +75,37 @@ fn scratch(sim: &Sim, name: &str) -> PathBuf {
 /// a restart, recovery included.
 pub fn core(sim: &mut Sim) {
     let dir = scratch(sim, "startup-core");
-    let path = dir.join("core.sqlite");
-    copy(&sim.core_path, &path);
-    let (file, wal) = sizes(&path);
-    let child = in_child("core", &path);
-    if let Some(refused) = &child.refused {
+    let (start, refused) = core_copy(&sim.core_path, &dir, sim.now());
+    if let Some(refused) = refused {
         sim.violation(
             super::checks::STARTUP,
             format!("a copy of the core store refused to open: {refused}"),
         );
     }
     std::fs::remove_dir_all(&dir).unwrap();
-    sim.core_starts.push(Startup {
-        at: sim.now(),
-        reason: COPY,
-        file,
-        wal,
-        opened: child.opened,
-        trace: child.trace,
-        replay: 0,
-    });
+    sim.core_starts.push(start);
+}
+
+/// `Store::open` on a copy (in `dir`) of the core store at `source`, live
+/// or closed, measured and traced alone in a child process, as at `at`; and
+/// why the copy refused to open, if it did.
+pub fn core_copy(source: &Path, dir: &Path, at: i64) -> (Startup, Option<String>) {
+    let path = dir.join("core.sqlite");
+    copy(source, &path);
+    let (file, wal) = sizes(&path);
+    let child = in_child("core", &path);
+    (
+        Startup {
+            at,
+            reason: COPY,
+            file,
+            wal,
+            opened: child.opened,
+            trace: child.trace,
+            replay: 0,
+        },
+        child.refused,
+    )
 }
 
 /// WAL frames a reopen replays: the frames after the WAL's header that carry
