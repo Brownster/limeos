@@ -989,3 +989,32 @@ fn a_stack_is_authorized_only_for_core_and_never_for_a_root_core() {
         Err(Error(ErrorCode::Forbidden))
     );
 }
+
+/// A trigger added behind the open's schema check that deletes a member row
+/// as it is inserted: the stack's prepare commits, the read-back misses the
+/// member, and no member is sent.
+#[tokio::test]
+async fn a_member_row_that_does_not_read_back_stops_every_effect() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    store
+        .conn
+        .execute_batch("CREATE TRIGGER vanish AFTER INSERT ON actions BEGIN DELETE FROM actions WHERE action=new.action; END;")
+        .unwrap();
+    let engine = StackEngine::new();
+    assert_eq!(
+        store
+            .execute_stack(
+                &engine,
+                &ceiling(),
+                1001,
+                &request(ContainerAction::Restart),
+                || 201
+            )
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::StateNotDurable
+    );
+    assert!(engine.calls().is_empty());
+}

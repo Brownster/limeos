@@ -423,6 +423,19 @@ impl ReceiptStore {
             }),
             Log::Charge(&entry),
         )?;
+        // The stack row and every member row must be there before any
+        // effect, whatever the schema did to them (keyed reads of pages the
+        // commit just wrote).
+        if self
+            .stack_receipt(&receipt.action, &receipt.plan_digest)?
+            .as_ref()
+            != Some(&receipt)
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        for member in &receipt.members {
+            self.confirm_prepared(&member_receipt(&receipt, member)?)?;
+        }
         let receipt = self
             .run_members(engine, request, receipt, &seqs, clock)
             .await?;

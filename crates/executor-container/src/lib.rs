@@ -265,6 +265,10 @@ impl ReceiptStore {
         if version > RECEIPT_SCHEMA_VERSION {
             return Err(Error(ErrorCode::Conflict).into());
         }
+        if version < RECEIPT_SCHEMA_VERSION {
+            // Nothing a migration could set off, before it runs (`schema`).
+            schema::before_migrating(&conn)?;
+        }
         migrate(&conn, version)?;
         // Every migration step ends at the named schema, or the store is refused.
         if conn
@@ -468,6 +472,18 @@ impl ReceiptStore {
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         Ok((closed, seqs))
     }
+    /// The prepared receipt read back exactly as committed, or
+    /// `StateNotDurable` and no effect.
+    fn confirm_prepared(&self, receipt: &RestartReceipt) -> Result<()> {
+        if self
+            .receipt(&receipt.action, &receipt.plan_digest)?
+            .as_ref()
+            != Some(receipt)
+        {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        Ok(())
+    }
     /// The receipt's final state, and the outcome of its action-log row
     /// `seq`, in one transaction.
     fn finish(&mut self, receipt: &RestartReceipt, seq: i64) -> Result<()> {
@@ -558,6 +574,9 @@ impl ReceiptStore {
             error: None,
         };
         let seq = self.prepare(&receipt, request.plan.expires_at, now, &entry)?;
+        // The prepared row must be there before any effect, whatever the
+        // schema did to it (one keyed read of a page the commit just wrote).
+        self.confirm_prepared(&receipt)?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             receipt.state = ExecutionState::PreconditionChanged;
@@ -653,11 +672,15 @@ impl ReceiptStore {
 /// created at 1 and migrated), which is what lets `schema::check` compare a
 /// store with a reference migrated the same way in memory.
 fn migrate(conn: &Connection, version: u32) -> Result<()> {
-    migrate_to(conn, version, RECEIPT_SCHEMA_VERSION)
+    steps(conn, version, RECEIPT_SCHEMA_VERSION)
 }
-/// The steps of `migrate` from `version` up to `to` only. Tests build the
-/// stores earlier releases left with it.
+/// The steps of `migrate` from `version` up to `to` only, with which tests
+/// build the stores earlier versions of this code left.
+#[cfg(test)]
 fn migrate_to(conn: &Connection, version: u32, to: u32) -> Result<()> {
+    steps(conn, version, to)
+}
+fn steps(conn: &Connection, version: u32, to: u32) -> Result<()> {
     if version == 0 && to >= 1 {
         conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
     }
