@@ -571,7 +571,13 @@ fn kill_helper() {
     );
     s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
         .unwrap();
-    std::fs::write(Path::new(&path).with_extension("ready"), &job.id).unwrap();
+    // Rename the finished file into place: the parent polls for the name and
+    // then kills this process, and a file that exists but is still empty would
+    // give it no job id (seen once on arm64 as NotFound).
+    let ready = Path::new(&path).with_extension("ready");
+    let partial = Path::new(&path).with_extension("ready.partial");
+    std::fs::write(&partial, &job.id).unwrap();
+    std::fs::rename(&partial, &ready).unwrap();
     loop {
         std::thread::park();
     }
