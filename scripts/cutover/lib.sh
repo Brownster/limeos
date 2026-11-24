@@ -284,12 +284,15 @@ fct_unit_property() { # property unit
     printf '%s\n' "${out}"
 }
 
-# The LimeOS units whose drop-ins this cutover reports: an operator override (a User= line, say)
-# changes what the packaged unit runs as, and is easy to miss. One line per unit with drop-ins,
-# "UNIT PATH...", or "UNIT unknown" when systemd did not answer. Read-only.
+# Every unit the limeos package ships (the standard profile this cutover installs; the shadow
+# profile's units are named limeos-shadow-*). Their drop-ins are reported: an operator override (a
+# User= line, say) changes what the packaged unit runs as, and is easy to miss.
+SHIPPED_UNITS=("${RUST_UNITS[@]}" "${STACK_READER}" limeos-storage-ready.service limeos-storage-targets.service limeos-storage-mounts.service)
+# One line per shipped unit with drop-ins, "UNIT PATH...", or "UNIT unknown" when systemd did not
+# answer. Read-only.
 fct_dropin_report() {
     local unit paths rc
-    for unit in "${RUST_UNITS[@]}" "${STACK_READER}"; do
+    for unit in "${SHIPPED_UNITS[@]}"; do
         rc=0
         paths="$(fct_unit_property DropInPaths "${unit}")" || rc=$?
         if (( rc != 0 )); then printf '%s unknown\n' "${unit}"; continue; fi

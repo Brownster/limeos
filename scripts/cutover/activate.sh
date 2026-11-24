@@ -328,14 +328,16 @@ fct_units_active() { # unit...
     if [[ -n "${unknown}" ]]; then HEALTH_DETAIL="systemd did not report the state of${unknown}"; return 2; fi
 }
 # The stack reader (started, never enabled) is up, listening as its own account, has never
-# restarted, and core takes an answer from it. A restart count that cannot be read is not zero:
-# the reader's crash history is then unverified. A socket owned by another account (a drop-in
-# setting User=root, say) is a reader core refuses: stack status and storage inventory would stay
-# unavailable while everything else looks healthy, so it fails activation. `limeosctl
-# reader-status` has core ask the reader now under its socket rule and fails unless core accepted
-# the answer.
+# restarted, and core reads through it. A restart count that cannot be read is not zero: the
+# reader's crash history is then unverified. A socket owned by another account (a drop-in setting
+# User=root, say) is a reader core refuses, so it fails activation. Then core makes each read the
+# product depends on through the reader, as it would for a user (`limeosctl reader-status --read`):
+# the stack scan (catalog and Engine, which must both be fresh), a storage inventory and a
+# container-health read. A reader that answers its socket but cannot read (a drop-in that took
+# away its capability or its docker group) fails here. The stack read must succeed; the other two
+# must succeed unless the reader's ceiling does not grant them (limeosctl exits 0 for not_granted).
 fct_reader_ready() {
-    local restarts owner rc=0 answer
+    local restarts owner rc read answer
     fct_units_active "${STACK_READER}" || return
     if [[ ! -S "${CUTOVER_ROOT}${STACK_READER_SOCKET}" ]]; then HEALTH_DETAIL="${STACK_READER_SOCKET} is not listening"; return 1; fi
     if ! owner="$(stat -c %U -- "${CUTOVER_ROOT}${STACK_READER_SOCKET}" 2>/dev/null)" || [[ -z "${owner}" ]]; then
@@ -351,12 +353,19 @@ fct_reader_ready() {
         return 2
     fi
     if (( restarts != 0 )); then HEALTH_DETAIL="${STACK_READER} has restarted ${restarts} time(s)"; return 1; fi
-    answer="$(fct_query "${LIMEOSCTL}" --socket "${CORE_SOCKET}" reader-status)" || rc=$?
-    case "${rc}" in
-        0) ;;
-        124) HEALTH_DETAIL="limeosctl reader-status did not answer within ${QUERY_TIMEOUT}s"; return 2 ;;
-        *) HEALTH_DETAIL="core did not accept an answer from ${STACK_READER} (limeosctl reader-status exit ${rc}: ${answer})"; return 1 ;;
-    esac
+    for read in stack storage container-health; do
+        rc=0
+        answer="$(fct_query "${LIMEOSCTL}" --socket "${CORE_SOCKET}" reader-status --read "${read}")" || rc=$?
+        case "${rc}" in
+            0) ;;
+            124) HEALTH_DETAIL="limeosctl reader-status --read ${read} did not answer within ${QUERY_TIMEOUT}s"; return 2 ;;
+            *) HEALTH_DETAIL="core's ${read} read through ${STACK_READER} failed (limeosctl reader-status exit ${rc}: ${answer})"; return 1 ;;
+        esac
+        if [[ "${read}" == stack && "${answer}" != *'"result":"accepted"'* ]]; then
+            HEALTH_DETAIL="core's stack read through ${STACK_READER} did not succeed (${answer}): stack status would stay unavailable"
+            return 1
+        fi
+    done
 }
 # A curl probe through the proxy: curl's exit 28 (no answer within --max-time) is unknown; any
 # other failure (refused, an HTTP error with -f, a broken reply) is a definite no.
@@ -564,12 +573,11 @@ fct_main() {
     # Stack status and whole-stack actions stay unavailable until the reader runs. It has no
     # Install section on purpose: start it now, never enable it; return.sh stops it. Drop-ins on
     # the LimeOS units are named first: they change what the packaged units run as.
-    if (( ! DRY_RUN )); then
-        local dropin
-        while IFS= read -r dropin; do
-            fct_warn "LimeOS unit drop-in (systemctl cat to read it): ${dropin}"
-        done < <(fct_dropin_report)
-    fi
+    # Reported in a dry run too: that is when an operator wants to know.
+    local dropin
+    while IFS= read -r dropin; do
+        fct_warn "LimeOS unit drop-in (systemctl cat to read it): ${dropin}"
+    done < <(fct_dropin_report)
     fct_do systemctl start "${STACK_READER}"
 
     # 3. HTTPS proxy on the public port, now that the frozen app has released it.

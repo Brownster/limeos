@@ -273,7 +273,20 @@ case "${tool}" in
         [[ -f "${STUB_DIR}/pkg_version" ]] || exit 1
         cat "${STUB_DIR}/pkg_version" ;;
     caddy) ;;
-    limeosctl) ;;
+    limeosctl)
+        # reader-status --read READ: $STUB_DIR/reader-read-READ (output) and .rc (exit status)
+        # model core's read through the stack reader; by default it succeeds.
+        args=("$@")
+        if (( ${#args[@]} >= 3 )) && [[ "${args[-3]}" == reader-status && "${args[-2]}" == --read ]]; then
+            read_name="${args[-1]}"
+            if [[ -f "${STUB_DIR}/reader-read-${read_name}" ]]; then
+                cat -- "${STUB_DIR}/reader-read-${read_name}"
+            else
+                read_json="$(printf '{"read":"%s","result":"accepted","reason":null}' "${read_name//-/_}")"
+                printf '{"response":"reader_status","state":"accepted","reason":null,"read":%s}\n' "${read_json}"
+            fi
+            exit "$(cat -- "${STUB_DIR}/reader-read-${read_name}.rc" 2>/dev/null || echo 0)"
+        fi ;;
     curl)
         url=''; out=''; want_code=0; fail_flag=0; fmt=''
         while (( $# )); do
