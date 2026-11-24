@@ -188,16 +188,19 @@ pub const CORE_OPEN_BOUND_MS: u128 = 5_000;
 pub const PAGE: u64 = 4096;
 /// Page reads an open on a copy may make, per page of database and WAL,
 /// in thousandths, and a fixed allowance: see `startup_page_bound`. Core's
-/// statements but the proof check read 2.1 to 2.72 cold: `quick_check`
+/// statements but the proof check read 2.14 to 2.79 cold: `quick_check`
 /// 1.45 to 1.63 and the foreign-key check 0.44 to 0.65 (both more per page
 /// as the share of table pages grows), the one walk of `jobs` with its
-/// resource-set probes up to 0.35, the audit count 0.07 to 0.17; the low end
-/// at the household runs' few hundred jobs, the high end at 5,113 retained
-/// jobs (`startup_at_high_retained_job_count`,
-/// `caps::soak_core_startup_at_high_retained_job_count`). 3.0 fails a
-/// further full pass over the store (1.0 a page) on every household copy;
-/// it was 3.2 while eight owners' checks each walked `jobs` (2.4 to 2.8 in
-/// the household runs, 3.83 at 5,113 jobs).
+/// resource-set probes up to 0.35, the index accounting about 0.06, the
+/// audit count 0.07 to 0.17; the low end at the household runs' few hundred
+/// jobs, the high end at 5,113 retained jobs
+/// (`startup_at_high_retained_job_count`,
+/// `caps::soak_core_startup_at_high_retained_job_count`). The household
+/// copies read at most 2.27 to 2.42 a page on four seeds of each 90-day
+/// profile (24 November), so 3.0 fails a further full pass over the store
+/// (1.0 a page) on every one of them; it was 3.2 while eight owners' checks
+/// each walked `jobs` (2.4 to 3.0 in the household runs, 3.83 at 5,113
+/// jobs).
 ///
 /// The receipt store checks through a cache much smaller than a grown store
 /// (768 KiB), so `quick_check` reads what no cache keeps: one walk of every
@@ -2099,11 +2102,14 @@ fn half_slope(points: &[(f64, f64)]) -> f64 {
 }
 
 /// Startup page reads per page the per-job tables gain, at most: measured
-/// 3.2 between 257 and 5,113 retained jobs (`quick_check` and the
-/// foreign-key check read each new page, and the one walk of `jobs` its
-/// share of them with their resource sets; 5.1 while eight checks each
-/// walked `jobs`, when this was 10); twice that is still the history
-/// component, more is growth from something else.
+/// 3.26 between 257 and 5,113 retained jobs (`quick_check` and the
+/// foreign-key check read each new page, and the one walk of `jobs` and the
+/// index accounting their share of them; 5.1 while eight checks each walked
+/// `jobs`, when this was 10); twice that is still the history component,
+/// more is growth from something else. On four seeds of each 90-day profile
+/// the events table's growth alone explained the last third's (the per-job
+/// tables gained -0.4 to 2.4 pages a night), with 8.6 to 17.7 reads a night
+/// to spare.
 pub const STARTUP_PER_JOB_MAX: f64 = 6.5;
 /// Startup page reads per page the events table (with its indexes) gains,
 /// at most: `quick_check` and the foreign-key check read each new page
@@ -2418,7 +2424,9 @@ pub struct ScanAllowance {
 
 /// Every startup statement that walks a table growing with history, found by
 /// reading every statement's bytecode on every copy. After the first three
-/// (whole-file checks and the audit count), one walk of `jobs` and one of
+/// (whole-file checks and the audit count): one walk of `jobs`, the
+/// accounting's reads of four indexes of `jobs` (each alone, covering) and
+/// of the `job_resources` table, and the lock invariants' walk of
 /// `job_resolutions`, one full-scan step per row. Until 24 November eight
 /// owners' checks each walked `jobs` (and one `job_resources`) to find the
 /// jobs of their operation; the walk now lists them, and a statement that
@@ -2471,13 +2479,57 @@ pub const SCAN_ALLOWANCES: &[ScanAllowance] = &[
               (`Count`, no full-scan steps); the events table is bounded by retention",
     },
     ScanAllowance {
-        marker: "SELECT j.id,j.rowid,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r",
+        marker: "SELECT j.id,j.rowid,j.principal,j.idempotency,j.state,j.deadline,j.resource,json_extract(j.intent,'$.operation')",
         tables: &["jobs"],
         events_table: false,
         steps_per_row: 1,
         why: "startup's one walk of every job: each job's resource set (its primary resource, at \
               most 128), and the jobs of the operations an owner's check reads, which those \
               checks then read through the primary key",
+    },
+    ScanAllowance {
+        marker: "SELECT id,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_1",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the accounting of the jobs primary key's index against the walk (an entry a job)",
+    },
+    ScanAllowance {
+        marker: "SELECT principal,idempotency,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_2",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the accounting of the jobs idempotency key's index against the walk",
+    },
+    ScanAllowance {
+        marker: "SELECT state,deadline,rowid FROM jobs INDEXED BY jobs_state",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the accounting of jobs_state against the walk",
+    },
+    ScanAllowance {
+        marker: "SELECT resource,rowid FROM jobs INDEXED BY jobs_resource_lock",
+        tables: &["jobs"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the accounting of the partial jobs_resource_lock against the walk (a lock-holding job \
+              an entry)",
+    },
+    ScanAllowance {
+        marker: "SELECT r.job,r.resource,r.rowid FROM job_resources r NOT INDEXED",
+        tables: &["job_resources"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the unsettled jobs' resource rows read from the table, for the accounting of \
+              job_resources' primary key",
+    },
+    ScanAllowance {
+        marker: "PRAGMA integrity_check(job_resolutions)",
+        tables: &["job_resolutions"],
+        events_table: false,
+        steps_per_row: 1,
+        why: "the resolutions checked against their indexes (one per resolved or resolving job)",
     },
     ScanAllowance {
         marker: "SELECT EXISTS( SELECT 1 FROM job_resources r JOIN jobs j ON j.id=r.job LEFT JOIN resource_locks l",
