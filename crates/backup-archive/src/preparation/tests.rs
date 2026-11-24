@@ -806,3 +806,54 @@ fn sigkill_leaves_inert_orphans_without_adoption_or_live_changes() {
         );
     }
 }
+
+// Checks the before-image copy of the private object tree made and this one
+// did not, before both shared one implementation (`private_tree`).
+
+#[test]
+fn a_root_carrying_an_attribute_beyond_a_selinux_label_is_refused() {
+    let scene = Scene::new();
+    let root = File::open(&scene.prep).unwrap();
+    rustix::fs::fsetxattr(
+        &root,
+        "user.preparation-regression",
+        b"inherited",
+        rustix::fs::XattrFlags::empty(),
+    )
+    .unwrap();
+    assert!(matches!(
+        PreparationRoot::open(&scene.prep).unwrap_err().failure,
+        Failure::UnsupportedMetadata
+    ));
+    rustix::fs::fremovexattr(&root, "user.preparation-regression").unwrap();
+    PreparationRoot::open(&scene.prep).unwrap();
+    scene.empty();
+}
+
+#[test]
+fn an_attribute_added_to_the_attempt_fails_revalidation_and_reading() {
+    let scene = Scene::new();
+    let owner = scene.run(&mut RealIo, &|| false).unwrap();
+    owner.revalidate(&|| false).unwrap();
+    let attempt = &owner.attempt.directory;
+    rustix::fs::fsetxattr(
+        attempt,
+        "user.preparation-regression",
+        b"added",
+        rustix::fs::XattrFlags::empty(),
+    )
+    .unwrap();
+    assert!(matches!(
+        owner.revalidate(&|| false).unwrap_err().failure,
+        Failure::UnsupportedMetadata
+    ));
+    let entry = owner
+        .entries()
+        .find(|e| e.metadata().kind == EntryKind::File)
+        .unwrap();
+    assert!(entry.reader().is_err());
+    rustix::fs::fremovexattr(attempt, "user.preparation-regression").unwrap();
+    owner.revalidate(&|| false).unwrap();
+    owner.discard().unwrap();
+    scene.empty();
+}
