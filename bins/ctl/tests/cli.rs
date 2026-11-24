@@ -75,6 +75,10 @@ fn a_flag_where_a_value_belongs_is_a_usage_error_not_a_version_print() {
         &["job", "cancel", JOB, "--admin", "--version"],
         &["job", "cancel", JOB, "--admin", "a", "--help"],
         &["job", "cancel", JOB],
+        &["job", "cancel", JOB, "--admin", "a", "--yes", "--yes"],
+        &["job", "list", "--after", "-1"],
+        &["job", "list", "--family", "--version"],
+        &["job", "list", "--owner", "-h"],
     ] {
         let out = ctl(args);
         assert_eq!(out.status.code(), Some(2), "{args:?}");
@@ -105,6 +109,7 @@ fn job_list_and_cancel_refuse_a_non_root_caller_before_contacting_core() {
             JOB,
             "--admin",
             "a",
+            "--yes",
         ],
     ] {
         let out = ctl(args);

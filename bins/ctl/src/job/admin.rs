@@ -6,10 +6,10 @@
 use limeos_contracts::{CoreRequest, CoreResponse, VERSION};
 use limeos_domain::{
     CancelOutcome, CancelRefusal, ErrorCode, JobFamily, JobState, MAX_OPERATOR_JOBS,
-    OperatorCancel, OperatorJobPage,
+    OperatorCancel, OperatorJob, OperatorJobFilter, OperatorJobPage,
 };
 
-pub const USAGE: &str = "job list [--state STATES] [--limit N] [--json]\n  root-only; every user's jobs, oldest first: ID, owner, family and operation,\n  resource, state, when queued, deadline (plan expiry), open resolution request.\n  STATES is unsettled (the default: queued, running, verifying, outcome_unknown,\n  needs_intervention, planned, waiting_approval), all, or a comma-separated list.\n  Shows at most N jobs (default 32, at most 64) and says how many more match.\n  --json prints one JSON object per job, then one line of totals.\njob cancel JOB_ID --admin USERNAME\n  root-only; cancels a queued job of any user, recorded under that administrator.\n  Refuses a job that is not queued (settle a held one with job resolve) and an\n  automation observation. Never contacts an executor.";
+pub const USAGE: &str = "job list [--state STATES] [--owner USERNAME] [--family FAMILY] [--limit N] [--after POSITION] [--json]\n  root-only; every user's jobs, oldest first: ID, owner, family and operation,\n  resource, state, when queued, deadline (plan expiry), open resolution request.\n  STATES is unsettled (the default: queued, running, verifying, outcome_unknown,\n  needs_intervention, planned, waiting_approval), all, or a comma-separated list.\n  FAMILY is container, stack, storage-targets, storage-mount,\n  automation-observation, health-probe or backup-preparation. Shows at most N\n  jobs (default 32, at most 64), then how many more match and the --after\n  POSITION that lists them. --json prints one JSON object per job, then one\n  line of totals with that position as \"next\".\njob cancel JOB_ID --admin USERNAME [--yes]\n  root-only; cancels a queued job of any user, recorded under that administrator.\n  Shows the job first; without --yes it asks you to type cancel, so it needs a\n  terminal. Refuses a job that is not queued (settle a held one with job\n  resolve) and an automation observation. Never contacts an executor.";
 const DEFAULT_LIMIT: u32 = 32;
 use JobState::*;
 const UNSETTLED: [JobState; 7] = [
@@ -42,9 +42,12 @@ const CORE_DOWN: &str = "job list and job cancel go through core, which holds th
 /// Core could not parse the request.
 const OLDER_CORE: &str = "core refused the request as malformed: a core older than this limeosctl does not know job list or job cancel. Use the limeosctl installed with that core, or the read-only listing in docs/p03-operations.md (restoring the pre-upgrade snapshot, step 5).";
 
+/// Why a cancel without `--yes` and without a terminal is refused.
+const CONFIRM: &str = "job cancel without --yes needs a terminal to show the job and ask for confirmation; nothing was sent. Check the job with `limeosctl job list`, then run `limeosctl job cancel JOB_ID --admin USERNAME --yes`.";
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct List {
-    pub states: Vec<JobState>,
+    pub filter: OperatorJobFilter,
     pub limit: u32,
     pub json: bool,
 }
@@ -52,6 +55,8 @@ pub struct List {
 pub struct Cancel {
     pub admin: String,
     pub job: String,
+    /// Act without asking: the operator has already checked the job.
+    pub yes: bool,
 }
 
 fn state(name: &str) -> Result<JobState, String> {
@@ -71,28 +76,99 @@ fn states(value: &str) -> Result<Vec<JobState>, String> {
     Ok(states)
 }
 
+fn family(name: &str) -> Result<JobFamily, String> {
+    serde_json::from_value(serde_json::Value::String(name.replace('-', "_")))
+        .map_err(|_| format!("--family: unknown family {name}; run limeosctl --help"))
+}
+
 /// `args` follow `job list`. Each flag at most once, in any order.
 pub fn parse_list(args: &[String]) -> Result<List, String> {
-    let (mut chosen, mut limit, mut json) = (None, None, false);
+    let mut filter = OperatorJobFilter {
+        states: UNSETTLED.to_vec(),
+        owner: None,
+        family: None,
+        job: None,
+        after: None,
+    };
+    let (mut chosen, mut limit, mut json) = (false, None, false);
     let mut flags = args.iter();
     while let Some(flag) = flags.next() {
+        if flag == "--json" {
+            if std::mem::replace(&mut json, true) {
+                return Err(format!("{flag} given more than once"));
+            }
+            continue;
+        }
+        if !matches!(
+            flag.as_str(),
+            "--state" | "--limit" | "--owner" | "--family" | "--after"
+        ) {
+            return Err(format!("unknown argument {flag}; run limeosctl --help"));
+        }
+        // A value that looks like a flag (`--state --version`) is refused.
+        let value = crate::args::value(flag, flags.next()).map_err(|usage| usage.0)?;
         let taken = match flag.as_str() {
-            "--json" => std::mem::replace(&mut json, true),
-            "--state" | "--limit" => {
-                // A value that looks like a flag (`--state --version`) is refused.
-                let value = crate::args::value(flag, flags.next()).map_err(|usage| usage.0)?;
-                if flag == "--state" {
-                    chosen.replace(states(value)?).is_some()
-                } else {
-                    let n = value
-                        .parse::<u32>()
-                        .ok()
-                        .filter(|n| (1..=MAX_OPERATOR_JOBS).contains(n))
-                        .ok_or_else(|| {
-                            format!("--limit takes 1 to {MAX_OPERATOR_JOBS}, not {value}")
-                        })?;
-                    limit.replace(n).is_some()
+            "--state" => {
+                filter.states = states(value)?;
+                std::mem::replace(&mut chosen, true)
+            }
+            "--owner" => {
+                if !limeos_domain::identifier(value) {
+                    return Err(format!("--owner: {value} is not a username"));
                 }
+                filter.owner.replace(value.clone()).is_some()
+            }
+            "--family" => filter.family.replace(family(value)?).is_some(),
+            "--after" => {
+                let position = value
+                    .parse::<i64>()
+                    .ok()
+                    .filter(|n| *n >= 0)
+                    .ok_or_else(|| {
+                        format!("--after takes a position a listing printed, not {value}")
+                    })?;
+                filter.after.replace(position).is_some()
+            }
+            _ => {
+                let n = value
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|n| (1..=MAX_OPERATOR_JOBS).contains(n))
+                    .ok_or_else(|| {
+                        format!("--limit takes 1 to {MAX_OPERATOR_JOBS}, not {value}")
+                    })?;
+                limit.replace(n).is_some()
+            }
+        };
+        if taken {
+            return Err(format!("{flag} given more than once"));
+        }
+    }
+    Ok(List {
+        filter,
+        limit: limit.unwrap_or(DEFAULT_LIMIT),
+        json,
+    })
+}
+
+/// `args` follow `job cancel`: the job, then `--admin USERNAME` and
+/// optionally `--yes`, in either order.
+pub fn parse_cancel(args: &[String]) -> Result<Cancel, String> {
+    let usage = || format!("usage:\n{USAGE}");
+    let (job, mut flags) = match args.split_first() {
+        Some((job, flags)) if !job.starts_with('-') => (job, flags.iter()),
+        _ => return Err(usage()),
+    };
+    if !limeos_domain::opaque_id(job) {
+        return Err("JOB_ID must be the 64-character job identifier".into());
+    }
+    let (mut admin, mut yes) = (None, false);
+    while let Some(flag) = flags.next() {
+        let taken = match flag.as_str() {
+            "--yes" => std::mem::replace(&mut yes, true),
+            "--admin" => {
+                let value = crate::args::value(flag, flags.next()).map_err(|usage| usage.0)?;
+                admin.replace(value.clone()).is_some()
             }
             _ => return Err(format!("unknown argument {flag}; run limeosctl --help")),
         };
@@ -100,34 +176,11 @@ pub fn parse_list(args: &[String]) -> Result<List, String> {
             return Err(format!("{flag} given more than once"));
         }
     }
-    Ok(List {
-        states: chosen.unwrap_or_else(|| UNSETTLED.to_vec()),
-        limit: limit.unwrap_or(DEFAULT_LIMIT),
-        json,
+    Ok(Cancel {
+        admin: admin.ok_or("--admin USERNAME is required")?,
+        job: job.clone(),
+        yes,
     })
-}
-
-/// `args` follow `job cancel`: the job, then `--admin USERNAME`.
-pub fn parse_cancel(args: &[String]) -> Result<Cancel, String> {
-    let usage = || format!("usage:\n{USAGE}");
-    match args {
-        [job, flag, admin] if !job.starts_with('-') && flag == "--admin" => {
-            if !limeos_domain::opaque_id(job) {
-                return Err("JOB_ID must be the 64-character job identifier".into());
-            }
-            let admin = crate::args::value(flag, Some(admin)).map_err(|usage| usage.0)?;
-            Ok(Cancel {
-                admin: admin.clone(),
-                job: job.clone(),
-            })
-        }
-        [job, ..] if !job.starts_with('-') && !limeos_domain::opaque_id(job) => {
-            Err("JOB_ID must be the 64-character job identifier".into())
-        }
-        [_, flag] if flag == "--admin" => Err("missing value for --admin".into()),
-        [_] => Err("--admin USERNAME is required".into()),
-        _ => Err(usage()),
-    }
 }
 
 /// `seconds` since the Unix epoch as `YYYY-MM-DDTHH:MM:SSZ`.
@@ -159,29 +212,44 @@ fn names(states: &[JobState]) -> String {
         .join(", ")
 }
 
-/// Shown, matching, and the line that says what was left out.
-fn totals(page: &OperatorJobPage, states: &[JobState]) -> String {
-    let shown = page.jobs.len() as u32;
+/// What the filter names, for the totals line.
+fn described(filter: &OperatorJobFilter) -> String {
+    let mut out = format!("states: {}", names(&filter.states));
+    if let Some(owner) = &filter.owner {
+        out.push_str(&format!("; owner: {owner}"));
+    }
+    if let Some(family) = filter.family {
+        out.push_str(&format!("; family: {}", family.as_str()));
+    }
+    if let Some(after) = filter.after {
+        out.push_str(&format!("; after position {after}"));
+    }
+    out
+}
+
+/// Shown, matching, and the line that says how to list the rest.
+fn totals(page: &OperatorJobPage, filter: &OperatorJobFilter) -> String {
+    let shown = page.jobs.len();
     let mut out = if page.matching == 0 {
-        format!("no jobs in: {}\n", names(states))
+        format!("no jobs match ({})\n", described(filter))
     } else {
         format!(
-            "{shown} of {} matching jobs shown (states: {})\n",
+            "{shown} shown of {} matching jobs ({})\n",
             page.matching,
-            names(states)
+            described(filter)
         )
     };
-    if page.matching > shown {
+    if let Some(next) = page.next {
         out.push_str(&format!(
-            "{} more not shown; raise --limit (at most {MAX_OPERATOR_JOBS}), narrow --state, or list again after cancelling.\n",
-            page.matching - shown
+            "{} more after these: list them with --after {next}\n",
+            page.remaining
         ));
     }
     out
 }
 
 /// A table, one row per job, then the totals. `now` marks passed deadlines.
-pub fn render_table(page: &OperatorJobPage, states: &[JobState], now: i64) -> String {
+pub fn render_table(page: &OperatorJobPage, filter: &OperatorJobFilter, now: i64) -> String {
     let header = [
         "JOB",
         "OWNER",
@@ -233,22 +301,22 @@ pub fn render_table(page: &OperatorJobPage, states: &[JobState], now: i64) -> St
             out.push('\n');
         }
     }
-    out.push_str(&totals(page, states));
+    out.push_str(&totals(page, filter));
     out
 }
 
-/// One JSON object per job, then `{"shown","matching","more"}`.
+/// One JSON object per job, then `{"shown","matching","more","next"}`.
 pub fn render_json(page: &OperatorJobPage) -> Result<String, serde_json::Error> {
     let mut out = String::new();
     for job in &page.jobs {
         out.push_str(&serde_json::to_string(job)?);
         out.push('\n');
     }
-    let shown = page.jobs.len() as u32;
     out.push_str(&serde_json::to_string(&serde_json::json!({
-        "shown": shown,
+        "shown": page.jobs.len(),
         "matching": page.matching,
-        "more": page.matching.saturating_sub(shown),
+        "more": page.remaining,
+        "next": page.next,
     }))?);
     out.push('\n');
     Ok(out)
@@ -270,7 +338,7 @@ pub fn render_cancel(answer: &OperatorCancel, admin: &str) -> (String, bool) {
         ),
         (_, Some(CancelRefusal::PauseScheduleInstead)) => (
             format!(
-                "refused: job {job} is an automation observation ({}). It is read-only and sends no effect; the observation runtime settles it as failed once its 60-second deadline passes. Only pausing its schedule cancels one: core refuses to start on a store holding a cancellation that no pause explains. Nothing changed.\n",
+                "refused: job {job} is an automation observation ({}). It is read-only and sends no effect; while the observation runtime is running it settles the job within about a minute (as failed once its 60-second deadline passes, or precondition_changed if its owner's authority changed). Only pausing its schedule cancels one: core refuses to start on a store holding a cancellation that no pause explains. Nothing changed.\n",
                 state.as_str()
             ),
             false,
@@ -324,28 +392,93 @@ pub async fn list(
     list: List,
     now: i64,
 ) -> Result<String, Box<dyn std::error::Error>> {
+    let page = fetch(socket, list.filter.clone(), list.limit).await?;
+    Ok(if list.json {
+        render_json(&page)?
+    } else {
+        render_table(&page, &list.filter, now)
+    })
+}
+
+async fn fetch(
+    socket: &str,
+    filter: OperatorJobFilter,
+    limit: u32,
+) -> Result<OperatorJobPage, Box<dyn std::error::Error>> {
     let response = crate::rpc(
         socket,
         &CoreRequest::ListJobs {
             version: VERSION,
-            states: list.states.clone(),
-            limit: list.limit,
+            filter,
+            limit,
         },
     )
     .await
     .map_err(explain)?;
-    let CoreResponse::Jobs(page) = response else {
-        return Err("unexpected response from the core".into());
-    };
-    Ok(if list.json {
-        render_json(&page)?
-    } else {
-        render_table(&page, &list.states, now)
-    })
+    match response {
+        CoreResponse::Jobs(page) => Ok(page),
+        _ => Err("unexpected response from the core".into()),
+    }
 }
 
-/// The text to print, or the refusal as the error.
-pub async fn cancel(socket: &str, cancel: Cancel) -> Result<String, Box<dyn std::error::Error>> {
+/// The job as `job cancel` shows it before asking.
+pub fn render_subject(job: &OperatorJob) -> String {
+    format!(
+        "job: {}\nowner: {}\noperation: {} ({})\nresource: {}\nstate: {}\nqueued: {}\ndeadline: {}\n",
+        job.job,
+        job.owner,
+        job.operation,
+        job.family.as_str(),
+        job.resource,
+        job.state.as_str(),
+        if job.created_at == 0 {
+            "unknown".into()
+        } else {
+            utc(job.created_at)
+        },
+        utc(job.deadline)
+    )
+}
+
+/// Shows the job, then cancels it once the operator has confirmed: `--yes`,
+/// or `cancel` typed on the terminal (`confirm`). Without either, nothing is
+/// sent at all. A job that is not queued is sent without asking: core
+/// refuses it and changes nothing. Returns the text to print, or the refusal
+/// as the error.
+pub async fn cancel(
+    socket: &str,
+    cancel: Cancel,
+    confirm: Option<super::Confirm<'_>>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    if !cancel.yes && confirm.is_none() {
+        return Err(CONFIRM.into());
+    }
+    let filter = OperatorJobFilter {
+        states: ALL.to_vec(),
+        owner: None,
+        family: None,
+        job: Some(cancel.job.clone()),
+        after: None,
+    };
+    let page = fetch(socket, filter, 1).await?;
+    let subject = page
+        .jobs
+        .first()
+        .ok_or("no job has that ID; nothing changed")?;
+    print!("{}", render_subject(subject));
+    let asks =
+        subject.state == JobState::Queued && subject.family != JobFamily::AutomationObservation;
+    // Without `--yes` there is a terminal (checked above) to ask on.
+    if asks
+        && !cancel.yes
+        && let Some(confirm) = confirm
+    {
+        print!("Type cancel to cancel this job on its owner's behalf, anything else to keep it: ");
+        std::io::Write::flush(&mut std::io::stdout())?;
+        if confirm()?.trim() != "cancel" {
+            return Err("not confirmed; nothing was sent".into());
+        }
+    }
     let response = crate::rpc(
         socket,
         &CoreRequest::CancelJob {

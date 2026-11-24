@@ -204,7 +204,7 @@ export type Health = { version: number, generation: number, schema_version: numb
 degraded: Array<DegradedSubsystem>, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };
 export type ErrorEnvelope = { code: ErrorCode, message: string, retry: boolean, audit_id: string, };
-export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "list_jobs", version: number, states: Array<JobState>, limit: number, } | { "request": "cancel_job", version: number, admin: string, job: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };
+export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "list_jobs", version: number, filter: OperatorJobFilter, limit: number, } | { "request": "cancel_job", version: number, admin: string, job: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };
 export type CoreResponse = { "response": "health" } & Health | { "response": "bootstrap", token: string, expires_at: number, } | { "response": "enrolled" } | { "response": "legacy_users_imported", imported: number, skipped_existing: Array<string>, } | { "response": "authorized" } | { "response": "resolution" } & ResolutionView | { "response": "resolved" } & ResolveJobResponse | { "response": "jobs" } & OperatorJobPage | { "response": "job_canceled" } & OperatorCancel | { "response": "restart_plan" } & PlannedContainerAction | { "response": "restart_job" } & ContainerJob | { "response": "container_plan" } & PlannedContainerAction | { "response": "container_job" } & ContainerJob | { "response": "container_logs" } & ContainerLogs | { "response": "compose_plan" } & PlannedCompose | { "response": "error" } & ErrorEnvelope;
 export type Source = "host" | "storage" | "pools" | "docker" | "history";
 export type Availability = "loading" | "fresh" | "stale" | "unavailable";
@@ -358,12 +358,37 @@ deadline: number,
  * An administrator's resolution request is recorded and not completed.
  */
 resolution_open: boolean, };
+export type OperatorJobFilter = {
+/**
+ * 1 to 12 states.
+ */
+states: Array<JobState>,
+/**
+ * The owner's username.
+ */
+owner: string | null, family: JobFamily | null,
+/**
+ * Exactly this job.
+ */
+job: string | null,
+/**
+ * Continue after this listing position: an earlier page's `next`.
+ */
+after: number | null, };
 export type OperatorJobPage = { jobs: Array<OperatorJob>,
 /**
- * Every job in the requested states; more than `jobs.len()` means the
- * listing was cut at its limit.
+ * Every job the filter matches, ignoring `after`.
  */
-matching: number, };
+matching: number,
+/**
+ * Matching jobs after this page.
+ */
+remaining: number,
+/**
+ * Pass as `after` for the next page; present exactly when `remaining`
+ * is not 0.
+ */
+next: number | null, };
 export type CancelRefusal = "not_queued" | "pause_schedule_instead";
 export type CancelOutcome = "canceled" | "already_canceled" | "refused";
 export type OperatorCancel = { job: string, family: JobFamily,

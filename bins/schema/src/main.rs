@@ -408,6 +408,7 @@ fn main() {
     ts!(limeos_domain::NeedsAttentionJob);
     ts!(limeos_domain::JobFamily);
     ts!(limeos_domain::OperatorJob);
+    ts!(limeos_domain::OperatorJobFilter);
     ts!(limeos_domain::OperatorJobPage);
     ts!(limeos_domain::CancelRefusal);
     ts!(limeos_domain::CancelOutcome);

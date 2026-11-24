@@ -4,7 +4,7 @@
 //! `job resolve`; the HTTP API has neither. Each request is one store call
 //! on the writer; nothing here reaches an executor or runs in the background.
 use super::*;
-use limeos_domain::{JobState, MAX_OPERATOR_JOBS, OperatorCancel, OperatorJobPage};
+use limeos_domain::{MAX_OPERATOR_JOBS, OperatorCancel, OperatorJobFilter, OperatorJobPage};
 
 /// Distinct states a listing may name: every `JobState`.
 const MAX_STATES: usize = 12;
@@ -12,16 +12,16 @@ const MAX_STATES: usize = 12;
 impl Core {
     pub(super) async fn rpc_list_jobs(
         &self,
-        states: Vec<JobState>,
+        filter: OperatorJobFilter,
         limit: u32,
     ) -> Result<OperatorJobPage> {
-        if states.is_empty()
-            || states.len() > MAX_STATES
+        if filter.states.is_empty()
+            || filter.states.len() > MAX_STATES
             || !(1..=MAX_OPERATOR_JOBS).contains(&limit)
         {
             return Err(Error(ErrorCode::InvalidInput));
         }
-        self.db.call(move |s| s.operator_jobs(&states, limit)).await
+        self.db.call(move |s| s.operator_jobs(&filter, limit)).await
     }
 
     /// The root peer names an administrator (`rpc_administrator`: an existing

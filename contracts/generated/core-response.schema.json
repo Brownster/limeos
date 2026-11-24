@@ -254,7 +254,7 @@
       ]
     },
     {
-      "description": "One bounded listing, oldest job first.",
+      "description": "One bounded page of a listing, oldest job first. Positions follow the\norder jobs were created and never change, so paging with `next` reaches\nevery job that matches, whatever changes state between pages.",
       "type": "object",
       "properties": {
         "jobs": {
@@ -264,7 +264,21 @@
           }
         },
         "matching": {
-          "description": "Every job in the requested states; more than `jobs.len()` means the\nlisting was cut at its limit.",
+          "description": "Every job the filter matches, ignoring `after`.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "next": {
+          "description": "Pass as `after` for the next page; present exactly when `remaining`\nis not 0.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "remaining": {
+          "description": "Matching jobs after this page.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0
@@ -278,7 +292,8 @@
       "required": [
         "response",
         "jobs",
-        "matching"
+        "matching",
+        "remaining"
       ]
     },
     {

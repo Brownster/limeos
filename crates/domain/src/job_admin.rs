@@ -45,6 +45,18 @@ impl JobFamily {
             _ => return None,
         })
     }
+    /// The intent operation tags of the family.
+    pub fn operations(self) -> &'static [&'static str] {
+        match self {
+            Self::Container => &["container_restart", "container_start", "container_stop"],
+            Self::Stack => &["stack_restart", "stack_start", "stack_stop"],
+            Self::StorageTargets => &["storage_prepare_targets"],
+            Self::StorageMount => &["storage_mount"],
+            Self::AutomationObservation => &["automation_observe_health"],
+            Self::HealthProbe => &["health_probe"],
+            Self::BackupPreparation => &["backup_prepare_private"],
+        }
+    }
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Container => "container",
@@ -89,14 +101,37 @@ pub struct OperatorJob {
     pub resolution_open: bool,
 }
 
-/// One bounded listing, oldest job first.
+/// Which jobs a listing shows. Every field narrows it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(deny_unknown_fields)]
+pub struct OperatorJobFilter {
+    /// 1 to 12 states.
+    pub states: Vec<JobState>,
+    /// The owner's username.
+    pub owner: Option<String>,
+    pub family: Option<JobFamily>,
+    /// Exactly this job.
+    pub job: Option<String>,
+    /// Continue after this listing position: an earlier page's `next`.
+    #[ts(as = "Option<f64>")]
+    pub after: Option<i64>,
+}
+
+/// One bounded page of a listing, oldest job first. Positions follow the
+/// order jobs were created and never change, so paging with `next` reaches
+/// every job that matches, whatever changes state between pages.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct OperatorJobPage {
     pub jobs: Vec<OperatorJob>,
-    /// Every job in the requested states; more than `jobs.len()` means the
-    /// listing was cut at its limit.
+    /// Every job the filter matches, ignoring `after`.
     pub matching: u32,
+    /// Matching jobs after this page.
+    pub remaining: u32,
+    /// Pass as `after` for the next page; present exactly when `remaining`
+    /// is not 0.
+    #[ts(as = "Option<f64>")]
+    pub next: Option<i64>,
 }
 
 /// Why core refused to cancel a job on its owner's behalf. Nothing changed.

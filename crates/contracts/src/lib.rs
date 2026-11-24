@@ -220,11 +220,12 @@ pub enum CoreRequest {
         reason: String,
         evidence_digest: String,
     },
-    /// Root-peer only. Every principal's jobs in `states`, oldest first, at
-    /// most `limit` (1 to `limeos_domain::MAX_OPERATOR_JOBS`). Read-only.
+    /// Root-peer only. Every principal's jobs that `filter` matches, oldest
+    /// first, at most `limit` (1 to `limeos_domain::MAX_OPERATOR_JOBS`) from
+    /// `filter.after` on. Read-only.
     ListJobs {
         version: u16,
-        states: Vec<limeos_domain::JobState>,
+        filter: limeos_domain::OperatorJobFilter,
         limit: u32,
     },
     /// Root-peer only. Cancel one queued job on its owner's behalf. As for

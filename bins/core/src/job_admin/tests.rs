@@ -1,5 +1,12 @@
+//! The root-peer rule is tested both ways through `respond(core, uid, ..)`,
+//! and a non-root peer's refusal over a real socket pair. Root acceptance
+//! over a real socket needs uid 0, which this suite never has: the VM guest
+//! `tests/privileged_vm/p06_job_resolution_guest.py` runs `limeosctl job list`
+//! and `job cancel` as root against the installed core.
 use super::*;
-use limeos_domain::{CancelOutcome, CancelRefusal, ContainerSnapshot, JobFamily, OperatorJob};
+use limeos_domain::{
+    CancelOutcome, CancelRefusal, ContainerSnapshot, JobFamily, JobState, OperatorJob,
+};
 
 const UNSETTLED: [JobState; 7] = [
     JobState::Planned,
@@ -57,10 +64,19 @@ async fn fixture() -> (tempfile::TempDir, Core, String) {
         .unwrap();
     (dir, crate::automation_schedules::tests::core(db), job)
 }
+fn filter(states: &[JobState]) -> OperatorJobFilter {
+    OperatorJobFilter {
+        states: states.to_vec(),
+        owner: None,
+        family: None,
+        job: None,
+        after: None,
+    }
+}
 fn list() -> CoreRequest {
     CoreRequest::ListJobs {
         version: VERSION,
-        states: UNSETTLED.to_vec(),
+        filter: filter(&UNSETTLED),
         limit: 32,
     }
 }
@@ -92,7 +108,7 @@ async fn list_and_cancel_are_served_to_a_root_peer_only() {
     // Another protocol version is refused like an unknown request.
     let old = CoreRequest::ListJobs {
         version: VERSION + 1,
-        states: UNSETTLED.to_vec(),
+        filter: filter(&UNSETTLED),
         limit: 32,
     };
     assert_eq!(
@@ -178,7 +194,7 @@ async fn the_named_user_must_be_a_current_administrator_and_fields_are_checked()
         (vec![JobState::Queued; MAX_STATES + 1], 10),
     ] {
         assert_eq!(
-            core.rpc_list_jobs(states, limit).await.err(),
+            core.rpc_list_jobs(filter(&states), limit).await.err(),
             Some(Error(ErrorCode::InvalidInput))
         );
     }
@@ -196,7 +212,7 @@ async fn the_named_user_must_be_a_current_administrator_and_fields_are_checked()
     let actors: Vec<(String, String)> = core
         .db
         .call(move |s| {
-            Ok(s.operator_jobs(&[JobState::Canceled], 1)?
+            Ok(s.operator_jobs(&filter(&[JobState::Canceled]), 1)?
                 .jobs
                 .into_iter()
                 .map(|j| (j.job, j.owner))
@@ -227,6 +243,8 @@ fn the_longest_listing_fits_one_control_socket_frame() {
     let page = CoreResponse::Jobs(limeos_domain::OperatorJobPage {
         jobs: vec![job; MAX_OPERATOR_JOBS as usize],
         matching: u32::MAX,
+        remaining: u32::MAX,
+        next: Some(i64::MAX),
     });
     let bytes = serde_json::to_vec(&page).unwrap();
     assert!(

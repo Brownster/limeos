@@ -287,7 +287,7 @@ async fn execute(
             Ok(())
         }
         Command::Cancel(cancel) => {
-            print!("{}", admin::cancel(socket, cancel).await?);
+            print!("{}", admin::cancel(socket, cancel, confirm).await?);
             Ok(())
         }
         Command::Show { admin, job } => {

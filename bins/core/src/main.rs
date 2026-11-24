@@ -1035,10 +1035,10 @@ async fn respond(core: &Core, uid: u32, request: CoreRequest) -> Result<CoreResp
         ),
         CoreRequest::ListJobs {
             version,
-            states,
+            filter,
             limit,
         } if version == VERSION && uid == 0 => {
-            CoreResponse::Jobs(core.rpc_list_jobs(states, limit).await?)
+            CoreResponse::Jobs(core.rpc_list_jobs(filter, limit).await?)
         }
         CoreRequest::CancelJob {
             version,

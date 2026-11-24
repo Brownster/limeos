@@ -1177,7 +1177,7 @@ fn an_administrator_is_told_to_pause_instead_and_the_observation_is_untouched() 
     assert_eq!(store.conn.total_changes(), changes);
     assert_eq!(store.job_state(&job.id).unwrap(), "queued");
     let listed = store
-        .operator_jobs(&[JobState::Queued], 64)
+        .operator_jobs(&crate::job_admin::tests::only(&[JobState::Queued]), 64)
         .unwrap()
         .jobs
         .remove(0);

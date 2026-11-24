@@ -16,11 +16,11 @@
 use super::*;
 use limeos_domain::{
     CancelOutcome, CancelRefusal, JobFamily, MAX_OPERATOR_JOBS, OperatorCancel, OperatorJob,
-    OperatorJobPage,
+    OperatorJobFilter, OperatorJobPage,
 };
 
-/// One listing row: id, owner, operation, state, resource, claims, created,
-/// deadline, open resolution.
+/// One listing row: id, owner, operation, state, resource, claims, queued,
+/// deadline, open resolution, position.
 type ListRow = (
     String,
     String,
@@ -31,6 +31,7 @@ type ListRow = (
     i64,
     i64,
     bool,
+    i64,
 );
 
 fn state_of(text: &str) -> Result<JobState> {
@@ -43,66 +44,122 @@ fn family_of(operation: Option<&str>) -> Result<JobFamily> {
 }
 
 impl Store {
-    /// Every principal's jobs in `states`, oldest first, at most `limit`
-    /// (1 to `MAX_OPERATOR_JOBS`), with how many match in all. Read-only.
-    /// No principal: core serves it to a root peer only, which can read the
-    /// store's file anyway; it shows owners by username and each job's
-    /// headline resource, as the administrator's attention list does, never
-    /// plan bodies.
-    pub fn operator_jobs(&self, states: &[JobState], limit: u32) -> Result<OperatorJobPage> {
-        if states.is_empty() || states.len() > 12 || !(1..=MAX_OPERATOR_JOBS).contains(&limit) {
+    /// Every principal's jobs that `filter` matches, oldest first, at most
+    /// `limit` (1 to `MAX_OPERATOR_JOBS`) after `filter.after`, with how many
+    /// match in all and after this page, and the position to continue from.
+    /// Positions are the jobs' row order, which only grows and never changes,
+    /// so paging reaches every matching job even while jobs change state
+    /// between pages. Read-only. No principal: core serves it to a root peer
+    /// only, which can read the store's file anyway; it shows owners by
+    /// username and each job's headline resource, as the administrator's
+    /// attention list does, never plan bodies.
+    pub fn operator_jobs(&self, filter: &OperatorJobFilter, limit: u32) -> Result<OperatorJobPage> {
+        let OperatorJobFilter {
+            states,
+            owner,
+            family,
+            job,
+            after,
+        } = filter;
+        if states.is_empty()
+            || states.len() > 12
+            || !(1..=MAX_OPERATOR_JOBS).contains(&limit)
+            || owner
+                .as_deref()
+                .is_some_and(|o| !limeos_domain::identifier(o))
+            || job.as_deref().is_some_and(|j| !limeos_domain::opaque_id(j))
+            || after.is_some_and(|a| a < 0)
+        {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let mut names: Vec<&str> = states.iter().map(|s| s.as_str()).collect();
         names.sort_unstable();
         names.dedup();
-        // Closed enum spellings, so quoting them inline is safe.
-        let list = names
-            .iter()
-            .map(|n| format!("'{n}'"))
-            .collect::<Vec<_>>()
-            .join(",");
-        let matching: i64 = self
-            .conn
-            .query_row(
-                &format!("SELECT count(*) FROM jobs WHERE state IN ({list})"),
-                [],
-                |r| r.get(0),
-            )
-            .map_err(durable)?;
+        // Closed enum spellings and operation tags, so quoting them inline is
+        // safe; the owner, job and position are bound.
+        let quoted = |items: &[&str]| {
+            items
+                .iter()
+                .map(|n| format!("'{n}'"))
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let mut clause = format!(
+            "j.state IN ({}) AND (?1 IS NULL OR u.username=?1) AND (?2 IS NULL OR j.id=?2)",
+            quoted(&names)
+        );
+        if let Some(family) = family {
+            clause.push_str(&format!(
+                " AND json_extract(j.intent,'$.operation') IN ({})",
+                quoted(family.operations())
+            ));
+        }
+        let from = "FROM jobs j JOIN users u ON u.id=j.principal";
+        let count = |tail: &str, position: Option<i64>| -> Result<u32> {
+            let n: i64 = self
+                .conn
+                .query_row(
+                    &format!("SELECT count(*) {from} WHERE {clause} {tail}"),
+                    params![owner, job, position],
+                    |r| r.get(0),
+                )
+                .map_err(durable)?;
+            u32::try_from(n).map_err(|_| Error(ErrorCode::StateNotDurable))
+        };
+        let matching = count("AND ?3 IS NULL", None)?;
         let mut stmt = self
             .conn
             .prepare(&format!(
                 "SELECT j.id,u.username,json_extract(j.intent,'$.operation'),j.state,j.resource,\
                  (SELECT count(*) FROM job_resources r WHERE r.job=j.id),\
-                 COALESCE((SELECT e.created FROM events e WHERE e.job=j.id ORDER BY e.cursor LIMIT 1),0),\
+                 COALESCE((SELECT e.created FROM events e WHERE e.job=j.id AND e.kind='{{\"kind\":\"job_queued\"}}' ORDER BY e.cursor LIMIT 1),0),\
                  j.deadline,\
-                 EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NULL) \
-                 FROM jobs j JOIN users u ON u.id=j.principal \
-                 WHERE j.state IN ({list}) ORDER BY j.rowid LIMIT ?"
+                 EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND r.confirmation IS NULL),\
+                 j.rowid \
+                 {from} WHERE {clause} AND (?3 IS NULL OR j.rowid>?3) ORDER BY j.rowid LIMIT ?4"
             ))
             .map_err(durable)?;
         let rows = stmt
-            .query_map([limit], |r| -> rusqlite::Result<ListRow> {
-                Ok((
-                    r.get(0)?,
-                    r.get(1)?,
-                    r.get(2)?,
-                    r.get(3)?,
-                    r.get(4)?,
-                    r.get(5)?,
-                    r.get(6)?,
-                    r.get(7)?,
-                    r.get(8)?,
-                ))
-            })
+            .query_map(
+                params![owner, job, after, limit],
+                |r| -> rusqlite::Result<ListRow> {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                        r.get(6)?,
+                        r.get(7)?,
+                        r.get(8)?,
+                        r.get(9)?,
+                    ))
+                },
+            )
             .map_err(durable)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(durable)?;
+        let last = rows.last().map(|row| row.9);
+        let remaining = match last {
+            Some(last) if rows.len() == limit as usize => count("AND j.rowid>?3", Some(last))?,
+            _ => 0,
+        };
         let jobs = rows
             .into_iter()
             .map(
-                |(job, owner, operation, state, resource, claims, created_at, deadline, open)| {
+                |(
+                    job,
+                    owner,
+                    operation,
+                    state,
+                    resource,
+                    claims,
+                    created_at,
+                    deadline,
+                    open,
+                    _,
+                )| {
                     Ok(OperatorJob {
                         family: family_of(operation.as_deref())?,
                         operation: operation.unwrap_or_default(),
@@ -121,7 +178,9 @@ impl Store {
             .collect::<Result<Vec<_>>>()?;
         Ok(OperatorJobPage {
             jobs,
-            matching: u32::try_from(matching).map_err(|_| Error(ErrorCode::StateNotDurable))?,
+            matching,
+            remaining,
+            next: last.filter(|_| remaining > 0),
         })
     }
 

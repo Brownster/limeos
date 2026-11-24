@@ -564,7 +564,8 @@ mod admin_commands {
     use super::super::admin::{self, Cancel, List};
     use super::*;
     use limeos_domain::{
-        CancelOutcome, CancelRefusal, JobFamily, OperatorCancel, OperatorJob, OperatorJobPage,
+        CancelOutcome, CancelRefusal, JobFamily, OperatorCancel, OperatorJob, OperatorJobFilter,
+        OperatorJobPage,
     };
 
     const UNSETTLED: [JobState; 7] = [
@@ -577,6 +578,15 @@ mod admin_commands {
         JobState::NeedsIntervention,
     ];
 
+    fn filter(states: &[JobState]) -> OperatorJobFilter {
+        OperatorJobFilter {
+            states: states.to_vec(),
+            owner: None,
+            family: None,
+            job: None,
+            after: None,
+        }
+    }
     fn listed(state: JobState) -> OperatorJob {
         OperatorJob {
             job: job(),
@@ -591,16 +601,21 @@ mod admin_commands {
             resolution_open: false,
         }
     }
-    fn page(jobs: Vec<OperatorJob>, matching: u32) -> OperatorJobPage {
-        OperatorJobPage { jobs, matching }
+    fn page(jobs: Vec<OperatorJob>, matching: u32, remaining: u32) -> OperatorJobPage {
+        OperatorJobPage {
+            jobs,
+            matching,
+            remaining,
+            next: (remaining > 0).then_some(41),
+        }
     }
 
     #[test]
-    fn list_parses_states_limit_and_format_in_any_order() {
+    fn list_parses_filters_limit_position_and_format_in_any_order() {
         assert_eq!(
             parse(&args(&["list"])).unwrap(),
             Command::List(List {
-                states: UNSETTLED.to_vec(),
+                filter: filter(&UNSETTLED),
                 limit: 32,
                 json: false
             })
@@ -609,6 +624,12 @@ mod admin_commands {
             parse(&args(&[
                 "list",
                 "--json",
+                "--after",
+                "41",
+                "--family",
+                "storage-mount",
+                "--owner",
+                "bob",
                 "--limit",
                 "64",
                 "--state",
@@ -616,7 +637,12 @@ mod admin_commands {
             ]))
             .unwrap(),
             Command::List(List {
-                states: vec![JobState::Queued, JobState::NeedsIntervention],
+                filter: OperatorJobFilter {
+                    owner: Some("bob".into()),
+                    family: Some(JobFamily::StorageMount),
+                    after: Some(41),
+                    ..filter(&[JobState::Queued, JobState::NeedsIntervention])
+                },
                 limit: 64,
                 json: true
             })
@@ -624,7 +650,7 @@ mod admin_commands {
         let Command::List(all) = parse(&args(&["list", "--state", "all"])).unwrap() else {
             panic!("list");
         };
-        assert_eq!(all.states.len(), 12);
+        assert_eq!(all.filter.states.len(), 12);
         for bad in [
             vec!["list", "--state"],
             vec!["list", "--state", "--version"],
@@ -636,9 +662,17 @@ mod admin_commands {
             vec!["list", "--limit", "65"],
             vec!["list", "--limit", "-1"],
             vec!["list", "--limit", "ten"],
+            vec!["list", "--after", "-1"],
+            vec!["list", "--after", "x"],
+            vec!["list", "--owner", "not a name"],
+            vec!["list", "--owner", "-h"],
+            vec!["list", "--family", "containers"],
             vec!["list", "--json", "--json"],
             vec!["list", "--limit", "1", "--limit", "2"],
             vec!["list", "--state", "queued", "--state", "running"],
+            vec!["list", "--owner", "a", "--owner", "b"],
+            vec!["list", "--family", "stack", "--family", "stack"],
+            vec!["list", "--after", "1", "--after", "2"],
             vec!["list", "queued"],
             vec!["list", "--admin", "alice"],
         ] {
@@ -647,21 +681,32 @@ mod admin_commands {
     }
 
     #[test]
-    fn cancel_takes_the_job_then_the_administrator() {
+    fn cancel_takes_the_job_then_the_administrator_and_yes() {
         let j = job();
-        assert_eq!(
-            parse(&args(&["cancel", &j, "--admin", "alice"])).unwrap(),
+        let cancel = |yes| {
             Command::Cancel(Cancel {
                 admin: "alice".into(),
-                job: j.clone()
+                job: j.clone(),
+                yes,
             })
+        };
+        assert_eq!(
+            parse(&args(&["cancel", &j, "--admin", "alice"])).unwrap(),
+            cancel(false)
+        );
+        assert_eq!(
+            parse(&args(&["cancel", &j, "--yes", "--admin", "alice"])).unwrap(),
+            cancel(true)
         );
         for bad in [
             vec!["cancel"],
             vec!["cancel", &j],
+            vec!["cancel", &j, "--yes"],
             vec!["cancel", &j, "--admin"],
             vec!["cancel", &j, "--admin", "--version"],
             vec!["cancel", &j, "--admin", "-h"],
+            vec!["cancel", &j, "--admin", "a", "--admin", "b"],
+            vec!["cancel", &j, "--admin", "a", "--yes", "--yes"],
             vec!["cancel", "short", "--admin", "alice"],
             vec!["cancel", "--admin", "alice", &j],
             vec!["cancel", &j, "--admin", "alice", "--reason", "x"],
@@ -680,13 +725,17 @@ mod admin_commands {
     }
 
     #[test]
-    fn the_table_lists_each_job_and_says_how_many_more_match() {
+    fn the_table_lists_each_job_and_says_how_to_list_the_rest() {
         let mut held = listed(JobState::NeedsIntervention);
         held.resolution_open = true;
         held.created_at = 0;
+        let shown = OperatorJobFilter {
+            owner: Some("bob".into()),
+            ..filter(&UNSETTLED)
+        };
         let text = admin::render_table(
-            &page(vec![listed(JobState::Queued), held], 5),
-            &UNSETTLED,
+            &page(vec![listed(JobState::Queued), held], 5, 3),
+            &shown,
             1_790_000_301,
         );
         let lines: Vec<&str> = text.lines().collect();
@@ -699,17 +748,22 @@ mod admin_commands {
         assert!(lines[1].contains("2026-09-21T14:18:20Z (passed)"));
         assert!(lines[2].contains("needs_intervention"));
         assert!(lines[2].contains(" open"));
-        assert!(lines[3].starts_with("2 of 5 matching jobs shown"));
-        assert!(lines[4].starts_with("3 more not shown"));
+        assert!(
+            lines[3].starts_with("2 shown of 5 matching jobs"),
+            "{}",
+            lines[3]
+        );
+        assert!(lines[3].contains("owner: bob"));
+        assert_eq!(lines[4], "3 more after these: list them with --after 41");
         assert_eq!(lines.len(), 5);
         // Nothing matches: no table, a plain line.
-        let none = admin::render_table(&page(vec![], 0), &[JobState::Queued], 0);
-        assert_eq!(none, "no jobs in: queued\n");
+        let none = admin::render_table(&page(vec![], 0, 0), &filter(&[JobState::Queued]), 0);
+        assert_eq!(none, "no jobs match (states: queued)\n");
     }
 
     #[test]
-    fn json_lines_are_one_object_per_job_then_the_totals() {
-        let text = admin::render_json(&page(vec![listed(JobState::Queued)], 3)).unwrap();
+    fn json_lines_are_one_object_per_job_then_the_totals_with_the_next_position() {
+        let text = admin::render_json(&page(vec![listed(JobState::Queued)], 3, 2)).unwrap();
         let lines: Vec<serde_json::Value> = text
             .lines()
             .map(|l| serde_json::from_str(l).unwrap())
@@ -721,7 +775,12 @@ mod admin_commands {
         assert_eq!(lines[0]["resolution_open"], false);
         assert_eq!(
             lines[1],
-            serde_json::json!({"shown": 1, "matching": 3, "more": 2})
+            serde_json::json!({"shown": 1, "matching": 3, "more": 2, "next": 41})
+        );
+        let last = admin::render_json(&page(vec![], 3, 0)).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(last.trim()).unwrap(),
+            serde_json::json!({"shown": 0, "matching": 3, "more": 0, "next": null})
         );
     }
 
@@ -799,19 +858,47 @@ mod admin_commands {
             "alice",
         );
         assert!(!ok && text.contains("pausing its schedule"));
+        assert!(text.contains("precondition_changed"));
+    }
+
+    #[test]
+    fn the_subject_names_owner_operation_resource_and_queue_time() {
+        let text = admin::render_subject(&listed(JobState::Queued));
+        for expected in [
+            format!("job: {}", job()),
+            "owner: bob".into(),
+            "operation: container_restart (container)".into(),
+            format!("resource: container:{}", "b".repeat(64)),
+            "state: queued".into(),
+            "queued: 2026-09-21T14:13:20Z".into(),
+        ] {
+            assert!(text.contains(&expected), "{text}");
+        }
+        let mut unknown = listed(JobState::Queued);
+        unknown.created_at = 0;
+        assert!(admin::render_subject(&unknown).contains("queued: unknown"));
     }
 
     #[tokio::test]
-    async fn list_sends_the_states_and_limit_and_prints_what_core_returned() {
+    async fn list_sends_the_filter_and_limit_and_prints_what_core_returned() {
         let dir = tempfile::tempdir().unwrap();
         let (socket, seen) = fake_core(
             &dir,
-            vec![CoreResponse::Jobs(page(vec![listed(JobState::Queued)], 1))],
+            vec![CoreResponse::Jobs(page(
+                vec![listed(JobState::Queued)],
+                1,
+                0,
+            ))],
         );
         let text = admin::list(
             &socket,
             List {
-                states: vec![JobState::Queued],
+                filter: OperatorJobFilter {
+                    owner: Some("bob".into()),
+                    family: Some(JobFamily::Container),
+                    after: Some(7),
+                    ..filter(&[JobState::Queued])
+                },
                 limit: 7,
                 json: true,
             },
@@ -822,22 +909,40 @@ mod admin_commands {
         assert_eq!(text.lines().count(), 2);
         assert_eq!(
             seen.lock().unwrap()[0],
-            serde_json::json!({"request": "list_jobs", "version": VERSION, "states": ["queued"], "limit": 7})
+            serde_json::json!({"request": "list_jobs", "version": VERSION, "filter": {
+                "states": ["queued"], "owner": "bob", "family": "container", "job": null, "after": 7
+            }, "limit": 7})
         );
     }
 
+    fn found(state: JobState) -> CoreResponse {
+        CoreResponse::Jobs(page(vec![listed(state)], 1, 0))
+    }
+    fn canceled() -> CoreResponse {
+        CoreResponse::JobCanceled(answer(
+            JobFamily::Container,
+            JobState::Canceled,
+            CancelOutcome::Canceled,
+            None,
+        ))
+    }
+    fn request(yes: bool) -> Cancel {
+        Cancel {
+            admin: "alice".into(),
+            job: job(),
+            yes,
+        }
+    }
+
     #[tokio::test]
-    async fn cancel_sends_only_the_job_and_administrator_and_a_refusal_fails() {
+    async fn cancel_with_yes_looks_the_job_up_then_sends_only_the_job_and_administrator() {
         let dir = tempfile::tempdir().unwrap();
         let (socket, seen) = fake_core(
             &dir,
             vec![
-                CoreResponse::JobCanceled(answer(
-                    JobFamily::Container,
-                    JobState::Canceled,
-                    CancelOutcome::Canceled,
-                    None,
-                )),
+                found(JobState::Queued),
+                canceled(),
+                found(JobState::Running),
                 CoreResponse::JobCanceled(answer(
                     JobFamily::Container,
                     JobState::Running,
@@ -846,18 +951,78 @@ mod admin_commands {
                 )),
             ],
         );
-        let request = || Cancel {
-            admin: "alice".into(),
-            job: job(),
-        };
-        let text = admin::cancel(&socket, request()).await.unwrap();
+        let text = admin::cancel(&socket, request(true), None).await.unwrap();
         assert!(text.starts_with("canceled:"));
-        let error = admin::cancel(&socket, request()).await.unwrap_err();
+        let error = admin::cancel(&socket, request(true), None)
+            .await
+            .unwrap_err();
         assert!(error.to_string().contains("not queued"));
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen[0]["request"], "list_jobs");
+        assert_eq!(seen[0]["filter"]["job"], job());
+        assert_eq!(seen[0]["filter"]["states"].as_array().unwrap().len(), 12);
+        assert_eq!(seen[0]["limit"], 1);
         assert_eq!(
-            seen.lock().unwrap()[0],
+            seen[1],
             serde_json::json!({"request": "cancel_job", "version": VERSION, "admin": "alice", "job": job()})
         );
+    }
+
+    #[tokio::test]
+    async fn without_yes_or_a_terminal_nothing_is_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        let (socket, seen) = fake_core(&dir, vec![]);
+        let error = admin::cancel(&socket, request(false), None)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("needs a terminal") && error.contains("--yes"),
+            "{error}"
+        );
+        assert!(seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn on_a_terminal_only_typing_cancel_sends_the_cancellation() {
+        for answer_typed in ["", "yes", "y", "Cancel", "cancel it"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (socket, seen) = fake_core(&dir, vec![found(JobState::Queued)]);
+            let error = admin::cancel(&socket, request(false), Some(&mut typed(answer_typed)))
+                .await
+                .unwrap_err();
+            assert!(
+                error.to_string().contains("not confirmed"),
+                "{answer_typed:?}"
+            );
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), 1, "{answer_typed:?}");
+            assert_eq!(seen[0]["request"], "list_jobs");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let (socket, seen) = fake_core(&dir, vec![found(JobState::Queued), canceled()]);
+        let mut asked = 0;
+        let mut confirm = || {
+            asked += 1;
+            Ok("cancel\n".to_owned())
+        };
+        admin::cancel(&socket, request(false), Some(&mut confirm))
+            .await
+            .unwrap();
+        assert_eq!(asked, 1);
+        assert_eq!(seen.lock().unwrap()[1]["request"], "cancel_job");
+    }
+
+    #[tokio::test]
+    async fn an_unknown_job_is_reported_before_anything_is_cancelled() {
+        let dir = tempfile::tempdir().unwrap();
+        let (socket, seen) = fake_core(&dir, vec![CoreResponse::Jobs(page(vec![], 0, 0))]);
+        let error = admin::cancel(&socket, request(true), None)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("no job has that ID"), "{error}");
+        assert_eq!(seen.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -867,7 +1032,7 @@ mod admin_commands {
         let error = admin::list(
             socket.to_str().unwrap(),
             List {
-                states: UNSETTLED.to_vec(),
+                filter: filter(&UNSETTLED),
                 limit: 32,
                 json: false,
             },
@@ -879,16 +1044,10 @@ mod admin_commands {
         assert!(error.contains("cannot reach core"), "{error}");
         assert!(error.contains("nothing was sent"), "{error}");
         assert!(error.contains("read-only listing"), "{error}");
-        let error = admin::cancel(
-            socket.to_str().unwrap(),
-            Cancel {
-                admin: "alice".into(),
-                job: job(),
-            },
-        )
-        .await
-        .unwrap_err()
-        .to_string();
+        let error = admin::cancel(socket.to_str().unwrap(), request(true), None)
+            .await
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("nothing can cancel a job"), "{error}");
     }
 
@@ -907,20 +1066,18 @@ mod admin_commands {
             &dir,
             vec![
                 envelope(limeos_domain::ErrorCode::InvalidInput),
+                found(JobState::Queued),
                 envelope(limeos_domain::ErrorCode::Forbidden),
+                found(JobState::Queued),
                 envelope(limeos_domain::ErrorCode::NotFound),
             ],
         );
-        let request = || Cancel {
-            admin: "alice".into(),
-            job: job(),
-        };
         for expected in [
             "older than this limeosctl",
             "current administrator",
             "No job has that ID",
         ] {
-            let error = admin::cancel(&socket, request())
+            let error = admin::cancel(&socket, request(true), None)
                 .await
                 .unwrap_err()
                 .to_string();
