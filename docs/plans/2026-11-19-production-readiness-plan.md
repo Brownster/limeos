@@ -135,9 +135,64 @@ users (the restore procedure relies on plan expiry instead). Operator steps:
 |---|---|---|
 | PR-40 | Remove from the default build everything with no production caller: `backup-archive`, the SnapRAID and catalog planners, `container_updates`, and `bins/executor/src/updates/` ✔ (never compiled today). Move them behind a `deferred` workspace member or feature that CI still tests. | The shipped binaries contain only the basic-cutover surface; binary size and test time recorded before and after. |
 | PR-41 | Soak harness: a fake clock and fake Engine drive 90 simulated days of jobs, logins, polls and restarts in CI, asserting no refusal, bounded database size and bounded startup time. | Runs on every push in under ten minutes. |
-| PR-42 | Domain newtypes for absolute path, resource id, UUID and plan lifetime, with private fields and `TryFrom` on deserialise. Replace the eight path validators and six id validators one module at a time. | One validator per concept; public structs cannot hold an unvalidated value. |
+| PR-42 | Domain newtypes for absolute path, resource id, UUID and plan lifetime, with private fields and `TryFrom` on deserialise. Replace the eight path validators and six id validators one module at a time. Core side done on branch `pr-newtypes` (24 November, below); the executor side is open. | One validator per concept; public structs cannot hold an unvalidated value. |
 | PR-43 | One receipt-journal implementation shared by container actions, storage targets and mounts; one private-object-tree implementation in `backup-archive`. | Duplicates deleted; existing crash tests pass unchanged. |
 | PR-44 | Evidence policy: keep summaries and hashes in git; move raw logs and archives (80 MB today) to release assets. Replace the roadmap's status header with a link to the latest status file. | Tracked `docs/` under 10 MB going forward. |
+
+**PR-42, the core side (branch `pr-newtypes`, 24 November).** One rule per
+concept now lives in `crates/domain/src/newtypes/`, where every executor crate
+can reach it: `absolute_path` (begins with `/`, at most 512 bytes, no control
+character, no empty, `.` or `..` component; `/` valid) with `storage_path` for
+the non-root and beneath-`/mnt` forms; `opaque_id`, `container_resource`
+(`container:` once, then an opaque id) and `stack_project`;
+`storage_device_id`, `filesystem_uuid` (chosen: first byte alphanumeric) and
+`observed_filesystem_uuid` (reported by the host: no first-byte rule, so
+inventories already stored in plans still parse); `PlanLifetime` with two
+named shapes, `bounded` (container, stack and storage plans) and `exact`
+(Compose and backup preparation), plus `current`. `AbsolutePath`,
+`ContainerId`, `ContainerResource` and `StackProject` are newtypes with a
+private field that validate in `parse`, `TryFrom` and `Deserialize` and
+serialise, and generate schema and TypeScript, exactly as `String`: the
+generated contracts did not change. Replaced in `limeos-domain`: the seven
+live path validators (storage locations, target paths, container storage
+paths, pool and share paths, Compose binds, Compose working directories) and
+the seven deferred ones in `deployment` (each now the shared rule plus its own
+character or length limits); every inline `container:` check; the duplicated
+device-id and UUID checks; the seven plan-lifetime checks. In core: the plan
+request bodies (`RestartInput`, `ContainerInput`, `StackInput`) hold typed
+values, so a malformed resource or project is a 400 while the body is decoded,
+before the backend, as other malformed bodies already were (before, an
+unauthenticated request with a malformed resource got 401, now 400); the logs
+route, core's inspect and logs RPCs, resolution views and the health-poll
+silence check use the shared rule. No behaviour of a valid value changed and
+no rule was loosened or tightened, except `job_resolutions` showing a
+malformed receipt resource whole instead of stripping every `container:`
+prefix. Left, with reasons: the core configuration's socket paths and
+`ExecutorOwner`'s path split (a `sun_path` rule of at most 107 bytes; the
+configuration accepts `//` and `/./`, which the split refuses or reads
+through `Path::components`; tightening it could refuse to start a device with
+such a file, so it needs its own change with a configuration check first);
+the health policy's `required_mounts` (a literal mount spelling, not a
+canonical path; stored policies may hold non-canonical spellings);
+`identifier` (already one rule); the HealthRead resource rule of alert
+polling (paths in `mount:` resources, which `identifier` refuses). Public
+structs that executor crates construct (`ContainerSnapshot`, the plans,
+`StorageDevice`, `Declaration`) still hold `String` and `i64` fields: typing
+them needs the executor crates changed with them, which waits for PR-43. The
+executor-side validators that would then be replaced by the shared rules:
+`executor-storage` `path.rs` and `executor` `storage_mount_supervision.rs`
+(exactly `absolute_path`), `executor` `read_launch.rs` and `executor-storage`
+`configuration.rs` (`storage_path` plus a component bound),
+`executor-container` `compose_management/catalog.rs` (exactly
+`compose_path`) and `compose_files.rs` (`compose_path` with one component
+fewer), the storage-target ceiling in `executor-protocol` (`storage_path`
+beneath `/mnt` plus no `\`, which the contract accepts: refused at the
+executor, fail-closed), the fourteen `strip_prefix("container:")` sites in
+`executor-container` and `executor-protocol` (`container_resource_id`), the catalog's inline project rule
+(`stack_project`), and the blkid and ceiling UUID checks
+(`observed_filesystem_uuid`). Outside both scopes: `observations` accepts
+uppercase container IDs (`is_ascii_hexdigit`) that every plan refuses, and
+strips prefixes with `trim_start_matches`.
 
 **Fixed from PR-30 (core startup at high job counts), 24 November:** past
 about 2,700 retained jobs core's startup statements read more than the
