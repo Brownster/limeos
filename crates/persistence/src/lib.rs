@@ -859,15 +859,33 @@ fn upgrade_figures(
         },
     ))
 }
-/// What `Store::open` found about an upgrade's space, for [`upgrade_space`]
-/// to report without measuring again: the database path, and the shortfall
-/// (`None`: the space was checked and fitted).
-static UPGRADE_NOTE: std::sync::Mutex<Option<(PathBuf, Option<UpgradeSpace>)>> =
-    std::sync::Mutex::new(None);
-fn note_upgrade(path: &Path, space: Option<UpgradeSpace>) {
-    if let Ok(mut note) = UPGRADE_NOTE.lock() {
-        *note = Some((path.to_path_buf(), space));
+/// What `Store::open` noted about one database, kept per path until the
+/// daemon asks for it once after a failed open. Keyed by path, so an open of
+/// another store (tests open many at once) neither replaces nor takes this
+/// one's note; at most one note per path.
+struct Notes<T>(std::sync::Mutex<Vec<(PathBuf, T)>>);
+impl<T> Notes<T> {
+    const fn new() -> Self {
+        Self(std::sync::Mutex::new(Vec::new()))
     }
+    fn note(&self, path: &Path, value: T) {
+        if let Ok(mut notes) = self.0.lock() {
+            notes.retain(|(noted, _)| noted != path);
+            notes.push((path.to_path_buf(), value));
+        }
+    }
+    fn take(&self, path: &Path) -> Option<T> {
+        let mut notes = self.0.lock().ok()?;
+        let at = notes.iter().position(|(noted, _)| noted == path)?;
+        Some(notes.swap_remove(at).1)
+    }
+}
+/// What `Store::open` found about an upgrade's space, for [`upgrade_space`]
+/// to report without measuring again: the shortfall (`None`: the space was
+/// checked and fitted).
+static UPGRADE_NOTE: Notes<Option<UpgradeSpace>> = Notes::new();
+fn note_upgrade(path: &Path, space: Option<UpgradeSpace>) {
+    UPGRADE_NOTE.note(path, space);
 }
 /// After `Database::open` fails: whether a pending upgrade lacks free space,
 /// so the daemon can say how much it needs; `None` when no upgrade is
@@ -878,11 +896,7 @@ fn note_upgrade(path: &Path, space: Option<UpgradeSpace>) {
 /// removes them), and a snapshot whose record matches on lengths, inode and
 /// modification time, with the WAL empty, as kept.
 pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
-    if let Some((_, space)) = UPGRADE_NOTE
-        .lock()
-        .ok()
-        .and_then(|mut note| note.take_if(|(noted, _)| noted == path))
-    {
+    if let Some(space) = UPGRADE_NOTE.take(path) {
         return space;
     }
     let conn =
@@ -900,39 +914,27 @@ pub fn upgrade_space(path: &Path) -> Option<UpgradeSpace> {
 }
 /// The store whose upgrade could not take its exclusive lock, noted for
 /// [`upgrade_blocked`].
-static BLOCKED: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+static BLOCKED: Notes<()> = Notes::new();
 fn note_blocked(path: &Path) {
-    if let Ok(mut noted) = BLOCKED.lock() {
-        *noted = Some(path.to_path_buf());
-    }
+    BLOCKED.note(path, ());
 }
 /// After `Database::open` fails: whether a pending upgrade could not start
 /// because another program has the store open (it waits half a second for
 /// it). Reported once.
 pub fn upgrade_blocked(path: &Path) -> bool {
-    BLOCKED
-        .lock()
-        .ok()
-        .and_then(|mut noted| noted.take_if(|noted| noted == path))
-        .is_some()
+    BLOCKED.take(path).is_some()
 }
 /// The store whose last pre-upgrade snapshot was written without a durable
 /// record, noted for [`unrecorded_snapshot`].
-static UNRECORDED: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+static UNRECORDED: Notes<()> = Notes::new();
 pub(crate) fn note_unrecorded(path: &Path) {
-    if let Ok(mut noted) = UNRECORDED.lock() {
-        *noted = Some(path.to_path_buf());
-    }
+    UNRECORDED.note(path, ());
 }
 /// After `Database::open` fails: whether it wrote a pre-upgrade snapshot it
 /// could not record, so that the next attempt cannot keep it and writes a
 /// new copy. Reported once.
 pub fn unrecorded_snapshot(path: &Path) -> bool {
-    UNRECORDED
-        .lock()
-        .ok()
-        .and_then(|mut noted| noted.take_if(|noted| noted == path))
-        .is_some()
+    UNRECORDED.take(path).is_some()
 }
 /// A schema object of the store that differs from this build's: a trigger,
 /// or a table or index the migration table names, missing or with other SQL.
@@ -943,21 +945,14 @@ pub struct SchemaMismatch {
     pub name: String,
 }
 /// The mismatch `Store::open` refused, noted for [`schema_mismatch`].
-static SCHEMA_MISMATCH: std::sync::Mutex<Option<(PathBuf, SchemaMismatch)>> =
-    std::sync::Mutex::new(None);
+static SCHEMA_MISMATCH: Notes<SchemaMismatch> = Notes::new();
 pub(crate) fn note_mismatch(path: &Path, mismatch: SchemaMismatch) {
-    if let Ok(mut noted) = SCHEMA_MISMATCH.lock() {
-        *noted = Some((path.to_path_buf(), mismatch));
-    }
+    SCHEMA_MISMATCH.note(path, mismatch);
 }
 /// After `Database::open` fails: the schema object it refused the store
 /// over, if that was the reason, so the daemon can name it. Reported once.
 pub fn schema_mismatch(path: &Path) -> Option<SchemaMismatch> {
-    SCHEMA_MISMATCH
-        .lock()
-        .ok()?
-        .take_if(|(noted, _)| noted == path)
-        .map(|(_, mismatch)| mismatch)
+    SCHEMA_MISMATCH.take(path)
 }
 fn interrupted_jobs(conn: &Connection) -> Result<i64> {
     conn.query_row(
