@@ -20,16 +20,20 @@ const CHECKED_OPERATIONS: [&str; 4] = [
 
 /// Startup's one walk of `jobs`: besides the whole-file checks
 /// (`quick_check`, the foreign-key check), the only statement of the open
-/// that reads every job row. For every job, the invariant its resource set
-/// keeps while the job exists (the `jobs_primary_resource`, `job_resources_*`
-/// and `jobs_identity_immutable` triggers): its primary resource is in the
-/// set, and the set has at most 128 resources. And it lists the jobs of each
-/// of [`CHECKED_OPERATIONS`], so that the owners' checks read only those
-/// jobs, each through its primary key, instead of each walking `jobs` again
-/// to find them: eight walks of every job, settled or not, until 24
-/// November. The rows it returns are those jobs, with the rowid each was
-/// read at, and any job breaking the invariant.
-const JOB_WALK: &str = "SELECT j.id,j.rowid,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128 FROM jobs j WHERE json_extract(j.intent,'$.operation') IN ('storage_prepare_targets','storage_mount','backup_prepare_private','automation_observe_health') OR NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128";
+/// that reads every job row. It returns every row, as the table holds it:
+///
+/// - for the jobs of each of [`CHECKED_OPERATIONS`], listed so that the
+///   owners' checks read only those jobs, each through its primary key,
+///   instead of each walking `jobs` again to find them (eight walks of every
+///   job, settled or not, until 24 November);
+/// - for every job, the invariant its resource set keeps while the job
+///   exists (the `jobs_primary_resource`, `job_resources_*` and
+///   `jobs_identity_immutable` triggers): its primary resource is in the
+///   set, and the set has at most 128 resources (the last column);
+/// - and for the indexes of `jobs` that locks, recovery and dispatch read
+///   through, which `accounting` holds to these rows: the id, idempotency
+///   key, state, deadline and resource of every job.
+const JOB_WALK: &str = "SELECT j.id,j.rowid,j.principal,j.idempotency,j.state,j.deadline,j.resource,json_extract(j.intent,'$.operation'),NOT EXISTS(SELECT 1 FROM job_resources r WHERE r.job=j.id AND r.resource=j.resource) OR (SELECT count(*) FROM job_resources r WHERE r.job=j.id)>128 FROM jobs j";
 
 /// The listed jobs (`?1`, a JSON array of `[id, rowid, operation]`) that
 /// the owners' access path finds: through the primary key's index, as every
@@ -38,10 +42,13 @@ const JOB_WALK: &str = "SELECT j.id,j.rowid,json_extract(j.intent,'$.operation')
 /// counts every listed job.
 ///
 /// The walk reads the table; the owners read through the index
-/// (`sqlite_autoindex_jobs_1`), and `quick_check` does not compare the two.
-/// A job row the index lacks (or that it files under another id) would
-/// otherwise be listed by the walk and then read by no owner, so checked by
-/// none: the eight walks this replaced read the table and refused it. An
+/// (`sqlite_autoindex_jobs_1`), and `quick_check` only compares the two by
+/// their counts (`accounting`). A job row the index lacks (or files under
+/// another id, with the count kept) would otherwise be listed by the walk
+/// and then read by no owner, so checked by none: the eight walks this
+/// replaced read the table and refused it. `accounting` now holds the whole
+/// index to the table; this stays, exact where that is a hash, for the rows
+/// the owners read. An
 /// index entry pointing at another row is refused the same way (its rowid
 /// differs from the walk's), and one pointing at no row fails the statement
 /// (SQLite reports the store corrupt). The `+` keeps the rowid out of the
@@ -54,7 +61,9 @@ const LISTED_BY_KEY: &str = "SELECT count(*) FROM json_each(?1) w CROSS JOIN job
 /// when its resolution is completed; and every foreign key holds. Each part
 /// starts from the jobs in those states (`jobs_state`), from the locks or
 /// from the resolutions, never from every job: the walk of every job is
-/// [`JOB_WALK`]'s.
+/// [`JOB_WALK`]'s. Every index they read through has been held to its
+/// table's content by then (`accounting`): `jobs_state`, the primary keys of
+/// `jobs` and of the unsettled jobs' `job_resources`, and the lock tables'.
 const LOCK_INVARIANTS: &str = "SELECT EXISTS(
     SELECT 1 FROM job_resources r JOIN jobs j ON j.id=r.job
     LEFT JOIN resource_locks l ON l.job=r.job AND l.resource=r.resource
@@ -83,24 +92,29 @@ impl Walked {
     pub(super) fn read(conn: &Connection) -> Result<Self> {
         let mut jobs: [Vec<String>; CHECKED_OPERATIONS.len()] = Default::default();
         let mut keyed = Vec::new();
+        let mut accounts = accounting::Accounts::new();
         let mut statement = conn.prepare(JOB_WALK).map_err(durable)?;
         let mut rows = statement.query([]).map_err(durable)?;
         while let Some(row) = rows.next().map_err(durable)? {
-            let broken: bool = row.get(3).map_err(durable)?;
+            let broken: bool = row.get(8).map_err(durable)?;
             if broken {
                 return Err(Error(ErrorCode::StateNotDurable));
             }
-            let operation: Option<String> = row.get(2).map_err(durable)?;
-            let listed = CHECKED_OPERATIONS
+            accounts.row(row)?;
+            let operation: Option<String> = row.get(7).map_err(durable)?;
+            let Some(listed) = CHECKED_OPERATIONS
                 .iter()
                 .position(|o| Some(*o) == operation.as_deref())
-                .ok_or(Error(ErrorCode::StateNotDurable))?;
+            else {
+                continue;
+            };
             let id: String = row.get(0).map_err(durable)?;
             let rowid: i64 = row.get(1).map_err(durable)?;
             keyed.push(serde_json::json!([id, rowid, CHECKED_OPERATIONS[listed]]));
             jobs[listed].push(id);
         }
         drop(rows);
+        accounts.verify(conn)?;
         let found: i64 = conn
             .query_row(LISTED_BY_KEY, [json(&keyed)?], |r| r.get(0))
             .map_err(durable)?;
@@ -211,5 +225,6 @@ pub(crate) fn listed_job_queries() -> Vec<(&'static str, &'static str)> {
     ]
 }
 
+mod accounting;
 #[cfg(test)]
 mod tests;

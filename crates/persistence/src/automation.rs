@@ -755,13 +755,15 @@ pub(super) fn check(conn: &Connection, walked: &super::resources::Walked) -> Res
         load(conn, &id.map_err(durable)?)?.ok_or(Error(ErrorCode::StateNotDurable))?;
     }
     // Every occurrence's job is an observation job: one startup's walk of
-    // `jobs` listed (read from the table, not through an index), so neither
-    // a job row the primary key's index lacks nor an entry pointing at
-    // another row can pass an ordinary job off as one. Until 24 November
-    // this walked `jobs` and looked occurrences up by job; then it went from
-    // the occurrences through the index. An occurrence naming no job at all
-    // is refused here too (the foreign-key check refuses it as well).
-    let invalid:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule WHERE o.owner<>s.owner OR o.policy<>s.policy OR o.revision>s.revision OR (o.revision=s.revision AND (o.owner_revision<>s.owner_revision OR s.settled_through IS NULL OR o.due>s.settled_through))) OR EXISTS(SELECT 1 FROM automation_occurrences o WHERE o.job IS NOT NULL AND o.job NOT IN (SELECT value FROM json_each(?1)))",[walked.ids("automation_observe_health")?],|r|r.get(0)).map_err(durable)?;
+    // `jobs` listed from the table. The occurrences are read from their
+    // table too (`NOT INDEXED`: otherwise SQLite reads `job` from the
+    // covering `sqlite_autoindex_automation_occurrences_1`, and an entry
+    // naming another observation job would stand for a row naming an
+    // ordinary one, which the statement before 24 November, walking `jobs`
+    // and looking occurrences up in that index, let through as well). An
+    // occurrence naming no job at all is refused here too (the foreign-key
+    // check refuses it as well).
+    let invalid:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule WHERE o.owner<>s.owner OR o.policy<>s.policy OR o.revision>s.revision OR (o.revision=s.revision AND (o.owner_revision<>s.owner_revision OR s.settled_through IS NULL OR o.due>s.settled_through))) OR EXISTS(SELECT 1 FROM automation_occurrences o NOT INDEXED WHERE o.job IS NOT NULL AND o.job NOT IN (SELECT value FROM json_each(?1)))",[walked.ids("automation_observe_health")?],|r|r.get(0)).map_err(durable)?;
     if invalid {
         return Err(Error(ErrorCode::StateNotDurable));
     }

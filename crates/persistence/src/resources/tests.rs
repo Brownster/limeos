@@ -1143,20 +1143,16 @@ fn only_the_walk_reads_every_job_at_startup() {
         ["SCAN j"],
         "{steps:?}"
     );
-    let operations = CHECKED_OPERATIONS
-        .iter()
-        .map(|o| format!("'{o}'"))
-        .collect::<Vec<_>>()
-        .join(",");
-    assert!(JOB_WALK.contains(&format!("IN ({operations})")));
+    // It returns every row: the accounting needs each one.
+    assert!(!JOB_WALK.contains("WHERE json_extract"), "{JOB_WALK}");
 }
 
 /// Rewrites every occurrence of `from` with `to` (as long) on the pages of
 /// the b-tree `btree` in the closed store at `path`, after folding its WAL
 /// in, as a lost or misdirected page write can leave a b-tree: structurally
 /// sound, so `quick_check` passes, but no longer agreeing with the others
-/// (`quick_check` does not compare an index with its table). Returns how
-/// many it rewrote.
+/// (`quick_check` counts an index's entries; it does not compare them with
+/// the rows: `accounting`). Returns how many it rewrote.
 fn rewrite_in(path: &std::path::Path, btree: &str, from: &str, to: &str) -> usize {
     assert_eq!(from.len(), to.len());
     let conn = Connection::open(path).unwrap();
@@ -1217,10 +1213,10 @@ fn whole_file_checks_pass(path: &std::path::Path) {
 /// resource's index entry with it, so the resource-set and foreign-key
 /// checks still pass): `quick_check` passes, the walk lists the row from
 /// the table, and the owners, reading by key, would find nothing to check.
-/// The open refuses because the listed job is not found by key
-/// (`LISTED_BY_KEY`), as the eight walks this replaced refused it for its
-/// missing plan. The same rewrite on a job no owner checks opens: the store
-/// is otherwise one every check accepts.
+/// The open refuses: the key's index disagrees with the table
+/// (`accounting`), and the listed job is not found by key (`LISTED_BY_KEY`),
+/// as the eight walks this replaced refused it for its missing plan. Until
+/// the accounting, the same rewrite on a job no owner checks opened.
 #[test]
 fn a_listed_job_the_key_does_not_find_refuses_startup() {
     let moved = format!("{}e", &FORGED[..63]);
@@ -1250,11 +1246,9 @@ fn a_listed_job_the_key_does_not_find_refuses_startup() {
             0
         );
         drop(conn);
-        if operation == "no_such_operation" {
-            Store::open(&path).unwrap();
-        } else {
-            refused_unchanged(&dir, generation, operation);
-        }
+        // Since the accounting of the key's index (`accounting`), the same
+        // disagreement on a job no owner checks is refused too.
+        refused_unchanged(&dir, generation, operation);
     }
 }
 
@@ -1265,7 +1259,8 @@ fn a_listed_job_the_key_does_not_find_refuses_startup() {
 /// pass; the walk lists the forged row under the container job's id, and by
 /// key that id reads the container row, which no owner checks as one of
 /// theirs. The open refuses: the key does not lead to the row the walk
-/// read. A job no owner checks, swapped the same way, opens.
+/// read. Until the accounting, a job no owner checks, swapped the same way,
+/// opened; now it is refused as well.
 #[test]
 fn a_listed_job_the_key_finds_at_another_row_refuses_startup() {
     // Ids no other bytes can run into: a zero-padded copy id can also match
@@ -1312,10 +1307,326 @@ fn a_listed_job_the_key_finds_at_another_row_refuses_startup() {
             "container_restart"
         );
         drop(conn);
-        if operation == "no_such_operation" {
-            Store::open(&path).unwrap();
+        // Since the accounting of the key's index (`accounting`), the same
+        // disagreement on a job no owner checks is refused too.
+        refused_unchanged(&dir, generation, operation);
+    }
+}
+
+/// One more settled container job, a copy of `copy-1` under `id`, in the
+/// closed store at `path`, in `state` (queued, then moved there).
+fn another_copy(path: &std::path::Path, id: &str, state: &str) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute(
+        "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+         SELECT ?1,principal,'copy-'||?1,intent,digest,resource,'queued',generation,revision,deadline FROM jobs WHERE idempotency='copy-1'",
+        [id],
+    )
+    .unwrap();
+    conn.execute("UPDATE jobs SET state=?2 WHERE id=?1", [id, state])
+        .unwrap();
+}
+
+/// A primary key the table holds twice: a settled job's id rewritten on its
+/// table page to another job's, with the key's index still filing it under
+/// its own (`quick_check` counts entries, it does not compare them), or
+/// rewritten there too, and in its resource set, so that the index holds
+/// the key twice (`quick_check` does not check UNIQUE). Either way the
+/// resource-set and foreign-key checks pass. A duplicated primary key is
+/// corruption whatever the jobs' operations: before, a duplicate of an
+/// observation job's id let the occurrence check pass where the eight walks
+/// refused (review, 24 November). The open refuses both: the first by the
+/// accounting of the key's index against the table, the second by the key
+/// read in order (two equal neighbours).
+#[test]
+fn a_primary_key_the_table_holds_twice_refuses_startup() {
+    // Neighbours in key order that no other bytes run into (an id ending in
+    // the same 63 characters, followed by a principal id, could).
+    let first = "d".repeat(63) + "1";
+    for in_index in [false, true] {
+        let (dir, generation, _) = forged_among_settled("no_such_operation", None);
+        let path = dir.path().join("core.sqlite");
+        // The second copy, under `first`'s neighbour in key order, so that
+        // renaming `twice` to `first` keeps every index in order.
+        let twice = "d".repeat(63) + "2";
+        another_copy(&path, &first, "canceled");
+        another_copy(&path, &twice, "canceled");
+        let mut btrees = vec!["jobs"];
+        if in_index {
+            btrees.extend([
+                "sqlite_autoindex_jobs_1",
+                "job_resources",
+                "sqlite_autoindex_job_resources_1",
+            ]);
+        }
+        for btree in btrees {
+            assert!(rewrite_in(&path, btree, &twice, &first) >= 1, "{btree}");
+        }
+        whole_file_checks_pass(&path);
+        let conn = Connection::open(&path).unwrap();
+        assert_eq!(
+            conn.query_row(
+                "SELECT count(*) FROM jobs NOT INDEXED WHERE id=?",
+                [&first],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            2
+        );
+        drop(conn);
+        refused_unchanged(&dir, generation, &format!("in the index too: {in_index}"));
+    }
+}
+
+/// A settled job the table now says is `verifying`, while `jobs_state` (and
+/// the partial `jobs_resource_lock`) still file it as `succeeded`: what a
+/// lost write of an index page leaves for a job interrupted in flight.
+/// `quick_check` and the foreign-key check pass, the lock invariants and
+/// startup recovery (which find such jobs through `jobs_state`) would see
+/// no interrupted job, and the job would keep its unlocked resources, open
+/// to another dispatch. The open refuses: `jobs_state` and the partial
+/// index are held to the table.
+#[test]
+fn a_job_state_its_index_does_not_hold_refuses_startup() {
+    let (dir, generation, _) = forged_among_settled("no_such_operation", None);
+    let path = dir.path().join("core.sqlite");
+    another_copy(&path, &"c".repeat(64), "succeeded");
+    assert!(rewrite_in(&path, "jobs", "succeeded", "verifying") >= 1);
+    whole_file_checks_pass(&path);
+    let conn = Connection::open(&path).unwrap();
+    let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+    assert_eq!(
+        count("SELECT count(*) FROM jobs NOT INDEXED WHERE state='verifying'"),
+        1
+    );
+    assert_eq!(
+        count(
+            "SELECT count(*) FROM jobs INDEXED BY jobs_state WHERE state IN ('running','verifying')"
+        ),
+        0
+    );
+    drop(conn);
+    refused_unchanged(
+        &dir,
+        generation,
+        "verifying in the table, succeeded in jobs_state",
+    );
+}
+
+/// A running job's resource set and locks, with a resource renamed on a
+/// table page only: in `job_resources` (the index still files the old
+/// name, which its lock and the lock invariants find), or two of its locks'
+/// resources swapped in `resource_locks` (each found through the index at
+/// the other's row). `quick_check`, the foreign-key check and the lock
+/// invariants pass both; the next dispatch would lock what the index says.
+/// The open refuses: the unsettled jobs' resource sets are held to their
+/// index, and the lock tables pass `integrity_check` or the store is
+/// refused.
+#[test]
+fn a_running_jobs_resources_or_locks_their_index_disagrees_with_refuse_startup() {
+    for case in ["job_resources", "resource_locks"] {
+        let (dir, mut s, p) = setup();
+        let job = queue(&mut s, &p, "running", "a");
+        dependencies(&mut s, &job.id, &["storage:uuid:aaaa", "storage:uuid:bbbb"]);
+        s.claim_container(&p, &job.id, &snapshot("a"), &"1".repeat(64), 203)
+            .unwrap();
+        assert_eq!(locks(&s, &job.id).len(), 3);
+        let generation = s.generation;
+        drop(s);
+        let path = dir.path().join("core.sqlite");
+        if case == "job_resources" {
+            assert!(rewrite_in(&path, case, "storage:uuid:bbbb", "storage:uuid:cccc") >= 1);
         } else {
-            refused_unchanged(&dir, generation, operation);
+            assert!(rewrite_in(&path, case, "storage:uuid:aaaa", "storage:uuid:xxxx") >= 1);
+            assert!(rewrite_in(&path, case, "storage:uuid:bbbb", "storage:uuid:aaaa") >= 1);
+            assert!(rewrite_in(&path, case, "storage:uuid:xxxx", "storage:uuid:bbbb") >= 1);
+        }
+        whole_file_checks_pass(&path);
+        let conn = Connection::open(&path).unwrap();
+        assert!(
+            !conn
+                .query_row(LOCK_INVARIANTS, [], |r| r.get::<_, bool>(0))
+                .unwrap()
+        );
+        drop(conn);
+        refused_unchanged(&dir, generation, case);
+    }
+}
+
+/// The backup check's job statement on the jobs the walk lists: a backup
+/// job in a state other than queued or canceled, or with an oversized
+/// intent, is invalid by it alone (with the list), and passes with no list,
+/// so a check given the wrong list would show here although the unlinked
+/// check would still refuse the job. A resource of a bad length is invalid
+/// too, but no store holding one passes `quick_check` first (the table's
+/// CHECK).
+#[test]
+fn the_backup_job_statement_judges_the_listed_jobs() {
+    for fault in ["state", "size", "resource"] {
+        let (_dir, s, p) = setup();
+        let id = "b".repeat(64);
+        let intent = match fault {
+            "size" => serde_json::json!({"operation": "backup_prepare_private", "pad": "x".repeat(17_000)}),
+            _ => serde_json::json!({"operation": "backup_prepare_private"}),
+        }
+        .to_string();
+        s.conn
+            .execute(
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+                 VALUES(?1,?2,'backup',?3,?4,'storage:configuration','queued',1,1,1000)",
+                params![id, p.id, intent, "0".repeat(64)],
+            )
+            .unwrap();
+        unguarded(
+            &s.conn,
+            &["backup_preparation_update_state", "job_resources_insert"],
+            |conn| match fault {
+                "state" => {
+                    conn.execute("UPDATE jobs SET state='succeeded' WHERE id=?", [&id])
+                        .unwrap();
+                }
+                "resource" => {
+                    conn.execute_batch("PRAGMA ignore_check_constraints=ON")
+                        .unwrap();
+                    conn.execute("INSERT INTO job_resources VALUES(?,'')", [&id])
+                        .unwrap();
+                    conn.execute_batch("PRAGMA ignore_check_constraints=OFF")
+                        .unwrap();
+                }
+                _ => {}
+            },
+        );
+        let invalid = |listed: &str| -> bool {
+            s.conn
+                .query_row(crate::backup_preparation::BACKUP_JOBS, [listed], |r| {
+                    r.get(0)
+                })
+                .unwrap()
+        };
+        assert!(invalid(&serde_json::json!([id]).to_string()), "{fault}");
+        assert!(!invalid("[]"), "{fault}");
+        if fault == "resource" {
+            assert_ne!(
+                s.conn
+                    .query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "ok"
+            );
         }
     }
+}
+
+/// A settled observation job without its result (which no guarded write
+/// can leave: observation jobs are only ever queued or canceled) is refused
+/// through the observation results statement on the listed jobs, and only
+/// with the list.
+#[test]
+fn a_settled_observation_job_without_a_result_is_refused_on_the_list() {
+    let (_dir, s, p) = setup();
+    let id = "a".repeat(64);
+    s.conn
+        .execute(
+            "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+             VALUES(?1,?2,'observe',?3,?4,'system','queued',1,1,1000)",
+            params![
+                id,
+                p.id,
+                serde_json::json!({"operation": "automation_observe_health"}).to_string(),
+                "0".repeat(64)
+            ],
+        )
+        .unwrap();
+    unguarded(&s.conn, &["automation_job_update_state"], |conn| {
+        conn.execute("UPDATE jobs SET state='succeeded' WHERE id=?", [&id])
+            .unwrap();
+    });
+    let invalid = |listed: &str| -> bool {
+        s.conn
+            .query_row(crate::automation::OBSERVATION_RESULTS, [listed], |r| {
+                r.get(0)
+            })
+            .unwrap()
+    };
+    assert!(invalid(&serde_json::json!([id]).to_string()));
+    assert!(!invalid("[]"));
+}
+
+/// Every statement of the accounting reads only what it accounts for: the
+/// index statements their index alone (no table row), and the table
+/// statement the table (no index).
+#[test]
+fn the_accounting_reads_each_side_alone() {
+    let (_dir, s, _p) = setup();
+    let plan = |sql: &str| -> Vec<String> {
+        let mut statement = s
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap();
+        let params: &[&dyn rusqlite::ToSql] = if sql.contains("?1") { &[&"[]"] } else { &[] };
+        statement
+            .query_map(params, |r| r.get::<_, String>(3))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap()
+    };
+    for (sql, expected) in [
+        (
+            accounting::ID_ENTRIES,
+            "SCAN jobs USING COVERING INDEX sqlite_autoindex_jobs_1",
+        ),
+        (
+            accounting::IDEMPOTENCY_ENTRIES,
+            "SCAN jobs USING COVERING INDEX sqlite_autoindex_jobs_2",
+        ),
+        (
+            accounting::STATE_ENTRIES,
+            "SCAN jobs USING COVERING INDEX jobs_state",
+        ),
+        (accounting::UNSETTLED_RESOURCES, "SCAN r"),
+        (
+            accounting::UNSETTLED_RESOURCE_ENTRIES,
+            "SEARCH job_resources USING COVERING INDEX sqlite_autoindex_job_resources_1 (job=?)",
+        ),
+    ] {
+        let steps = plan(sql);
+        assert!(
+            steps.iter().any(|step| step == expected),
+            "{steps:?}: {sql}"
+        );
+    }
+    // The partial index: the table's cursor is opened for a deferred seek
+    // that no column needs, so the seek is never made.
+    let root: i64 = s
+        .conn
+        .query_row(
+            "SELECT rootpage FROM sqlite_schema WHERE type='table' AND name='jobs'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let program: Vec<(String, i64, i64)> = s
+        .conn
+        .prepare(&format!("EXPLAIN {}", accounting::LOCK_ENTRIES))
+        .unwrap()
+        .query_map([], |r| Ok((r.get(1)?, r.get(2)?, r.get(3)?)))
+        .unwrap()
+        .collect::<std::result::Result<_, _>>()
+        .unwrap();
+    let table: Vec<i64> = program
+        .iter()
+        .filter(|(op, _, page)| op == "OpenRead" && *page == root)
+        .map(|(_, cursor, _)| *cursor)
+        .collect();
+    assert!(
+        !program
+            .iter()
+            .any(|(op, cursor, _)| matches!(op.as_str(), "Column" | "Rowid")
+                && table.contains(cursor)),
+        "{program:?}"
+    );
+    assert!(
+        plan(accounting::LOCK_ENTRIES)
+            .iter()
+            .any(|step| step == "SCAN jobs USING INDEX jobs_resource_lock")
+    );
 }
