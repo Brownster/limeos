@@ -726,7 +726,7 @@ fn reserve_admitted_occurrence(
     })
 }
 
-pub(super) fn check(conn: &Connection) -> Result<()> {
+pub(super) fn check(conn: &Connection, walked: &super::resources::Walked) -> Result<()> {
     policy::check(conn)?;
     let invalid_policy:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_occurrences WHERE settlement<>'observation' AND policy_revision<>0)",[],|r|r.get(0)).map_err(durable)?;
     if invalid_policy {
@@ -754,12 +754,14 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
     {
         load(conn, &id.map_err(durable)?)?.ok_or(Error(ErrorCode::StateNotDurable))?;
     }
-    let invalid:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule WHERE o.owner<>s.owner OR o.policy<>s.policy OR o.revision>s.revision OR (o.revision=s.revision AND (o.owner_revision<>s.owner_revision OR s.settled_through IS NULL OR o.due>s.settled_through))) OR EXISTS(SELECT 1 FROM automation_occurrences o JOIN jobs j ON j.id=o.job WHERE json_extract(j.intent,'$.operation') IS NOT 'automation_observe_health')",[],|r|r.get(0)).map_err(durable)?;
+    let invalid:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM automation_occurrences o JOIN automation_schedules s ON s.id=o.schedule WHERE o.owner<>s.owner OR o.policy<>s.policy OR o.revision>s.revision OR (o.revision=s.revision AND (o.owner_revision<>s.owner_revision OR s.settled_through IS NULL OR o.due>s.settled_through))) OR EXISTS(SELECT 1 FROM automation_occurrences o CROSS JOIN jobs j ON j.id=o.job WHERE json_extract(j.intent,'$.operation') IS NOT 'automation_observe_health')",[],|r|r.get(0)).map_err(durable)?;
     if invalid {
         return Err(Error(ErrorCode::StateNotDurable));
     }
-    let mut stmt=conn.prepare("SELECT j.id,j.principal,j.idempotency,j.intent,j.digest,j.resource,j.state,j.revision,j.deadline,o.schedule,o.revision,o.due,o.owner,o.owner_revision,o.created,o.policy_revision FROM jobs j LEFT JOIN automation_occurrences o ON o.job=j.id WHERE json_extract(j.intent,'$.operation')='automation_observe_health'").map_err(durable)?;
-    let mut rows = stmt.query([]).map_err(durable)?;
+    let mut stmt = conn.prepare(OBSERVATION_JOBS).map_err(durable)?;
+    let mut rows = stmt
+        .query([walked.ids("automation_observe_health")?])
+        .map_err(durable)?;
     while let Some(row) = rows.next().map_err(durable)? {
         let id: String = row.get(0).map_err(durable)?;
         let owner: String = row.get(1).map_err(durable)?;
@@ -873,8 +875,14 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             return Err(Error(ErrorCode::StateNotDurable));
         }
     }
-    completion::check(conn)
+    completion::check(conn, walked)
 }
+/// The observation jobs startup's walk of `jobs` listed (`?1`,
+/// `resources::JOB_WALK`), each read through the primary key, with its
+/// occurrence if it still has one.
+pub(super) const OBSERVATION_JOBS: &str = "SELECT j.id,j.principal,j.idempotency,j.intent,j.digest,j.resource,j.state,j.revision,j.deadline,o.schedule,o.revision,o.due,o.owner,o.owner_revision,o.created,o.policy_revision FROM json_each(?1) w CROSS JOIN jobs j ON j.id=w.value LEFT JOIN automation_occurrences o ON o.job=j.id WHERE json_extract(j.intent,'$.operation')='automation_observe_health'";
+#[cfg(test)]
+pub(crate) use completion::OBSERVATION_RESULTS;
 
 mod completion;
 mod management;

@@ -886,3 +886,244 @@ fn the_v17_estimate_for_an_empty_store_exceeds_the_write_reserve() {
     assert!(empty.in_memory());
     assert_eq!(empty.needed(), MIN_FREE_BYTES + crate::UPGRADE_FIXED_BYTES);
 }
+
+/// Runs `corrupt` on `conn` with the named triggers dropped, then puts them
+/// back exactly as they were: a store whose data no guarded write could
+/// leave, with a schema the startup check accepts.
+fn unguarded(conn: &Connection, triggers: &[&str], corrupt: impl FnOnce(&Connection)) {
+    let guards: Vec<String> = triggers
+        .iter()
+        .map(|name| {
+            conn.query_row(
+                "SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?",
+                [name],
+                |r| r.get(0),
+            )
+            .unwrap()
+        })
+        .collect();
+    for name in triggers {
+        conn.execute_batch(&format!("DROP TRIGGER {name}")).unwrap();
+    }
+    corrupt(conn);
+    for guard in guards {
+        conn.execute_batch(&guard).unwrap();
+    }
+}
+
+/// `copies` settled copies of job `template` (its row with new ids and
+/// idempotency keys, queued as every job is, which gives each its primary
+/// resource, then canceled), numbered from `from`.
+fn settled_copies(conn: &Connection, template: &str, from: i64, copies: i64) {
+    conn.execute(
+        "WITH RECURSIVE n(i) AS (SELECT ?2 UNION ALL SELECT i+1 FROM n WHERE i<?2+?3-1)
+         INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+         SELECT printf('%064d',i),principal,'copy-'||i,intent,digest,resource,'queued',generation,revision,deadline
+         FROM jobs, n WHERE id=?1",
+        params![template, from, copies],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE jobs SET state='canceled' WHERE state='queued' AND idempotency LIKE 'copy-%'",
+        [],
+    )
+    .unwrap();
+}
+
+/// What the open refused, and that it changed nothing: the generation is
+/// the one before it.
+fn refused_unchanged(dir: &tempfile::TempDir, generation: i64, case: &str) {
+    let path = dir.path().join("core.sqlite");
+    assert_eq!(
+        Store::open(&path).err().map(|e| e.0),
+        Some(ErrorCode::StateNotDurable),
+        "{case}"
+    );
+    let conn = Connection::open(&path).unwrap();
+    assert_eq!(
+        conn.query_row("SELECT generation FROM meta", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        generation,
+        "{case}"
+    );
+}
+
+/// Startup holds settled jobs to their resource set's invariant, as it holds
+/// queued ones (`missing_or_extra_locks_refuse_startup_without_repair_or_recovery_events`),
+/// and refuses a lock held by a settled job: since the walk of every job
+/// moved out of the lock invariants (`JOB_WALK`), and those start from the
+/// jobs that hold locks, the locks and the resolutions, a settled job must
+/// still be judged by each.
+#[test]
+fn settled_jobs_keep_their_resource_sets_and_hold_no_lock_at_startup() {
+    for fault in ["missing-primary", "oversized-set", "settled-lock"] {
+        let (dir, mut s, p) = setup();
+        let settled = queue(&mut s, &p, "settled", "a");
+        queue(&mut s, &p, "queued", "b");
+        s.conn
+            .execute("UPDATE jobs SET state='canceled' WHERE id=?", [&settled.id])
+            .unwrap();
+        settled_copies(&s.conn, &settled.id, 1, 200);
+        check(&s.conn).unwrap();
+        let generation = s.generation;
+        let resource = settled.plan.expected.resource.clone();
+        unguarded(
+            &s.conn,
+            &[
+                "job_resources_delete",
+                "job_resources_insert",
+                "resource_locks_insert",
+            ],
+            |conn| match fault {
+                "missing-primary" => {
+                    conn.execute("DELETE FROM job_resources WHERE job=?", [&settled.id])
+                        .unwrap();
+                }
+                "oversized-set" => {
+                    for n in 0..128 {
+                        conn.execute(
+                            "INSERT INTO job_resources VALUES(?,?)",
+                            params![settled.id, format!("storage:extra:{n}")],
+                        )
+                        .unwrap();
+                    }
+                }
+                _ => {
+                    conn.execute(
+                        "INSERT INTO resource_locks VALUES(?,?)",
+                        params![resource, settled.id],
+                    )
+                    .unwrap();
+                }
+            },
+        );
+        assert!(check(&s.conn).is_err(), "{fault}");
+        drop(s);
+        refused_unchanged(&dir, generation, fault);
+    }
+}
+
+/// Startup's walk lists every job of an operation an owner checks, wherever
+/// it is among many settled jobs of other operations, and that owner's check
+/// then refuses one it cannot validate (here an intent with no plan, which
+/// no queue path writes). Before 24 November each owner walked `jobs` to
+/// find them; now only the walk does, so a job it missed would go unchecked.
+/// The same row under an operation no owner checks opens: the refusal is
+/// the owner's.
+#[test]
+fn startup_checks_every_job_of_a_checked_operation_among_settled_jobs() {
+    for operation in CHECKED_OPERATIONS
+        .iter()
+        .copied()
+        .chain(["no_such_operation"])
+    {
+        let (dir, mut s, p) = setup();
+        let template = queue(&mut s, &p, "template", "a");
+        s.conn
+            .execute(
+                "UPDATE jobs SET state='canceled' WHERE id=?",
+                [&template.id],
+            )
+            .unwrap();
+        settled_copies(&s.conn, &template.id, 1, 150);
+        s.conn
+            .execute(
+                "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
+                 VALUES(?1,?2,'forged',?3,?4,'system','queued',1,1,1000)",
+                params![
+                    "f".repeat(64),
+                    p.id,
+                    serde_json::json!({ "operation": operation }).to_string(),
+                    "0".repeat(64)
+                ],
+            )
+            .unwrap();
+        s.conn
+            .execute(
+                "UPDATE jobs SET state='canceled' WHERE idempotency='forged'",
+                [],
+            )
+            .unwrap();
+        settled_copies(&s.conn, &template.id, 151, 150);
+        let generation = s.generation;
+        drop(s);
+        if operation == "no_such_operation" {
+            Store::open(&dir.path().join("core.sqlite")).unwrap();
+        } else {
+            refused_unchanged(&dir, generation, operation);
+        }
+    }
+}
+
+/// The owners' checks read the jobs the walk listed through the primary
+/// key, and the lock invariants start from the jobs that hold locks: none
+/// of them walks `jobs`, so the walk is the only statement of the open
+/// whose reads grow with every retained job. The walk itself is one scan of
+/// `jobs` with each job's resource set looked up by its key.
+#[test]
+fn only_the_walk_reads_every_job_at_startup() {
+    let (_dir, s, _p) = setup();
+    let plan = |sql: &str| -> Vec<String> {
+        s.conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap()
+            .query_map(["[]"], |r| r.get::<_, String>(3))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap()
+    };
+    let walks_jobs = |steps: &[String]| {
+        steps
+            .iter()
+            .any(|step| step == "SCAN j" || step == "SCAN jobs" || step.starts_with("SCAN j USING"))
+    };
+    for (operation, sql) in listed_job_queries() {
+        assert!(CHECKED_OPERATIONS.contains(&operation));
+        assert!(sql.contains(&format!("='{operation}'")), "{sql}");
+        let steps = plan(sql);
+        assert!(!walks_jobs(&steps), "{steps:?}: {sql}");
+        assert!(
+            steps
+                .iter()
+                .any(|step| step == "SEARCH j USING INDEX sqlite_autoindex_jobs_1 (id=?)"),
+            "{steps:?}: {sql}"
+        );
+        assert!(
+            !steps
+                .iter()
+                .any(|step| step == "SCAN r" && sql.contains("job_resources r")),
+            "{steps:?}: {sql}"
+        );
+    }
+    let steps = s
+        .conn
+        .prepare(&format!("EXPLAIN QUERY PLAN {LOCK_INVARIANTS}"))
+        .unwrap()
+        .query_map([], |r| r.get::<_, String>(3))
+        .unwrap()
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .unwrap();
+    assert!(!walks_jobs(&steps), "{steps:?}");
+    let steps = s
+        .conn
+        .prepare(&format!("EXPLAIN QUERY PLAN {JOB_WALK}"))
+        .unwrap()
+        .query_map([], |r| r.get::<_, String>(3))
+        .unwrap()
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        steps
+            .iter()
+            .filter(|step| step.starts_with("SCAN"))
+            .collect::<Vec<_>>(),
+        ["SCAN j"],
+        "{steps:?}"
+    );
+    let operations = CHECKED_OPERATIONS
+        .iter()
+        .map(|o| format!("'{o}'"))
+        .collect::<Vec<_>>()
+        .join(",");
+    assert!(JOB_WALK.contains(&format!("IN ({operations})")));
+}

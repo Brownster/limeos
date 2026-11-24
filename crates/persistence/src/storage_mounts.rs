@@ -362,9 +362,13 @@ impl Store {
 /// `precondition_changed` job of any operation.
 pub(super) const PROOF_CHECK: &str = "SELECT EXISTS(SELECT 1 FROM storage_mount_plans p CROSS JOIN jobs j ON j.id=p.job WHERE p.job IS NOT NULL AND j.state IN ('succeeded','precondition_changed') AND json_extract(j.intent,'$.operation')='storage_mount' AND NOT EXISTS(SELECT 1 FROM storage_mount_results r WHERE r.job=j.id) AND (j.state='succeeded' OR EXISTS(SELECT 1 FROM events e INDEXED BY events_job WHERE e.job=j.id AND json_extract(e.kind,'$.kind')='job_transition' AND json_extract(e.kind,'$.state')='running')))";
 
+/// The storage mount jobs startup's walk of `jobs` listed (`?1`,
+/// `resources::JOB_WALK`), each read through the primary key.
+pub(super) const MOUNT_JOBS: &str = "SELECT j.id,j.principal,j.intent,j.digest,j.resource,j.revision,j.deadline FROM json_each(?1) w CROSS JOIN jobs j ON j.id=w.value WHERE json_extract(j.intent,'$.operation')='storage_mount'";
+
 /// Check immutable proposal/job/resource/result bindings before startup recovery.
 /// Historical timestamps validate past facts without renewing execution authority.
-pub(super) fn check(conn: &Connection) -> Result<()> {
+pub(super) fn check(conn: &Connection, walked: &super::resources::Walked) -> Result<()> {
     let corrupt = |_| Error(ErrorCode::StateNotDurable);
     let mut statement = conn.prepare("SELECT id,principal,body,digest,revision,expires,canceled,approval_digest,job FROM storage_mount_plans").map_err(durable)?;
     let rows = statement
@@ -421,9 +425,9 @@ pub(super) fn check(conn: &Connection) -> Result<()> {
             }
         }
     }
-    let mut statement = conn.prepare("SELECT id,principal,intent,digest,resource,revision,deadline FROM jobs WHERE json_extract(intent,'$.operation')='storage_mount'").map_err(durable)?;
+    let mut statement = conn.prepare(MOUNT_JOBS).map_err(durable)?;
     let rows = statement
-        .query_map([], |row| {
+        .query_map([walked.ids("storage_mount")?], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
