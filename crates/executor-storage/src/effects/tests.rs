@@ -600,3 +600,94 @@ fn unknown_or_pending_never_refines_through_accepted_only_path() {
     ));
     assert_eq!(journal.begin(&unknown.plan, 500).unwrap(), unknown);
 }
+
+// Crash points the target journal (or the container receipt store) covered
+// and the mounts journal did not, before both storage journals shared one
+// implementation (`journal`).
+
+#[test]
+fn extra_claim_or_altered_claim_table_is_corruption_after_restart() {
+    for fault in ["extra", "schema"] {
+        let (directory, mut journal) = fixture();
+        let effect = plan();
+        journal.begin(&effect, 100).unwrap();
+        if fault == "extra" {
+            journal
+                .conn
+                .execute(
+                    "INSERT INTO locks VALUES('storage:uuid:unexpected',?)",
+                    [&effect.action],
+                )
+                .unwrap();
+        } else {
+            journal.conn.execute_batch("ALTER TABLE locks RENAME TO old_locks; CREATE TABLE locks(resource TEXT, action TEXT NOT NULL REFERENCES receipts(action)) STRICT; INSERT INTO locks SELECT * FROM old_locks; DROP TABLE old_locks;").unwrap();
+        }
+        drop(journal);
+        assert!(matches!(
+            reopen(directory.path()),
+            Err(Failure::StateNotDurable)
+        ));
+    }
+}
+
+#[test]
+fn future_schema_and_shared_database_file_refuse_the_mounts_journal() {
+    use std::os::unix::fs::PermissionsExt;
+    let (directory, journal) = fixture();
+    journal.conn.pragma_update(None, "user_version", 2).unwrap();
+    drop(journal);
+    assert!(reopen(directory.path()).is_err());
+    let (directory, journal) = fixture();
+    drop(journal);
+    std::fs::set_permissions(
+        directory.path().join("mounts.sqlite"),
+        std::fs::Permissions::from_mode(0o666),
+    )
+    .unwrap();
+    assert!(reopen(directory.path()).is_err());
+}
+
+/// Stand-in for a mounts process that dies while its helper may run: the
+/// receipt is durably pending with the helper bound. It exits without
+/// running a destructor, so neither the connection nor the lock is closed.
+#[test]
+fn mount_crash_helper() {
+    let Some(directory) = std::env::var_os("LIMEOS_MOUNT_JOURNAL_CRASH") else {
+        return;
+    };
+    let mut journal = reopen(Path::new(&directory)).unwrap();
+    let prepared = journal.begin(&plan(), 100).unwrap();
+    let pending = journal.arm(&prepared).unwrap();
+    let (_bound, _permit) = journal.bind_helper(&pending, helper()).unwrap();
+    std::process::exit(86);
+}
+
+#[test]
+fn process_death_with_a_bound_helper_never_mints_a_second_launch() {
+    let (directory, journal) = fixture();
+    drop(journal);
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "effects::tests::mount_crash_helper",
+            "--nocapture",
+        ])
+        .env("LIMEOS_MOUNT_JOURNAL_CRASH", directory.path())
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(86));
+    let mut journal = reopen(directory.path()).unwrap();
+    let effect = plan();
+    let stored = journal.begin(&effect, 100).unwrap();
+    assert_eq!(
+        stored.quiescence,
+        MountEffectQuiescence::Pending {
+            helper: Some(helper())
+        }
+    );
+    assert!(journal.arm(&stored).is_err());
+    assert!(journal.bind_helper(&stored, helper()).is_err());
+    let mut next = effect.clone();
+    next.action = "f".repeat(64);
+    assert_eq!(journal.begin(&next, 100), Err(Failure::Conflict));
+}

@@ -18,12 +18,14 @@ pub mod limit;
 mod logs;
 mod resolution;
 mod retention;
+mod schema;
 mod stack;
 pub use answer::Answer;
 pub use closure::Lookup;
 pub use limit::ActionRecord;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
+pub use schema::{Refusal, SchemaMismatch};
 
 /// Rows of `actions` the store holds at most: an execute that would pass it is
 /// refused `Overloaded`, a last resort retention keeps far away.
@@ -206,13 +208,18 @@ impl ReceiptStore {
     /// created now starts with nothing pruned (`retention::initial_watermark`);
     /// opening reads no clock. Every open draws a new random epoch (`epoch`).
     pub fn open(directory: &Path) -> Result<Self> {
+        Self::open_explained(directory).map_err(|refusal| refusal.error)
+    }
+    /// As `open`, naming the schema object at fault when the store's schema
+    /// is why it refuses (`schema`).
+    pub fn open_explained(directory: &Path) -> std::result::Result<Self, Refusal> {
         let uid = std::fs::metadata("/proc/self")
             .map_err(|_| Error(ErrorCode::Unavailable))?
             .uid();
         let meta =
             std::fs::symlink_metadata(directory).map_err(|_| Error(ErrorCode::StateNotDurable))?;
         if !meta.is_dir() || meta.uid() != uid || meta.mode() & 0o077 != 0 {
-            return Err(Error(ErrorCode::Forbidden));
+            return Err(Error(ErrorCode::Forbidden).into());
         }
         let lock = OpenOptions::new()
             .read(true)
@@ -229,7 +236,7 @@ impl ReceiptStore {
             .metadata()
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         if !meta.is_file() || meta.uid() != uid || meta.mode() & 0o077 != 0 {
-            return Err(Error(ErrorCode::Forbidden));
+            return Err(Error(ErrorCode::Forbidden).into());
         }
         lock.try_lock_exclusive()
             .map_err(|_| Error(ErrorCode::Conflict))?;
@@ -238,7 +245,7 @@ impl ReceiptStore {
         if std::fs::symlink_metadata(&path).is_ok_and(|m| {
             !m.is_file() || m.uid() != uid || m.mode() & 0o077 != 0 || m.len() > MAX_FILE_BYTES
         }) {
-            return Err(Error(ErrorCode::StateNotDurable));
+            return Err(Error(ErrorCode::StateNotDurable).into());
         }
         let conn = Connection::open(&path).map_err(durable)?;
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
@@ -247,74 +254,29 @@ impl ReceiptStore {
             .pragma_query_value(None, "page_size", |r| r.get(0))
             .map_err(durable)?;
         if page_size != 4096 {
-            return Err(Error(ErrorCode::StateNotDurable));
+            return Err(Error(ErrorCode::StateNotDurable).into());
         }
         conn.busy_timeout(Duration::from_millis(200))
             .map_err(durable)?;
-        conn.execute_batch(&format!("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA max_page_count={MAX_PAGES}; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;")).map_err(durable)?;
+        conn.execute_batch(&format!("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=OFF; PRAGMA max_page_count={MAX_PAGES}; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;")).map_err(durable)?;
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .map_err(durable)?;
-        match version {
-            0 => {
-                conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
-            }
-            1..=RECEIPT_SCHEMA_VERSION => {}
-            _ => return Err(Error(ErrorCode::Conflict)),
+        if version > RECEIPT_SCHEMA_VERSION {
+            return Err(Error(ErrorCode::Conflict).into());
         }
-        if version < 2 {
-            conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v1; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); INSERT INTO actions SELECT * FROM actions_v1; DROP TABLE actions_v1; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=2; COMMIT;").map_err(durable)?;
+        if version < RECEIPT_SCHEMA_VERSION {
+            // Nothing a migration could set off, before it runs (`schema`).
+            schema::before_migrating(&conn)?;
         }
-        if version < 3 {
-            conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')); PRAGMA user_version=3; COMMIT;").map_err(durable)?;
-        }
-        if version < 4 {
-            conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=4; COMMIT;").map_err(durable)?;
-        }
-        if version < 5 {
-            // `resolved` is added to both CHECK lists and kept out of both
-            // unique-index WHERE lists, so a resolved action frees its resource.
-            // `resolution` holds the operator-resolution confirmation.
-            conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v4; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','resolved')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')),resolution TEXT); INSERT INTO actions(action,digest,resource,state,receipt,operation) SELECT action,digest,resource,state,receipt,operation FROM actions_v4; DROP TABLE actions_v4; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); ALTER TABLE stack_actions RENAME TO stack_actions_v4; DROP INDEX stack_actions_lock; CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done','resolved')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop')),resolution TEXT); INSERT INTO stack_actions(action,digest,resource,state,receipt,operation) SELECT action,digest,resource,state,receipt,operation FROM stack_actions_v4; DROP TABLE stack_actions_v4; CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=5; COMMIT;").map_err(durable)?;
-        }
-        if version < 6 {
-            // Each receipt records its plan's expiry, so retention can keep it
-            // for as long as that plan could still present the action again.
-            let legacy = retention::legacy_expiry_sql();
-            conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE stack_actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; UPDATE actions SET expires_at={legacy}; UPDATE stack_actions SET expires_at={legacy}; CREATE INDEX actions_digest ON actions(digest); CREATE INDEX stack_actions_digest ON stack_actions(digest); PRAGMA user_version=6; COMMIT;")).map_err(durable)?;
-        }
-        if version < 7 {
-            // The prune watermark and the legacy tombstones (see `retention`).
-            // Every row present now is legacy: its `expires_at` may be a
-            // back-filled estimate, not its plan's. A store already at 6 may
-            // have pruned without a watermark, so its history is unknown.
-            let watermark = retention::initial_watermark(version);
-            conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); ALTER TABLE stack_actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); UPDATE actions SET legacy=1; UPDATE stack_actions SET legacy=1; CREATE TABLE retention(id INTEGER PRIMARY KEY CHECK(id=1),watermark INTEGER NOT NULL); INSERT INTO retention(id,watermark) VALUES(1,{watermark}); CREATE TABLE pruned_legacy(action TEXT PRIMARY KEY) WITHOUT ROWID; PRAGMA user_version=7; COMMIT;")).map_err(durable)?;
-        }
-        if version < 8 {
-            // A closure (see `closure`) is a terminal `precondition_changed`
-            // row a receipt lookup wrote for an action it held no row for;
-            // `closed` keeps what the store knew then. Every existing row was
-            // written by an execute, so it is NULL.
-            let check = closure::CLOSED_CHECK;
-            conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN closed TEXT {check}; ALTER TABLE stack_actions ADD COLUMN closed TEXT {check}; PRAGMA user_version=8; COMMIT;")).map_err(durable)?;
-        }
-        if version < 9 {
-            // The action log, which is also the effect budget (`limit`). A
-            // store upgraded now starts with an empty budget.
-            let schema = limit::SCHEMA;
-            conn.execute_batch(&format!(
-                "BEGIN IMMEDIATE; {schema} PRAGMA user_version=9; COMMIT;"
-            ))
-            .map_err(durable)?;
-        }
+        migrate(&conn, version)?;
         // Every migration step ends at the named schema, or the store is refused.
         if conn
             .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
             .map_err(durable)?
             != RECEIPT_SCHEMA_VERSION
         {
-            return Err(Error(ErrorCode::StateNotDurable));
+            return Err(Error(ErrorCode::StateNotDurable).into());
         }
         conn.execute_batch(&format!(
             "PRAGMA cache_size=-{CACHE_KIB}; PRAGMA shrink_memory;"
@@ -325,8 +287,10 @@ impl ReceiptStore {
             .map_err(durable)?
             != "ok"
         {
-            return Err(Error(ErrorCode::StateNotDurable));
+            return Err(Error(ErrorCode::StateNotDurable).into());
         }
+        // Every index, trigger and table exactly as the migrations build them.
+        schema::check(&conn)?;
         // Check the expected schema before any effect can be considered.
         let _ = conn
             .prepare("SELECT action,digest,resource,state,receipt,operation,resolution,expires_at,legacy,closed FROM actions LIMIT 0")
@@ -508,6 +472,54 @@ impl ReceiptStore {
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         Ok((closed, seqs))
     }
+    /// A row a prepare just committed (`table` is `actions` or
+    /// `stack_actions`), read back before any effect: its digest, resource,
+    /// state column, receipt text, operation and expiry exactly as written,
+    /// not legacy, and no closure or resolution. The row gone, rewritten or
+    /// settled is `StateNotDurable`, and the caller makes no effect. One
+    /// keyed read of a page the commit just wrote.
+    pub(crate) fn confirm_prepared(
+        &self,
+        table: &str,
+        receipt: &impl Serialize,
+        row: Prepared<'_>,
+    ) -> Result<()> {
+        type Stored = (
+            String,
+            String,
+            String,
+            String,
+            String,
+            i64,
+            i64,
+            Option<String>,
+            Option<String>,
+        );
+        let stored: Option<Stored> = self
+            .conn
+            .query_row(
+                &format!("SELECT digest,resource,state,receipt,operation,expires_at,legacy,closed,resolution FROM {table} WHERE action=?"),
+                [row.action],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?, r.get(8)?)),
+            )
+            .optional()
+            .map_err(durable)?;
+        let expected = (
+            row.digest.to_string(),
+            row.resource.to_string(),
+            row.state.to_string(),
+            encode(receipt)?,
+            row.operation.to_string(),
+            row.expires_at,
+            0,
+            None,
+            None,
+        );
+        if stored != Some(expected) {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        Ok(())
+    }
     /// The receipt's final state, and the outcome of its action-log row
     /// `seq`, in one transaction.
     fn finish(&mut self, receipt: &RestartReceipt, seq: i64) -> Result<()> {
@@ -598,6 +610,20 @@ impl ReceiptStore {
             error: None,
         };
         let seq = self.prepare(&receipt, request.plan.expires_at, now, &entry)?;
+        // The prepared row must be there before any effect, whatever the
+        // schema did to it (one keyed read of a page the commit just wrote).
+        self.confirm_prepared(
+            "actions",
+            &receipt,
+            Prepared {
+                action: &receipt.action,
+                digest: &receipt.plan_digest,
+                resource: &receipt.before.resource,
+                state: receipt.state.as_str(),
+                operation: receipt.operation.as_str(),
+                expires_at: request.plan.expires_at,
+            },
+        )?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             receipt.state = ExecutionState::PreconditionChanged;
@@ -686,6 +712,81 @@ impl ReceiptStore {
         tx.commit().map_err(durable)?;
         Ok(receipt)
     }
+}
+/// Bring a store at schema `version` (0: empty) to `RECEIPT_SCHEMA_VERSION`,
+/// one transaction per step. Every store, whatever version it was created
+/// at, has run exactly these statements from version 0 (an empty store is
+/// created at 1 and migrated), which is what lets `schema::check` compare a
+/// store with a reference migrated the same way in memory.
+fn migrate(conn: &Connection, version: u32) -> Result<()> {
+    steps(conn, version, RECEIPT_SCHEMA_VERSION)
+}
+/// The steps of `migrate` from `version` up to `to` only, with which tests
+/// build the stores earlier versions of this code left.
+#[cfg(test)]
+fn migrate_to(conn: &Connection, version: u32, to: u32) -> Result<()> {
+    steps(conn, version, to)
+}
+fn steps(conn: &Connection, version: u32, to: u32) -> Result<()> {
+    if version == 0 && to >= 1 {
+        conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','outcome_unknown'); PRAGMA user_version=1; COMMIT;").map_err(durable)?;
+    }
+    if version < 2 && to >= 2 {
+        conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v1; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL); INSERT INTO actions SELECT * FROM actions_v1; DROP TABLE actions_v1; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=2; COMMIT;").map_err(durable)?;
+    }
+    if version < 3 && to >= 3 {
+        conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')); PRAGMA user_version=3; COMMIT;").map_err(durable)?;
+    }
+    if version < 4 && to >= 4 {
+        conn.execute_batch("BEGIN IMMEDIATE; CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=4; COMMIT;").map_err(durable)?;
+    }
+    if version < 5 && to >= 5 {
+        // `resolved` is added to both CHECK lists and kept out of both
+        // unique-index WHERE lists, so a resolved action frees its resource.
+        // `resolution` holds the operator-resolution confirmation.
+        conn.execute_batch("BEGIN IMMEDIATE; ALTER TABLE actions RENAME TO actions_v4; DROP INDEX actions_resource_lock; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','resolved')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop')),resolution TEXT); INSERT INTO actions(action,digest,resource,state,receipt,operation) SELECT action,digest,resource,state,receipt,operation FROM actions_v4; DROP TABLE actions_v4; CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); ALTER TABLE stack_actions RENAME TO stack_actions_v4; DROP INDEX stack_actions_lock; CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done','resolved')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop')),resolution TEXT); INSERT INTO stack_actions(action,digest,resource,state,receipt,operation) SELECT action,digest,resource,state,receipt,operation FROM stack_actions_v4; DROP TABLE stack_actions_v4; CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); PRAGMA user_version=5; COMMIT;").map_err(durable)?;
+    }
+    if version < 6 && to >= 6 {
+        // Each receipt records its plan's expiry, so retention can keep it
+        // for as long as that plan could still present the action again.
+        let legacy = retention::legacy_expiry_sql();
+        conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE stack_actions ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0; UPDATE actions SET expires_at={legacy}; UPDATE stack_actions SET expires_at={legacy}; CREATE INDEX actions_digest ON actions(digest); CREATE INDEX stack_actions_digest ON stack_actions(digest); PRAGMA user_version=6; COMMIT;")).map_err(durable)?;
+    }
+    if version < 7 && to >= 7 {
+        // The prune watermark and the legacy tombstones (see `retention`).
+        // Every row present now is legacy: its `expires_at` may be a
+        // back-filled estimate, not its plan's. A store already at 6 may
+        // have pruned without a watermark, so its history is unknown.
+        let watermark = retention::initial_watermark(version);
+        conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); ALTER TABLE stack_actions ADD COLUMN legacy INTEGER NOT NULL DEFAULT 0 CHECK(legacy IN (0,1)); UPDATE actions SET legacy=1; UPDATE stack_actions SET legacy=1; CREATE TABLE retention(id INTEGER PRIMARY KEY CHECK(id=1),watermark INTEGER NOT NULL); INSERT INTO retention(id,watermark) VALUES(1,{watermark}); CREATE TABLE pruned_legacy(action TEXT PRIMARY KEY) WITHOUT ROWID; PRAGMA user_version=7; COMMIT;")).map_err(durable)?;
+    }
+    if version < 8 && to >= 8 {
+        // A closure (see `closure`) is a terminal `precondition_changed`
+        // row a receipt lookup wrote for an action it held no row for;
+        // `closed` keeps what the store knew then. Every existing row was
+        // written by an execute, so it is NULL.
+        let check = closure::CLOSED_CHECK;
+        conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN closed TEXT {check}; ALTER TABLE stack_actions ADD COLUMN closed TEXT {check}; PRAGMA user_version=8; COMMIT;")).map_err(durable)?;
+    }
+    if version < 9 && to >= 9 {
+        // The action log, which is also the effect budget (`limit`). A
+        // store upgraded now starts with an empty budget.
+        let schema = limit::SCHEMA;
+        conn.execute_batch(&format!(
+            "BEGIN IMMEDIATE; {schema} PRAGMA user_version=9; COMMIT;"
+        ))
+        .map_err(durable)?;
+    }
+    Ok(())
+}
+/// The columns a prepare wrote beside the receipt text (`confirm_prepared`).
+pub(crate) struct Prepared<'a> {
+    pub action: &'a str,
+    pub digest: &'a str,
+    pub resource: &'a str,
+    pub state: &'a str,
+    pub operation: &'a str,
+    pub expires_at: i64,
 }
 fn encode(value: &impl Serialize) -> Result<String> {
     serde_json::to_string(value).map_err(|_| Error(ErrorCode::InvalidInput))

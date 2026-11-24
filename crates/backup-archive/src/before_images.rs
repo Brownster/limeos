@@ -16,11 +16,13 @@ use std::{
 };
 
 mod private;
+pub use crate::private_tree::{CleanupFailure, CleanupReport};
+use crate::private_tree::{no_attributes, own_directory, same_inode};
 use private::{Attempt, Barrier, CaptureIo, Object, Point, RealIo};
 #[cfg(test)]
 mod tests;
 
-pub const MAX_OBJECTS: u32 = 256;
+pub const MAX_OBJECTS: u32 = crate::private_tree::MAX_OBJECTS;
 pub const MAX_RECORD_BYTES: u64 = 16 * 1024 * 1024;
 const CHUNK: usize = 64 * 1024;
 const MAX_PATH_BYTES: usize = 4096;
@@ -71,18 +73,6 @@ pub enum Failure {
         operation: &'static str,
         source: io::Error,
     },
-}
-#[derive(Debug)]
-pub enum CleanupFailure {
-    UnverifiedObject,
-    ReplacedObject,
-    ForeignObjects,
-    Io(io::Error),
-}
-#[derive(Debug)]
-pub struct CleanupReport {
-    pub attempt_name: String,
-    pub failure: CleanupFailure,
 }
 #[derive(Debug)]
 pub struct CaptureError {
@@ -150,9 +140,6 @@ fn bytes(count: usize) -> Result<Vec<u8>, Failure> {
     result.resize(count, 0);
     Ok(result)
 }
-fn same_inode(a: &Stat, b: &Stat) -> bool {
-    a.st_dev == b.st_dev && a.st_ino == b.st_ino
-}
 fn stable(a: &Stat, b: &Stat) -> bool {
     same_inode(a, b)
         && a.st_mode == b.st_mode
@@ -165,44 +152,8 @@ fn stable(a: &Stat, b: &Stat) -> bool {
         && a.st_ctime == b.st_ctime
         && a.st_ctime_nsec == b.st_ctime_nsec
 }
-fn own_directory(s: &Stat, mode: u32) -> bool {
-    FileType::from_raw_mode(s.st_mode) == FileType::Directory
-        && s.st_uid == rustix::process::geteuid().as_raw()
-        && s.st_mode & 0o7777 == mode
-}
-fn no_attributes(file: &File) -> Result<(), Failure> {
-    attributes(file).map(|_| ())
-}
 fn attributes(file: &File) -> Result<Option<Vec<u8>>, Failure> {
-    // Admit exactly one known attribute. Unknown/oversized lists never grow
-    // memory, and ACL/capability/user attributes are not silently discarded.
-    let mut names = [0u8; 256];
-    let count = rustix::fs::flistxattr(file, names.as_mut_slice()).map_err(|e| {
-        if e == rustix::io::Errno::RANGE {
-            Failure::UnsupportedMetadata
-        } else {
-            io_failure("inspect extended attributes", e)
-        }
-    })?;
-    if count == 0 {
-        return Ok(None);
-    }
-    if &names[..count] != b"security.selinux\0" {
-        return Err(Failure::UnsupportedMetadata);
-    }
-    let mut label = [0u8; 4096];
-    let count =
-        rustix::fs::fgetxattr(file, "security.selinux", label.as_mut_slice()).map_err(|e| {
-            if e == rustix::io::Errno::RANGE {
-                Failure::UnsupportedMetadata
-            } else {
-                io_failure("read SELinux label", e)
-            }
-        })?;
-    let mut value = Vec::new();
-    reserve(&mut value, count)?;
-    value.extend_from_slice(&label[..count]);
-    Ok(Some(value))
+    crate::private_tree::attributes(file)
 }
 fn readonly(file: &File) -> Result<(), Failure> {
     let flags =
@@ -255,7 +206,7 @@ impl BeforeImageRoot {
         if !own_directory(&stat, 0o700) {
             return Err(Failure::UnsafeRoot.into());
         }
-        no_attributes(&directory)?;
+        no_attributes::<Failure>(&directory)?;
         Ok(Self { directory })
     }
 }
@@ -419,7 +370,7 @@ fn bind<'a>(
     if !own_directory(&root_stat, 0o700) {
         return Err(Failure::UnsafeRoot);
     }
-    no_attributes(&root.directory)?;
+    no_attributes::<Failure>(&root.directory)?;
     let mut bound: Vec<BoundSource<'a>> = Vec::new();
     reserve(&mut bound, sources.len())?;
     let mut total = 0u64;
@@ -536,7 +487,7 @@ impl CapturePlan<'_> {
         if !same_inode(&root, &self.root_identity) || !own_directory(&root, 0o700) {
             return Err(Failure::UnsafeRoot.into());
         }
-        no_attributes(&self.root.directory)?;
+        no_attributes::<Failure>(&self.root.directory)?;
         for source in &self.sources {
             poll(cancelled)?;
             source.check()?;
@@ -639,7 +590,12 @@ fn source_hash<I: CaptureIo>(
             .ok_or(Failure::ChangedSource)?;
         hash.update(&chunk[..n]);
         if let Some(file) = output.as_deref_mut() {
-            private::write_all(io, file, &chunk[..n], cancelled)?;
+            crate::private_tree::write_all::<private::Capture, I>(
+                io,
+                file,
+                &chunk[..n],
+                cancelled,
+            )?;
         }
     }
     if offset != source.stat.st_size as u64 {
@@ -748,7 +704,7 @@ fn capture_planned_with_io<I: CaptureIo>(
         limits,
         ..
     } = plan;
-    let mut attempt = Attempt::create(root, sources.len(), io)?;
+    let mut attempt = Attempt::create(&root.directory, sources.len(), io)?;
     let result = (|| {
         for source in &sources {
             poll(cancelled)?;

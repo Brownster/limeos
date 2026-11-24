@@ -4,7 +4,9 @@
 
 use crate::staging::{StagingError, VerifiedCatalog};
 use limeos_domain::backups::{EntryKind, RestoreManifest};
-use rustix::fs::{AtFlags, FileType, Mode, OFlags, ResolveFlags, Stat};
+#[cfg(test)]
+use rustix::fs::AtFlags;
+use rustix::fs::{Mode, OFlags, ResolveFlags, Stat};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -17,11 +19,13 @@ use std::{
 };
 
 mod private;
+pub use crate::private_tree::{CleanupFailure, CleanupReport};
+use crate::private_tree::{no_attributes, own_directory};
 use private::{Attempt, Barrier, Object, PreparationIo, RealIo};
 #[cfg(test)]
 mod tests;
 
-pub const MAX_OBJECTS: u32 = 256;
+pub const MAX_OBJECTS: u32 = crate::private_tree::MAX_OBJECTS;
 pub const MAX_RESOURCES: u32 = 64;
 pub const MAX_RECORD_BYTES: u64 = 16 * 1024 * 1024;
 const CHUNK: usize = 64 * 1024;
@@ -88,6 +92,9 @@ pub enum Failure {
     DiscardFailed,
     Catalog(StagingError),
     UnsafeRoot,
+    /// An extended attribute other than one bounded SELinux label (an ACL,
+    /// a capability, a user attribute) on the root or a private object.
+    UnsupportedMetadata,
     ChangedObject,
     Collision,
     Limit(Limit),
@@ -97,20 +104,6 @@ pub enum Failure {
         operation: &'static str,
         source: io::Error,
     },
-}
-
-#[derive(Debug)]
-pub enum CleanupFailure {
-    UnverifiedObject,
-    ReplacedObject,
-    ForeignObjects,
-    Io(io::Error),
-}
-
-#[derive(Debug)]
-pub struct CleanupReport {
-    pub attempt_name: String,
-    pub failure: CleanupFailure,
 }
 
 /// Both the primary failure and cleanup ambiguity survive refusal.
@@ -189,14 +182,6 @@ fn bytes(count: usize) -> Result<Vec<u8>, Failure> {
     result.resize(count, 0);
     Ok(result)
 }
-fn same_inode(a: &Stat, b: &Stat) -> bool {
-    a.st_dev == b.st_dev && a.st_ino == b.st_ino
-}
-fn own_directory(s: &Stat, mode: u32) -> bool {
-    FileType::from_raw_mode(s.st_mode) == FileType::Directory
-        && s.st_uid == rustix::process::geteuid().as_raw()
-        && s.st_mode & 0o7777 == mode
-}
 
 #[derive(Debug)]
 pub struct PreparationRoot {
@@ -221,8 +206,10 @@ impl PreparationRoot {
         if !own_directory(&stat, 0o700) {
             return Err(Failure::UnsafeRoot.into());
         }
+        let directory = File::from(fd);
+        no_attributes::<Failure>(&directory)?;
         Ok(Self {
-            directory: File::from(fd),
+            directory,
             path: string(label)?,
         })
     }
@@ -698,7 +685,7 @@ fn prepare_with_io<I: PreparationIo>(
         (&ra.id, &a.relative_path).cmp(&(&rb.id, &b.relative_path))
     });
     let mut chunk = bytes(CHUNK)?;
-    let mut attempt = Attempt::create(root, count, io)?;
+    let mut attempt = Attempt::create(&root.directory, count, io)?;
     let result = (|| -> Result<(Vec<u8>, String), Failure> {
         for (resource, target) in targets {
             poll(cancelled)?;

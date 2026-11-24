@@ -645,3 +645,48 @@ fn a_ceiling_naming_root_as_core_authorizes_nothing() {
         Err(Error(ErrorCode::Forbidden))
     );
 }
+
+/// A trigger added behind the open's schema check (here through the open
+/// connection) that deletes each receipt as it is inserted: the prepare
+/// commits, the read-back finds no row, and the Engine is never called.
+#[tokio::test]
+async fn a_prepared_row_that_does_not_read_back_stops_the_effect() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    store
+        .conn
+        .execute_batch("CREATE TRIGGER vanish AFTER INSERT ON actions BEGIN DELETE FROM actions WHERE action=new.action; END;")
+        .unwrap();
+    let engine = FakeEngine::new(Mode::Accept);
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &request(), || 201)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::StateNotDurable
+    );
+    assert_eq!(engine.effects.load(Ordering::SeqCst), 0);
+}
+
+/// The read-back compares the state column too: a receipt settled behind
+/// the prepare (here `resolved`, which a lookup accepts) stops the effect.
+#[tokio::test]
+async fn a_prepared_row_settled_behind_the_prepare_stops_the_effect() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    store
+        .conn
+        .execute_batch("CREATE TRIGGER settle AFTER INSERT ON actions BEGIN UPDATE actions SET state='resolved' WHERE action=new.action; END;")
+        .unwrap();
+    let engine = FakeEngine::new(Mode::Accept);
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &request(), || 201)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::StateNotDurable
+    );
+    assert_eq!(engine.effects.load(Ordering::SeqCst), 0);
+}

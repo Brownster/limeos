@@ -4,11 +4,10 @@ pub use limeos_domain::{
     DirectoryIdentity, PreparationState, TargetEvidence, TargetPreparationPlan,
     TargetPreparationReceipt,
 };
-use limeos_domain::{StorageContract, StorageInventory, StorageTargetSnapshot, opaque_id};
-use rusqlite::{Connection, OptionalExtension, params};
+use limeos_domain::{StorageContract, StorageInventory, StorageTargetSnapshot};
 use rustix::{
     fd::OwnedFd,
-    fs::{FlockOperation, Mode, OFlags},
+    fs::{Mode, OFlags},
 };
 use serde::de::DeserializeOwned;
 use std::{
@@ -17,7 +16,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const STATE: &str = "/var/lib/limeos/executors/storage";
 const OPERATION: &str = "storage.prepare_targets";
 const JOURNAL_SCHEMA: &str = "BEGIN IMMEDIATE; CREATE TABLE receipts(action TEXT PRIMARY KEY,digest TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','verified','precondition_changed','outcome_unknown')),body TEXT NOT NULL) STRICT; CREATE TABLE locks(resource TEXT PRIMARY KEY,action TEXT NOT NULL REFERENCES receipts(action)) STRICT; PRAGMA user_version=1; COMMIT;";
 fn now() -> Result<i64> {
@@ -28,12 +26,9 @@ fn now() -> Result<i64> {
         .try_into()
         .map_err(|_| Failure::Unavailable)
 }
+/// A plan or receipt encoded, refused (`InvalidPlan`) past 128 KiB.
 fn encode<T: Serialize>(value: &T) -> Result<String> {
-    let body = serde_json::to_string(value).map_err(|_| Failure::InvalidPlan)?;
-    if body.len() > 128 * 1024 {
-        return Err(Failure::InvalidPlan);
-    }
-    Ok(body)
+    crate::journal::encoded_within(value, 128 * 1024)
 }
 fn root() -> Result<()> {
     if !rustix::process::geteuid().is_root() {
@@ -296,324 +291,63 @@ pub async fn target_plan(contract: &StorageContract) -> Result<TargetPreparation
     Ok(plan)
 }
 
-struct Journal {
-    // Declared before `_lock`, which unlocks on drop (`ProcessLock`).
-    conn: Connection,
-    _lock: crate::effects::ProcessLock,
-    directory: OwnedFd,
-}
-fn durable(_: rusqlite::Error) -> Failure {
-    Failure::StateNotDurable
-}
-fn private_file(fd: &OwnedFd, owner: u32) -> Result<()> {
-    let s = path::stat(fd)?;
-    if s.stx_mode & 0o170000 != 0o100000
-        || s.stx_uid != owner
-        || s.stx_nlink != 1
-        || s.stx_mode & 0o077 != 0
-        || s.stx_size > 16 * 1024 * 1024
-    {
-        return Err(Failure::StateNotDurable);
+/// The target-preparation journal (`targets.sqlite`): the shared storage
+/// receipt journal (`journal`), sharing its directory and process lock with
+/// the mounts journal.
+type Journal = crate::journal::Journal<TargetPreparationReceipt>;
+impl crate::journal::Receipt for TargetPreparationReceipt {
+    const DATABASE: &'static str = "targets.sqlite";
+    const SCHEMA: &'static str = JOURNAL_SCHEMA;
+    const BODY_BYTES: usize = 128 * 1024;
+    const UNSAFE_DIRECTORY: Failure = Failure::UnsafePath;
+    fn action(&self) -> &str {
+        &self.plan.action
     }
-    Ok(())
+    fn digest(&self) -> &str {
+        &self.digest
+    }
+    fn state_name(&self) -> &'static str {
+        state_name(self.state)
+    }
+    /// Prepared and unknown receipts keep every claim; only a verified or
+    /// no-effect outcome releases them.
+    fn holds_claims(&self) -> bool {
+        matches!(
+            self.state,
+            PreparationState::Prepared | PreparationState::OutcomeUnknown
+        )
+    }
+    fn claims(&self) -> Vec<String> {
+        self.plan.resources()
+    }
+    fn plan_digest(&self) -> Result<String> {
+        Ok(limeos_identity::digest(&encode(&self.plan)?))
+    }
+    fn admit(&self) -> bool {
+        self.plan.validate(self.plan.created_at).is_ok()
+    }
+    fn same_subject(&self, next: &Self) -> bool {
+        self.plan == next.plan && self.digest == next.digest
+    }
 }
 impl Journal {
-    fn open() -> Result<Self> {
-        Self::at(Path::new(STATE))
-    }
-    fn readonly() -> Result<Self> {
-        root()?;
-        let directory = path::open(Path::new(STATE), true, true)?;
-        if path::stat(&directory)?.stx_mode & 0o077 != 0 {
-            return Err(Failure::UnsafePath);
-        }
-        let lock = rustix::fs::openat(
-            &directory,
-            "targets.lock",
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(|_| Failure::StateNotDurable)?;
-        private_file(&lock, 0)?;
-        let lock =
-            crate::effects::ProcessLock::acquire(lock, FlockOperation::NonBlockingLockShared)?;
-        for name in ["targets.sqlite", "targets.sqlite-wal", "targets.sqlite-shm"] {
-            match rustix::fs::openat(
-                &directory,
-                name,
-                OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-                Mode::empty(),
-            ) {
-                Ok(fd) => private_file(&fd, 0)?,
-                Err(e) if e == rustix::io::Errno::NOENT && name != "targets.sqlite" => {}
-                Err(_) => return Err(Failure::StateNotDurable),
-            }
-        }
-        let conn = Connection::open_with_flags(
-            format!("/proc/self/fd/{}/targets.sqlite", directory.as_raw_fd()),
-            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-        )
-        .map_err(durable)?;
-        conn.pragma_update(None, "trusted_schema", "OFF")
-            .map_err(durable)?;
-        if conn
-            .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
-            .map_err(durable)?
-            != 1
-        {
-            return Err(Failure::StateNotDurable);
-        }
-        let journal = Self {
-            conn,
-            _lock: lock,
-            directory,
-        };
-        journal.check()?;
-        Ok(journal)
-    }
-    fn at(state: &Path) -> Result<Self> {
-        root()?;
-        let directory = path::open(state, true, true)?;
-        if path::stat(&directory)?.stx_mode & 0o077 != 0 {
-            return Err(Failure::UnsafePath);
-        }
-        Self::from_directory(directory, 0)
-    }
-    fn from_directory(directory: OwnedFd, owner: u32) -> Result<Self> {
-        let lock = rustix::fs::openat(
-            &directory,
-            "targets.lock",
-            OFlags::RDWR | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-            Mode::from_raw_mode(0o600),
-        )
-        .map_err(|_| Failure::StateNotDurable)?;
-        private_file(&lock, owner)?;
-        let lock =
-            crate::effects::ProcessLock::acquire(lock, FlockOperation::NonBlockingLockExclusive)?;
-        for name in [
-            "targets.sqlite",
-            "targets.sqlite-wal",
-            "targets.sqlite-shm",
-            "targets.sqlite-journal",
-        ] {
-            match rustix::fs::openat(
-                &directory,
-                name,
-                OFlags::RDONLY | OFlags::NONBLOCK | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-                Mode::empty(),
-            ) {
-                Ok(fd) => private_file(&fd, owner)?,
-                Err(e) if e == rustix::io::Errno::NOENT => {}
-                Err(_) => return Err(Failure::StateNotDurable),
-            }
-        }
-        let file = rustix::fs::openat(
-            &directory,
-            "targets.sqlite",
-            OFlags::RDWR | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
-            Mode::from_raw_mode(0o600),
-        )
-        .map_err(|_| Failure::StateNotDurable)?;
-        private_file(&file, owner)?;
-        let conn = Connection::open(format!(
-            "/proc/self/fd/{}/targets.sqlite",
-            directory.as_raw_fd()
-        ))
-        .map_err(durable)?;
-        conn.busy_timeout(Duration::from_millis(200))
-            .map_err(durable)?;
-        if conn
-            .pragma_query_value(None, "page_size", |r| r.get::<_, u32>(0))
-            .map_err(durable)?
-            != 4096
-        {
-            return Err(Failure::StateNotDurable);
-        }
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF; PRAGMA foreign_keys=ON; PRAGMA max_page_count=4096; PRAGMA wal_autocheckpoint=128; PRAGMA journal_size_limit=1048576;").map_err(durable)?;
-        match conn
-            .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
-            .map_err(durable)?
-        {
-            0 => conn.execute_batch(JOURNAL_SCHEMA).map_err(durable)?,
-            1 => {}
-            _ => return Err(Failure::StateNotDurable),
-        }
-        if conn
-            .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
-            .map_err(durable)?
-            != "ok"
-        {
-            return Err(Failure::StateNotDurable);
-        }
-        conn.prepare("SELECT action,digest,state,body FROM receipts LIMIT 0")
-            .map_err(durable)?;
-        conn.prepare("SELECT resource,action FROM locks LIMIT 0")
-            .map_err(durable)?;
-        rustix::fs::fsync(&file).map_err(|_| Failure::StateNotDurable)?;
-        // O_PATH cannot be fsynced. Reopen the retained directory descriptor.
-        let sync = rustix::fs::openat(
-            &directory,
-            ".",
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
-            Mode::empty(),
-        )
-        .map_err(|_| Failure::StateNotDurable)?;
-        rustix::fs::fsync(&sync).map_err(|_| Failure::StateNotDurable)?;
-        let journal = Self {
-            conn,
-            _lock: lock,
-            directory: sync,
-        };
-        journal.check()?;
-        Ok(journal)
-    }
-    fn check(&self) -> Result<()> {
-        let reference = Connection::open_in_memory().map_err(durable)?;
-        reference.execute_batch(JOURNAL_SCHEMA).map_err(durable)?;
-        for name in ["receipts", "locks"] {
-            let expected: String = reference
-                .query_row(
-                    "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
-                    [name],
-                    |r| r.get(0),
-                )
-                .map_err(durable)?;
-            let actual: Option<String> = self
-                .conn
-                .query_row(
-                    "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
-                    [name],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(durable)?;
-            if actual.as_ref() != Some(&expected) {
-                return Err(Failure::StateNotDurable);
-            }
-        }
-        if self
-            .conn
-            .query_row("PRAGMA quick_check(1)", [], |r| r.get::<_, String>(0))
-            .map_err(durable)?
-            != "ok"
-            || self
-                .conn
-                .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM pragma_foreign_key_check)",
-                    [],
-                    |r| r.get::<_, bool>(0),
-                )
-                .map_err(durable)?
-        {
-            return Err(Failure::StateNotDurable);
-        }
-        let mut stmt = self
-            .conn
-            .prepare("SELECT action FROM receipts ORDER BY action")
-            .map_err(durable)?;
-        for row in stmt
-            .query_map([], |r| r.get::<_, String>(0))
-            .map_err(durable)?
-        {
-            let action = row.map_err(durable)?;
-            let receipt = self
-                .receipt(&action, None)?
-                .ok_or(Failure::StateNotDurable)?;
-            receipt
-                .plan
-                .validate(receipt.plan.created_at)
-                .map_err(|_| Failure::StateNotDurable)?;
-            let mut required = self
-                .conn
-                .prepare("SELECT resource FROM locks WHERE action=? ORDER BY resource")
-                .map_err(durable)?;
-            let actual = required
-                .query_map([&action], |r| r.get::<_, String>(0))
-                .map_err(durable)?
-                .collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(durable)?;
-            let expected = if matches!(
-                receipt.state,
-                PreparationState::Prepared | PreparationState::OutcomeUnknown
-            ) {
-                receipt.plan.resources()
-            } else {
-                vec![]
-            };
-            if actual != expected {
-                return Err(Failure::StateNotDurable);
-            }
-        }
-        Ok(())
-    }
     fn receipt(
         &self,
         action: &str,
         digest: Option<&str>,
     ) -> Result<Option<TargetPreparationReceipt>> {
-        if !opaque_id(action) {
-            return Err(Failure::InvalidPlan);
-        }
-        let row: Option<(String, String, String)> = self
-            .conn
-            .query_row(
-                "SELECT digest,state,body FROM receipts WHERE action=?",
-                [action],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .optional()
-            .map_err(durable)?;
-        let Some((stored, state, body)) = row else {
-            return Ok(None);
-        };
-        if digest.is_some_and(|d| d != stored) {
-            return Err(Failure::Conflict);
-        }
-        if body.len() > 128 * 1024 {
-            return Err(Failure::StateNotDurable);
-        }
-        let receipt: TargetPreparationReceipt =
-            serde_json::from_str(&body).map_err(|_| Failure::StateNotDurable)?;
-        if receipt.plan.action != action
-            || receipt.digest != stored
-            || limeos_identity::digest(&encode(&receipt.plan)?) != stored
-            || state != state_name(receipt.state)
-        {
-            return Err(Failure::StateNotDurable);
-        }
-        Ok(Some(receipt))
+        self.stored(action, digest)
     }
     fn begin(&mut self, receipt: &TargetPreparationReceipt) -> Result<()> {
-        let tx = self.conn.transaction().map_err(durable)?;
-        if tx
-            .query_row("SELECT count(*) FROM receipts", [], |r| r.get::<_, u32>(0))
-            .map_err(durable)?
-            >= 1024
-        {
-            return Err(Failure::StateNotDurable);
-        }
-        tx.execute(
-            "INSERT INTO receipts VALUES(?,?,'prepared',?)",
-            params![receipt.plan.action, receipt.digest, encode(receipt)?],
-        )
-        .map_err(durable)?;
-        for resource in receipt.plan.resources() {
-            tx.execute("INSERT INTO locks VALUES(?,?)", params![resource,receipt.plan.action]).map_err(|e| if matches!(e, rusqlite::Error::SqliteFailure(code, _) if code.code == rusqlite::ErrorCode::ConstraintViolation) { Failure::Conflict } else { durable(e) })?;
-        }
-        tx.commit().map_err(durable)?;
-        rustix::fs::fsync(&self.directory).map_err(|_| Failure::StateNotDurable)
+        self.insert(receipt)
     }
+    /// Any change from a prepared or unknown receipt; a verified or no-effect
+    /// outcome releases its claims in the same transaction.
     fn finish(&mut self, receipt: &TargetPreparationReceipt) -> Result<()> {
-        let tx = self.conn.transaction().map_err(durable)?;
-        if tx.execute("UPDATE receipts SET state=?,body=? WHERE action=? AND digest=? AND state IN ('prepared','outcome_unknown')", params![state_name(receipt.state),encode(receipt)?,receipt.plan.action,receipt.digest]).map_err(durable)? != 1 { return Err(Failure::Conflict); }
-        if matches!(
-            receipt.state,
-            PreparationState::Verified | PreparationState::PreconditionChanged
-        ) {
-            tx.execute("DELETE FROM locks WHERE action=?", [&receipt.plan.action])
-                .map_err(durable)?;
-        }
-        tx.commit().map_err(durable)
+        let before = self
+            .receipt(&receipt.plan.action, Some(&receipt.digest))?
+            .ok_or(Failure::Conflict)?;
+        self.replace(&before, receipt, |_, _| true)
     }
 }
 fn state_name(state: PreparationState) -> &'static str {

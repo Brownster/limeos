@@ -223,3 +223,103 @@ fn journal_refuses_symlinks_hardlinks_writable_files_and_future_schemas() {
     .unwrap();
     assert!(journal(&temp).is_err());
 }
+
+// Crash points the mounts journal (or the container receipt store) covered
+// and the target journal did not, before both storage journals shared one
+// implementation (`journal`).
+
+#[test]
+fn unexpected_trigger_refuses_the_target_journal() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = journal(&temp).unwrap();
+    store
+        .conn
+        .execute_batch(
+            "CREATE TRIGGER unexpected AFTER INSERT ON receipts BEGIN DELETE FROM locks; END;",
+        )
+        .unwrap();
+    drop(store);
+    assert!(matches!(journal(&temp), Err(Failure::StateNotDurable)));
+}
+
+#[test]
+fn a_settling_commit_that_fails_keeps_the_prepared_barrier_and_its_claims() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut store = journal(&temp).unwrap();
+    let mut original = receipt();
+    store.begin(&original).unwrap();
+    store.conn.execute_batch("CREATE TRIGGER inject_failure BEFORE UPDATE ON receipts BEGIN SELECT RAISE(ABORT,'injected publication failure'); END;").unwrap();
+    let prepared = original.clone();
+    original.state = PreparationState::Verified;
+    assert_eq!(store.finish(&original), Err(Failure::StateNotDurable));
+    store
+        .conn
+        .execute_batch("DROP TRIGGER inject_failure;")
+        .unwrap();
+    drop(store);
+    let mut store = journal(&temp).unwrap();
+    assert_eq!(
+        store.receipt(&prepared.plan.action, None).unwrap(),
+        Some(prepared.clone())
+    );
+    let mut next = receipt();
+    next.plan.action = "e".repeat(64);
+    next.digest = limeos_identity::digest(&encode(&next.plan).unwrap());
+    assert_eq!(store.begin(&next), Err(Failure::Conflict));
+}
+
+#[test]
+fn dropped_target_journal_releases_its_lock_while_a_child_shares_the_descriptor() {
+    let temp = tempfile::tempdir().unwrap();
+    let store = journal(&temp).unwrap();
+    let child_copy = store._lock.0.try_clone().unwrap();
+    drop(store);
+    assert!(journal(&temp).is_ok());
+    drop(child_copy);
+}
+
+/// Stand-in for a target-preparation process that dies after its prepared
+/// receipt is durable (between `mkdir` and the outcome): it exits without
+/// running a destructor, so neither the connection nor the lock is closed.
+#[test]
+fn target_crash_helper() {
+    let Some(directory) = std::env::var_os("LIMEOS_TARGET_JOURNAL_CRASH") else {
+        return;
+    };
+    let fd = rustix::fs::open(
+        Path::new(&directory),
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .unwrap();
+    let mut store = Journal::from_directory(fd, rustix::process::geteuid().as_raw()).unwrap();
+    store.begin(&receipt()).unwrap();
+    std::process::exit(86);
+}
+
+#[test]
+fn process_death_after_the_prepared_receipt_keeps_every_claim() {
+    let temp = tempfile::tempdir().unwrap();
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "targets::tests::target_crash_helper",
+            "--nocapture",
+        ])
+        .env("LIMEOS_TARGET_JOURNAL_CRASH", temp.path())
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(86));
+    let mut store = journal(&temp).unwrap();
+    let original = receipt();
+    assert_eq!(
+        store
+            .receipt(&original.plan.action, Some(&original.digest))
+            .unwrap(),
+        Some(original.clone())
+    );
+    let mut next = receipt();
+    next.plan.action = "e".repeat(64);
+    next.digest = limeos_identity::digest(&encode(&next.plan).unwrap());
+    assert_eq!(store.begin(&next), Err(Failure::Conflict));
+}

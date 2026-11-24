@@ -1436,9 +1436,10 @@ fn the_receipt_connection_has_its_cache_size() {
             sites.extend(text.matches("Connection::open").map(|_| name.clone()));
         }
     }
+    sites.sort();
     assert_eq!(
         sites,
-        ["lib.rs"],
+        ["lib.rs", "schema.rs"],
         "a new SQLite connection: give it a cache size and list it here"
     );
 }

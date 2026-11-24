@@ -220,8 +220,12 @@ async fn run() -> std::io::Result<()> {
             .get(4)
             .map(String::as_str)
             .unwrap_or("/var/lib/limeos/executors/container");
-        let store = ReceiptStore::open(Path::new(directory))
-            .map_err(|_| std::io::Error::other("unsafe or unavailable receipt store"))?;
+        let store = ReceiptStore::open_explained(Path::new(directory)).map_err(|refusal| {
+            std::io::Error::other(match refusal.schema {
+                Some(schema) => format!("unsafe or unavailable receipt store: {schema}"),
+                None => "unsafe or unavailable receipt store".into(),
+            })
+        })?;
         // Fixed for this open, which lasts as long as the process: answered
         // to `ReceiptEpoch` without taking the store's lock.
         let epoch: Arc<str> = store.epoch().into();

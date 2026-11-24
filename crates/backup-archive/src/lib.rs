@@ -25,6 +25,7 @@ use tar::{Archive, Header, PaxExtensions};
 pub mod before_images;
 pub mod custody;
 pub mod preparation;
+mod private_tree;
 pub mod recovery;
 pub mod staging;
 

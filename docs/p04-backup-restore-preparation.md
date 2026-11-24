@@ -52,7 +52,17 @@ records remain evidence, not operation authority.
 ## Retained root and lifecycle
 
 The caller supplies an existing normalized absolute private root owned by the
-effective UID with mode exactly 0700. `openat2` rejects symlink/magic-link
+effective UID with mode exactly 0700, carrying no extended attribute but an
+optional bounded `security.selinux` label (an ACL, capability or user attribute
+refuses with `UnsupportedMetadata`; a filesystem without extended attributes,
+which answers ENOTSUP, holds none and is accepted). A default ACL on the root
+is refused deliberately: every attempt directory and object created beneath
+it would inherit it, and it can grant access the 0700 and 0400/0500 modes do
+not. The operator sees `private preparation refused: UnsupportedMetadata`
+(before-image capture refuses the same root alike, `before-image capture
+refused: UnsupportedMetadata`); list the root's ACLs with `getfacl -p ROOT`
+and remove them with `setfacl -b -k ROOT` (`-k` the default ACL, `-b` any
+access ACL), or use a root without ACLs. `openat2` rejects symlink/magic-link
 components; unsupported protection refuses. Component comparisons reject root
 labels overlapping selected destination labels. This is not physical alias or
 mount-namespace proof. The caller owns protected ancestors, ACLs, mount/backing
@@ -71,7 +81,8 @@ Before return, preparation:
 2. Reserves bounded bookkeeping before creating private objects.
 3. Re-reads each borrowed payload with exact size and SHA-256 checks. It handles
    short/interrupted reads and writes; zero writes refuse.
-4. Seals and fsyncs objects, closes writable handles and reopens read-only.
+4. Seals and fsyncs objects, closes writable handles and reopens them
+   read-only, nonblocking and without following symlinks.
    It independently reads/hashes each private copy and checks retained/name
    identities.
 5. Verifies the exact object set and encodes the bounded canonical record.
@@ -79,7 +90,11 @@ Before return, preparation:
    private objects again. Cancellation is polled before returning the owner.
 
 `revalidate()` checks private names, types, owners/modes, size, link count,
-sealed modification/change timestamps and complete hashes. Reader creation and
+sealed modification/change timestamps, extended attributes (as for the root)
+on the root, the attempt and every object, and complete hashes. The attempt
+directory and its objects are the private object tree shared with before-image
+capture (`crates/backup-archive/src/private_tree.rs`); the attribute checks and
+the nonblocking reopen came with that sharing (plan row PR-43). Reader creation and
 every read check retained object/attempt evidence; complete reads verify the
 checksum. A reader latches failure. Checks detect change; read-only handles
 cannot prevent same-UID or privileged writers. Caller writer exclusion remains

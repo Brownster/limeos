@@ -213,9 +213,7 @@ fn private_directory(stat: &Stat) -> bool {
         && stat.st_mode & 0o700 == 0o700
 }
 
-fn same_inode(a: &Stat, b: &Stat) -> bool {
-    a.st_dev == b.st_dev && a.st_ino == b.st_ino
-}
+use crate::private_tree::same_inode;
 
 // Private fault-injection boundary. Production callers cannot supply a writer
 // or publish chunks before verification. Tests exercise real files plus faults.

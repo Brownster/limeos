@@ -57,7 +57,8 @@ change timestamps, device/inode and parent identity, and exact optional
 `security.selinux` label bytes, bounded to 4096 bytes. The SELinux label is data;
 future application needs independent current policy. ACLs, file capabilities,
 user/other attributes and oversized attribute lists refuse. Required attribute
-query errors refuse rather than assuming there are no attributes.
+query errors refuse rather than assuming there are no attributes, except
+ENOTSUP/EOPNOTSUPP: a filesystem that keeps no extended attributes holds none.
 
 Access/birth times, inode flags, sparse extent layout, absent objects, recursive
 membership, online database consistency and service state are outside this

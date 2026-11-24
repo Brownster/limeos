@@ -345,9 +345,7 @@ fn euid() -> u32 {
     rustix::process::geteuid().as_raw()
 }
 
-fn same_inode(a: &Stat, b: &Stat) -> bool {
-    a.st_dev == b.st_dev && a.st_ino == b.st_ino
-}
+use crate::private_tree::same_inode;
 
 fn private_directory(stat: &Stat) -> bool {
     FileType::from_raw_mode(stat.st_mode) == FileType::Directory
