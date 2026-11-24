@@ -347,6 +347,27 @@
           ]
         },
         {
+          "description": "The container executor refused the job's execute because a container\nit would act on has spent its effect budget (ADR 0013): nothing ran,\nand the job is settled as refused. `frees_at` is when, by the\nexecutor's clock, every such container has room again.",
+          "type": "object",
+          "properties": {
+            "frees_at": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            },
+            "kind": {
+              "type": "string",
+              "const": "executor_budget_spent"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "kind": {

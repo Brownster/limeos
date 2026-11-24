@@ -976,6 +976,7 @@ dependencies = [
  "limeos-executor-protocol",
  "limeos-executor-storage",
  "limeos-persistence",
+ "rusqlite",
  "rustix",
  "serde",
  "serde_json",

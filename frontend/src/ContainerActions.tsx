@@ -8,6 +8,7 @@ import type {
   NeedsAttentionJob,
   ContainerAction,
   ContainerLogs,
+  EventKind,
 } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
 import { mergeAttention, NeedsAttention } from "./ResolutionPanel";
@@ -356,11 +357,7 @@ export function ContainerJobs({
       const progress = await api.restartProgress(id);
       setEvents({
         id,
-        labels: progress.events.map((e) =>
-          e.event.kind === "job_transition"
-            ? e.event.state.replaceAll("_", " ")
-            : e.event.kind.replaceAll("_", " "),
-        ),
+        labels: progress.events.map((e) => eventLabel(e.event)),
       });
     } catch (e) {
       setError(message(e));
@@ -426,4 +423,17 @@ export function ContainerJobs({
       ))}
     </section>
   );
+}
+
+/** One line of a job's history: its state, or what happened to it. */
+function eventLabel(event: EventKind): string {
+  if (event.kind === "job_transition") return event.state.replaceAll("_", " ");
+  if (event.kind === "executor_budget_spent") {
+    const until =
+      event.frees_at === undefined
+        ? ""
+        : ` until ${new Date(event.frees_at * 1000).toLocaleString()}`;
+    return `refused: the effect budget of a container it acts on is spent${until}`;
+  }
+  return event.kind.replaceAll("_", " ");
 }

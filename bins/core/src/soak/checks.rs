@@ -40,6 +40,8 @@ pub const HELD_OPEN: &str = "a job's history stays while its resolution request 
 pub const EPOCHS: &str =
     "no job dispatched before a receipt-store change is released on a closure alone";
 pub const CLOCK: &str = "every time core stores is on the simulated clock";
+pub const BUDGET: &str =
+    "the executor's effect budget refuses only the action storm, which it does refuse";
 
 /// A warning or error core may log while the soak drives it: its message,
 /// exactly as core writes it, whether it is an error, the codes it may carry
@@ -93,6 +95,21 @@ pub const EXPECTED_LOGS: &[ExpectedLog] = &[
               the harness releases it (`release_held`)",
     },
     ExpectedLog {
+        message: RATE_LIMITED,
+        error: false,
+        codes: &[],
+        why: "the action storm's scripted jobs spend a container's executor effect budget \
+              (counted exactly, `lost_answers`, and only in the storm, `BUDGET`): the job is \
+              settled as refused",
+    },
+    ExpectedLog {
+        message: limeos_executor::container_requests::REFUSAL_LINE,
+        error: false,
+        codes: &[],
+        why: "the executor's journal line for each refusal row of its action log, at most one \
+              per container an hour (`BUDGET`)",
+    },
+    ExpectedLog {
         message: "the container executor could not be reached; the execute request was never sent, and the job is released without effect",
         error: false,
         codes: &[],
@@ -115,6 +132,9 @@ pub fn expected_log(entry: &super::sim::Logged) -> Option<&'static ExpectedLog> 
 
 /// Core's message for an execute the executor refused before any row.
 pub const BEYOND_HISTORY: &str = "executor refused the action: its plan expires within pruned receipt history, so the executor cannot tell whether an action with it already ran; check the system clock (nothing was recorded or run, and the job is settled as refused)";
+
+/// Core's message for an execute the executor's effect budget refused.
+pub const RATE_LIMITED: &str = "executor refused the action: a container it would act on has spent its executor effect budget; nothing was recorded or run, and the job is settled as refused with the time the budget frees; read the executor's action log if no one here asked for that many effects";
 
 /// Core's message for an execute that failed after it was written: the one
 /// site every lost execute answer reaches, logged unconditionally.
@@ -180,7 +200,12 @@ pub const PAGE: u64 = 4096;
 /// plus the share of the file in tables (about 0.86 measured, receipts being
 /// most of it); the open's other statements (schema, watermark, counts) read
 /// a few pages more. 2.2 holds that with room for new tables, and fails a
-/// further full pass over the store (1.87 plus 1.0).
+/// further full pass over the store (1.87 plus 1.0). With the executor's
+/// action log (`effect_log`, `effect_days`; PR-30) the soak's copies read
+/// 1.82 to 1.85 per page on both profiles, and a store with saturated
+/// receipts and a full log of the longest rows 1.84 (20,984 KiB read for
+/// 11,388 KiB, `measure_the_open_reads_of_a_full_store`), so a further full
+/// pass would still fail.
 pub const CORE_PAGE_FACTOR: u64 = 3200;
 pub const RECEIPT_PAGE_FACTOR: u64 = 2200;
 pub const PAGE_SLACK: u64 = 256;
@@ -298,6 +323,9 @@ fn receipt_budget(table: &str) -> Option<Budget> {
         "stack_actions" => Rows(stacks + batch + super::engine::STACKS.len() as i64),
         "retention" => Rows(1),
         "pruned_legacy" => Rows(0),
+        // The action log keeps its newest rows; its totals their newest days.
+        "effect_log" => Rows(limits::LOG_ROWS),
+        "effect_days" => Rows(limits::DAYS_KEPT),
         _ => return None,
     })
 }
@@ -326,7 +354,7 @@ impl StoreStat {
         self.tables.get(table).map_or(0, |t| t.0)
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Sample {
     pub at: i64,
     pub core: StoreStat,
@@ -335,6 +363,24 @@ pub struct Sample {
     /// this moment, by the soak's own query (`overdue_jobs` with no day's
     /// allowance): every other job is one the rule keeps.
     pub removable: i64,
+    /// Rows of each per-job table that belong to those removable jobs.
+    pub removable_rows: BTreeMap<String, i64>,
+    /// Settled container and stack jobs kept with no result row (refused
+    /// before any effect: a stale plan, a closure, the effect budget): the
+    /// small jobs whose replacement by full-size ones the per-job model
+    /// explains table by table.
+    pub kept_without_result: i64,
+    /// Of those, jobs the executor's effect budget refused.
+    pub kept_budget_refused: i64,
+    /// Unqueued plans (no job) past their expiry, per plan table: they own
+    /// no job and explain no bytes.
+    pub expired_unqueued: BTreeMap<String, i64>,
+    /// Unqueued plans that expired before the newest plan of their table was
+    /// created, which removes every expired one (`plan_container`,
+    /// `plan_stack`): a removal that did not happen.
+    pub stale_unqueued: i64,
+    /// Jobs owning more rows of some per-job table than one job can.
+    pub jobs_over_cap: i64,
 }
 
 /// A read-only side connection: it can neither write nor checkpoint.
@@ -528,6 +574,12 @@ pub fn checkpoint(sim: &mut Sim) {
         core,
         receipts: stat(&receipts_path(sim)),
         removable: overdue_jobs(&reader(&sim.core_path).unwrap(), at, 0),
+        removable_rows: removable_rows(&reader(&sim.core_path).unwrap(), at),
+        kept_without_result: kept_without_result(&reader(&sim.core_path).unwrap()),
+        kept_budget_refused: kept_budget_refused(&reader(&sim.core_path).unwrap()),
+        expired_unqueued: unqueued_plans(&reader(&sim.core_path).unwrap(), at).0,
+        stale_unqueued: unqueued_plans(&reader(&sim.core_path).unwrap(), at).1,
+        jobs_over_cap: jobs_over_cap(&reader(&sim.core_path).unwrap()),
     };
     let mut problems = Vec::new();
     for (name, stat, file_bound, wal_bound) in [
@@ -551,6 +603,24 @@ pub fn checkpoint(sim: &mut Sim) {
                 ),
             ));
         }
+    }
+    if sample.stale_unqueued > 0 {
+        problems.push((
+            BUDGETS,
+            format!(
+                "core: {} unqueued plans expired before a newer plan of their table was created, and remain",
+                sample.stale_unqueued
+            ),
+        ));
+    }
+    if sample.jobs_over_cap > 0 {
+        problems.push((
+            BUDGETS,
+            format!(
+                "core: {} jobs own more rows of a per-job table than one job can",
+                sample.jobs_over_cap
+            ),
+        ));
     }
     let jobs = sample.core.rows("jobs");
     for (store, stat, budget) in [
@@ -691,33 +761,145 @@ pub fn checkpoint(sim: &mut Sim) {
 /// request and no authority event. A day is 1,440 passes of up to 64 jobs,
 /// and 24 starts of the rule's scan over the jobs a reference kept. With
 /// `allowance` 0, the jobs the rule may remove right now.
+const FAMILIES: [&str; 2] = [
+    "('container_restart','container_start','container_stop')",
+    "('stack_restart','stack_start','stack_stop')",
+];
+/// The jobs of `family` job-row retention may remove at `?1` (the cutoff:
+/// the horizon, less any allowance) with the floor `?2`, as a `SELECT j.id`.
+fn overdue_sql(family: &str) -> String {
+    let settled = format!(
+        "j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') IN {family}"
+    );
+    format!(
+        "SELECT j.id FROM jobs j WHERE {settled} AND j.id NOT IN (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.settled DESC,j.rowid DESC LIMIT ?2) AND j.settled<?1 AND j.deadline<?1 \
+         AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') GLOB 'job_resolution_*')) \
+         AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) \
+         AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) \
+         AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1)"
+    )
+}
 fn overdue_jobs(conn: &Connection, now: i64, allowance: i64) -> i64 {
     let cutoff = now - limeos_persistence::test_support::JOB_HORIZON - allowance;
     let floor = limeos_persistence::test_support::JOB_FLOOR;
-    let mut overdue = 0;
-    for family in [
-        "('container_restart','container_start','container_stop')",
-        "('stack_restart','stack_start','stack_stop')",
+    FAMILIES
+        .iter()
+        .map(|family| {
+            conn.query_row(
+                &format!("SELECT count(*) FROM ({})", overdue_sql(family)),
+                rusqlite::params![cutoff, floor],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+        })
+        .sum()
+}
+/// Rows of each per-job table belonging to the jobs `overdue_jobs` counts
+/// (no allowance) at `now`.
+fn removable_rows(conn: &Connection, now: i64) -> BTreeMap<String, i64> {
+    let cutoff = now - limeos_persistence::test_support::JOB_HORIZON;
+    let floor = limeos_persistence::test_support::JOB_FLOOR;
+    let removable = FAMILIES.map(overdue_sql).join(" UNION ");
+    let mut rows = BTreeMap::new();
+    for table in [
+        "jobs",
+        "job_resources",
+        "container_plans",
+        "container_results",
+        "stack_plans",
+        "stack_results",
+        "job_resolutions",
     ] {
-        let settled = format!(
-            "j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') IN {family}"
-        );
-        overdue += conn
+        let column = if table == "jobs" { "id" } else { "job" };
+        let count = conn
             .query_row(
-                &format!(
-                    "WITH kept AS (SELECT j.id FROM jobs j WHERE {settled} ORDER BY j.settled DESC,j.rowid DESC LIMIT ?2) \
-                     SELECT count(*) FROM jobs j WHERE {settled} AND j.id NOT IN kept AND j.settled<?1 AND j.deadline<?1 \
-                     AND NOT EXISTS(SELECT 1 FROM events e WHERE e.job=j.id AND (e.created>=?1 OR json_extract(e.kind,'$.kind') GLOB 'job_resolution_*')) \
-                     AND NOT EXISTS(SELECT 1 FROM job_resolutions r WHERE r.job=j.id AND (r.confirmation IS NULL OR r.completed>=?1)) \
-                     AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id AND x.recorded>=?1) \
-                     AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id AND x.recorded>=?1)"
-                ),
+                &format!("WITH removable(id) AS ({removable}) SELECT count(*) FROM {table} WHERE {column} IN removable"),
                 rusqlite::params![cutoff, floor],
                 |r| r.get::<_, i64>(0),
             )
             .unwrap();
+        rows.insert(table.to_owned(), count);
     }
-    overdue
+    rows
+}
+/// Settled container and stack jobs refused by the effect budget.
+fn kept_budget_refused(conn: &Connection) -> i64 {
+    conn.query_row(
+        "SELECT count(DISTINCT e.job) FROM events e JOIN jobs j ON j.id=e.job WHERE json_extract(e.kind,'$.kind')='executor_budget_spent'",
+        [],
+        |r| r.get(0),
+    )
+    .unwrap()
+}
+/// The plan tables whose unqueued rows (`job IS NULL`) are removed once
+/// expired, when the next plan of the table is created.
+const PLAN_TABLES: [&str; 2] = ["container_plans", "stack_plans"];
+/// Per plan table, unqueued plans expired at `now`; and in all, those that
+/// expired before the newest plan of their table was created (its creation
+/// removes every expired one, and a plan's expiry is its creation plus the
+/// plan lifetime).
+fn unqueued_plans(conn: &Connection, now: i64) -> (BTreeMap<String, i64>, i64) {
+    let mut expired = BTreeMap::new();
+    let mut stale = 0;
+    for table in PLAN_TABLES {
+        let (gone, left): (i64, i64) = conn
+            .query_row(
+                &format!(
+                    "SELECT (SELECT count(*) FROM {table} WHERE job IS NULL AND expires<=?1), \
+                     (SELECT count(*) FROM {table} WHERE job IS NULL AND expires<=(SELECT max(expires) FROM {table})-?2)"
+                ),
+                rusqlite::params![now, limeos_domain::PLAN_TTL_SECONDS],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        expired.insert(table.to_owned(), gone);
+        stale += left;
+    }
+    (expired, stale)
+}
+/// The most rows of each per-job table one job can own: a stack job's
+/// resources are the stack and each member; one plan, result and resolution.
+fn rows_per_job(table: &str) -> i64 {
+    match table {
+        "job_resources" => 1 + limeos_domain::MAX_STACK_MEMBERS as i64,
+        _ => 1,
+    }
+}
+/// Jobs owning more rows of a per-job table than `rows_per_job` allows.
+fn jobs_over_cap(conn: &Connection) -> i64 {
+    [
+        "job_resources",
+        "container_plans",
+        "container_results",
+        "stack_plans",
+        "stack_results",
+        "job_resolutions",
+    ]
+    .iter()
+    .map(|table| {
+        conn.query_row(
+            &format!(
+                "SELECT count(*) FROM (SELECT job FROM {table} WHERE job IS NOT NULL GROUP BY job HAVING count(*)>?1)"
+            ),
+            [rows_per_job(table)],
+            |r| r.get::<_, i64>(0),
+        )
+        .unwrap()
+    })
+    .sum()
+}
+/// Settled container and stack jobs with no result row.
+fn kept_without_result(conn: &Connection) -> i64 {
+    conn.query_row(
+        &format!(
+            "SELECT count(*) FROM jobs j WHERE j.state IN ('succeeded','failed','canceled','precondition_changed','resolved') AND json_extract(j.intent,'$.operation') IN {} \
+             AND NOT EXISTS(SELECT 1 FROM container_results x WHERE x.job=j.id) AND NOT EXISTS(SELECT 1 FROM stack_results x WHERE x.job=j.id)",
+            "('container_restart','container_start','container_stop','stack_restart','stack_start','stack_stop')"
+        ),
+        [],
+        |r| r.get(0),
+    )
+    .unwrap()
 }
 
 /// The core store's audit accounting, read on a side connection: before
@@ -1064,6 +1246,7 @@ fn mean(points: &[(f64, f64)]) -> f64 {
 /// The end of a run: the final checks, the report, and the verdict.
 pub fn finish(sim: &mut Sim, profile: &Profile) {
     final_state(sim);
+    effect_budget(sim, profile);
     if profile.trends {
         trends(sim);
     }
@@ -1071,6 +1254,69 @@ pub fn finish(sim: &mut Sim, profile: &Profile) {
     report(sim, profile);
     verdict(sim, profile);
 }
+
+/// The executor's effect budget (ADR 0013) against the household: nothing
+/// but the action storm meets it. Refusals are answered from the storm's
+/// first minute until a day after its last day's last proposal, the daily window in
+/// which the storm's charges still count (a household job on a container
+/// the storm spent that evening is refused too), plus an hour for the
+/// storm's queue to drain; never otherwise. A storm long enough to spend a
+/// day's budget (six hours of a stack action every 45 s charge each stacked
+/// container about 25 effects an hour) is refused at least once.
+fn effect_budget(sim: &mut Sim, profile: &Profile) {
+    let (day, hour, minutes) = profile.action_burst;
+    let start = START + day * DAY + hour * 3600;
+    let storm_end = start + (profile.storm_days - 1) * DAY + minutes * MINUTE + 3600;
+    let end = storm_end + limeos_executor_container::limit::DAILY.seconds;
+    let times = sim.exec.faults().rate_limited.clone();
+    let outside: Vec<_> = times.iter().filter(|&&at| at < start || at > end).collect();
+    if let Some(first) = outside.first() {
+        sim.violation(
+            BUDGET,
+            format!(
+                "{} executes refused by the effect budget outside the action storm, the first on day {} at {:02}:{:02}",
+                outside.len(),
+                (**first - START) / DAY,
+                (**first - START).rem_euclid(DAY) / 3600,
+                (**first - START).rem_euclid(3600) / 60
+            ),
+        );
+    }
+    // A storm long enough to spend a day's budget, hammered by a script that
+    // reads no job history, sees its own jobs settled as refused by the
+    // budget again and again (counted from the jobs' progress, as its client
+    // sees them; a refusal whose answer was lost settles otherwise and is
+    // not counted).
+    let hammered = sim.careless_until;
+    let while_hammering = sim
+        .stats
+        .budget_refused_seen
+        .iter()
+        .filter(|&&at| at < hammered + 3600)
+        .count();
+    if minutes >= 360 && day < profile.days && while_hammering < HAMMERED_AT_LEAST {
+        sim.violation(
+            BUDGET,
+            format!(
+                "the {minutes}-minute action storm saw {while_hammering} of its jobs settled as refused by the effect budget, fewer than {HAMMERED_AT_LEAST}"
+            ),
+        );
+    }
+    sim.measures.insert(BUDGET_HAMMERED, while_hammering as f64);
+    sim.measures.insert(BUDGET_REFUSALS, times.len() as f64);
+    sim.measures.insert(
+        BUDGET_AFTER,
+        times.iter().filter(|&&at| at > storm_end).count() as f64,
+    );
+}
+/// The storm's jobs a day of hammering must see settled as refused by the
+/// budget, at least (a day of it met about 800 refusals).
+const HAMMERED_AT_LEAST: usize = 100;
+pub const BUDGET_HAMMERED: &str =
+    "the storm's own jobs its client saw settled as refused by the budget while it hammered";
+pub const BUDGET_AFTER: &str =
+    "of them, household jobs refused within a day of the storm (its charges still count)";
+pub const BUDGET_REFUSALS: &str = "executes refused by the executor's effect budget";
 
 fn final_state(sim: &mut Sim) {
     idle_coverage(sim);
@@ -1239,12 +1485,15 @@ fn lost_answers(sim: &mut Sim) {
     for kind in executes {
         *expected.entry("Unavailable".into()).or_default() += lost.get(kind).copied().unwrap_or(0);
     }
-    // A refusal before any row has its own message (`BEYOND_HISTORY`).
-    let mut beyond = 0;
+    // A refusal before any row has its own message (`BEYOND_HISTORY`,
+    // `RATE_LIMITED`).
+    let (mut beyond, mut limited) = (0, 0);
     for ((kind, code), count) in &refused {
         if executes.contains(kind) {
             if code == "BeyondReceiptHistory" {
                 beyond += count;
+            } else if code == "RateLimited" {
+                limited += count;
             } else {
                 *expected.entry(code.clone()).or_default() += count;
             }
@@ -1252,7 +1501,7 @@ fn lost_answers(sim: &mut Sim) {
     }
     expected.retain(|_, count| *count > 0);
     let mut logged: BTreeMap<String, u64> = BTreeMap::new();
-    let mut logged_beyond = 0;
+    let (mut logged_beyond, mut logged_limited) = (0, 0);
     for ((_, message, code), count) in &sim.logged {
         if message == EXECUTE_FAILED {
             *logged
@@ -1260,7 +1509,17 @@ fn lost_answers(sim: &mut Sim) {
                 .or_default() += count;
         } else if message == BEYOND_HISTORY {
             logged_beyond += count;
+        } else if message == RATE_LIMITED {
+            logged_limited += count;
         }
+    }
+    if logged_limited != limited {
+        sim.violation(
+            LOST_ANSWERS,
+            format!(
+                "core logged {logged_limited} executes refused by the effect budget; the executor refused {limited}"
+            ),
+        );
     }
     if logged_beyond != beyond {
         sim.violation(
@@ -1422,45 +1681,31 @@ fn trends(sim: &mut Sim) {
         problems.push((PROJECTION, format!("per-job tables grow {:.0} KiB a day ({:.1} KiB a job): core.sqlite reaches {:.0} MiB in {years:.1} years", per_day / 1024.0, per_job / 1024.0, mib(CORE_FILE_BOUND))));
     }
     // The per-job tables on their own, beside the whole store's flatness
-    // (whose 2% of 30 MiB would hide a slow leak), net of the jobs the rule
-    // keeps: every job but those it may remove at that moment (counted by
-    // the soak's own query), each at the sample's bytes a job, so jobs kept
-    // for their age, an unsettled state, an open request or an authority
-    // event explain their bytes, and neither a removable job kept nor bytes
-    // that no job explains do. From the first checkpoint of the last third
-    // with at most a tenth more jobs than the last (job-row retention works
-    // off the action storm's jobs, of another size, in its first days),
-    // their fitted growth stays under `PER_JOB_FLAT`.
-    let kept = |s: &Sample| (s.core.rows("jobs") - s.removable) as f64;
+    // (whose 2% of 30 MiB would hide a slow leak): `per_job_model`, from the
+    // first checkpoint of the last third with at most a tenth more jobs than
+    // the last (job-row retention works off the action storm's jobs, of
+    // another size, in its first days).
     let settled_in = last
         .iter()
         .position(|s| s.core.rows("jobs") * 10 <= final_.core.rows("jobs") * 11)
         .unwrap_or(0)
         .min(last.len().saturating_sub(8));
-    let tail: Vec<(f64, f64)> = last[settled_in..]
-        .iter()
-        .map(|s| {
-            let per_job = per_job_bytes(s) / (s.core.rows("jobs") as f64).max(1.0);
-            (
-                day(s),
-                per_job_bytes(s) - (kept(s) - kept(&last[settled_in])) * per_job,
-            )
-        })
-        .collect();
-    let net_grown = slope(&tail) * (tail.last().unwrap().0 - tail[0].0);
-    sim.measures.insert(PER_JOB_NET, net_grown / 1024.0);
-    if net_grown > PER_JOB_FLAT {
-        problems.push((
-            FLAT,
-            format!(
-                "core: per-job tables grew {:.0} KiB from day {:.0} to {:.0} beyond the jobs job-row retention keeps (at most {:.0} KiB)",
-                net_grown / 1024.0,
-                tail[0].0,
-                tail.last().unwrap().0,
-                PER_JOB_FLAT / 1024.0
-            ),
-        ));
-    }
+    let tail: Vec<&Sample> = last[settled_in..].iter().collect();
+    let model = per_job_model(&tail);
+    sim.measures.insert(PER_JOB_NET, model.net / 1024.0);
+    sim.measures
+        .insert(PER_JOB_NET_JOBS, model.jobs_only / 1024.0);
+    sim.measures.insert(PER_JOB_ROWS, model.rows_excess);
+    let (start, end) = (tail[0], tail[tail.len() - 1]);
+    sim.measures
+        .insert(WITHOUT_RESULT_START, start.kept_without_result as f64);
+    sim.measures
+        .insert(WITHOUT_RESULT_END, final_.kept_without_result as f64);
+    sim.measures
+        .insert(BUDGET_REFUSED_START, start.kept_budget_refused as f64);
+    sim.measures
+        .insert(BUDGET_REFUSED_END, end.kept_budget_refused as f64);
+    problems.extend(model.problems.into_iter().map(|p| (FLAT, p)));
     // Core startup on the nightly copies: the cold page reads of its known
     // statements but the proof check (a defect of its own, `MOUNT_PROOF`,
     // whose cache eviction would otherwise blur this series; the open is
@@ -1870,8 +2115,146 @@ pub const EVENTS_PER_ROW: &str =
     "events table's bytes of pages a row it kept while it regained rows over the last third";
 pub const EVENTS_AT_BUDGET: &str =
     "core's tables with the events table at its budget at that rate, MiB";
-pub const PER_JOB_NET: &str =
-    "per-job tables' fitted growth over the last third beyond the jobs retention keeps, KiB";
+pub const PER_JOB_NET: &str = "per-job tables' fitted growth over the last third beyond the rows of the jobs retention keeps, table by table, KiB";
+pub const PER_JOB_NET_JOBS: &str =
+    "the same counted by jobs alone, every job at the average size (information), KiB";
+pub const WITHOUT_RESULT_START: &str =
+    "settled jobs without a result row at the start of the per-job tail";
+pub const WITHOUT_RESULT_END: &str = "settled jobs without a result row at the end";
+pub const BUDGET_REFUSED_START: &str =
+    "jobs refused by the effect budget kept at the start of the per-job tail";
+pub const BUDGET_REFUSED_END: &str = "jobs refused by the effect budget kept at the end";
+pub const PER_JOB_ROWS: &str = "per-job tables' rows of retained jobs grown over the last third beyond what the retained jobs and their gained results explain";
+/// Rows the per-job tables may gain beyond what the retained jobs explain
+/// (at the starting rows a job, and one result row for each resultless job
+/// that left): stack jobs of different sizes replacing each other move it
+/// by a few rows; a dozen jobs' worth.
+pub const PER_JOB_ROWS_FLAT: f64 = 64.0;
+
+/// What `per_job_model` finds over the tail of the last third.
+struct PerJob {
+    /// Fitted growth of the per-job tables' bytes beyond what each table's
+    /// rows of retained jobs explain at its own bytes a row.
+    net: f64,
+    /// The same counted by jobs alone (information).
+    jobs_only: f64,
+    /// Fitted growth of the retained rows beyond what the retained jobs
+    /// explain.
+    rows_excess: f64,
+    problems: Vec<String>,
+}
+
+/// The per-job tables over `tail`, which nothing else can absorb a leak in:
+///
+/// - Bytes: each per-job table is explained by its own rows, at its own
+///   bytes a row, since jobs are not one size (a job refused before any
+///   effect has no result row, a stack job's plan and result are larger) and
+///   retention's per-family floor keeps the newest 128 settled jobs of each
+///   family whatever their age, so small refused jobs replaced one for one
+///   by full-size ones grow the tables with the job count flat. Only rows
+///   that are accounted for explain bytes: each table's rows less those of
+///   the jobs the rule may remove now and, for a plan table, less unqueued
+///   plans already expired. Fitted growth under `PER_JOB_FLAT`.
+/// - Rows: those retained rows in all may grow only as the retained jobs do
+///   (at the starting rows a job) plus one result row for each resultless
+///   job that left; fitted growth beyond that under `PER_JOB_ROWS_FLAT`. A
+///   table whose rows per job grow, or rows owned by no job, fail here.
+/// - No job owns more rows of a table than one job can (`rows_per_job`), and
+///   no unqueued plan outlives the next plan creation that removes it.
+fn per_job_model(tail: &[&Sample]) -> PerJob {
+    let mut problems = Vec::new();
+    let start = tail[0];
+    let day = |s: &Sample| (s.at - START) as f64 / DAY as f64;
+    let span = day(tail[tail.len() - 1]) - day(start);
+    let kept = |s: &Sample| (s.core.rows("jobs") - s.removable) as f64;
+    let kept_rows = |s: &Sample, table: &str| {
+        (s.core.rows(table)
+            - s.removable_rows.get(table).copied().unwrap_or(0)
+            - s.expired_unqueued.get(table).copied().unwrap_or(0)) as f64
+    };
+    let per_job_tables = |s: &Sample| -> Vec<(String, i64, i64)> {
+        s.core
+            .tables
+            .iter()
+            .filter(|(t, _)| matches!(core_budget(t), Some(Budget::Retained(_))))
+            .map(|(t, (rows, bytes))| (t.clone(), *rows, *bytes))
+            .collect()
+    };
+    let net: Vec<(f64, f64)> = tail
+        .iter()
+        .map(|s| {
+            let net: f64 = per_job_tables(s)
+                .iter()
+                .map(|(t, rows, bytes)| {
+                    let per_row = *bytes as f64 / (*rows as f64).max(1.0);
+                    *bytes as f64 - (kept_rows(s, t) - kept_rows(start, t)) * per_row
+                })
+                .sum();
+            (day(s), net)
+        })
+        .collect();
+    let jobs_only: Vec<(f64, f64)> = tail
+        .iter()
+        .map(|s| {
+            let bytes = per_job_bytes(s);
+            let per_job = bytes / (s.core.rows("jobs") as f64).max(1.0);
+            (day(s), bytes - (kept(s) - kept(start)) * per_job)
+        })
+        .collect();
+    let retained = |s: &Sample| -> f64 {
+        per_job_tables(s)
+            .iter()
+            .map(|(t, _, _)| kept_rows(s, t))
+            .sum()
+    };
+    let per_job = retained(start) / kept(start).max(1.0);
+    let rows: Vec<(f64, f64)> = tail
+        .iter()
+        .map(|s| {
+            let explained = retained(start)
+                + (kept(s) - kept(start)) * per_job
+                + (start.kept_without_result - s.kept_without_result) as f64;
+            (day(s), retained(s) - explained)
+        })
+        .collect();
+    let grown = |points: &[(f64, f64)]| slope(points) * span;
+    let model = PerJob {
+        net: grown(&net),
+        jobs_only: grown(&jobs_only),
+        rows_excess: grown(&rows),
+        problems: Vec::new(),
+    };
+    if model.net > PER_JOB_FLAT {
+        problems.push(format!(
+            "core: per-job tables grew {:.0} KiB from day {:.0} to {:.0} beyond the rows of the jobs job-row retention keeps (at most {:.0} KiB)",
+            model.net / 1024.0,
+            day(start),
+            day(tail[tail.len() - 1]),
+            PER_JOB_FLAT / 1024.0
+        ));
+    }
+    if model.rows_excess > PER_JOB_ROWS_FLAT {
+        problems.push(format!(
+            "core: per-job tables' retained rows grew {:.0} beyond what the retained jobs and their gained results explain (at most {PER_JOB_ROWS_FLAT})",
+            model.rows_excess
+        ));
+    }
+    if let Some(s) = tail.iter().find(|s| s.stale_unqueued > 0) {
+        problems.push(format!(
+            "core: {} unqueued plans expired before a newer plan of their table was created, and remain (day {:.1})",
+            s.stale_unqueued,
+            day(s)
+        ));
+    }
+    if let Some(s) = tail.iter().find(|s| s.jobs_over_cap > 0) {
+        problems.push(format!(
+            "core: {} jobs own more rows of a per-job table than one job can (day {:.1})",
+            s.jobs_over_cap,
+            day(s)
+        ));
+    }
+    PerJob { problems, ..model }
+}
 pub const RECEIPTS_FULL: &str = "receipt-store open page reads with every table at its budget";
 
 /// Every measured open within bounds. On each copy of core's store, from the
@@ -2651,6 +3034,7 @@ fn verdict(sim: &Sim, profile: &Profile) {
         LOGS,
         EPOCHS,
         CLOCK,
+        BUDGET,
     ];
     if profile.held_open.is_some() {
         checks.push(HELD_OPEN);
@@ -2724,6 +3108,53 @@ fn verdict(sim: &Sim, profile: &Profile) {
 /// (days 60 to 89 of `soak_ninety_days_restarts`, the two traced runs of 23
 /// November: every b-tree's bytes and the cells appended to the events
 /// b-trees), and the same third with a leak or a boundary case put in.
+/// For `startup_at_high_retained_job_count`: core's open on each nightly
+/// copy against the jobs it held, the cold page reads of its statements
+/// (but the pinned proof check) per page of file and WAL against the bound's
+/// factor, the open's wall time, and the statements reading most at the
+/// worst ratio. Returns the most jobs a copy held.
+pub fn report_startup_scaling(sim: &Sim) -> u64 {
+    let mut most_jobs = 0;
+    let mut worst: Option<(f64, &super::sim::Startup)> = None;
+    eprintln!(
+        "day | jobs | pages of file+WAL | cold reads | per page (bound factor {:.1}) | ms",
+        CORE_PAGE_FACTOR as f64 / 1000.0
+    );
+    for start in &sim.core_starts {
+        let Some(trace) = &start.trace else { continue };
+        let jobs = trace.rows.get("jobs").copied().unwrap_or(0);
+        most_jobs = most_jobs.max(jobs);
+        let pages = ((start.file + start.wal) / PAGE).max(1);
+        let ratio = trace.cold_but_defect() as f64 / pages as f64;
+        eprintln!(
+            "{:>5.2} | {jobs:>5} | {pages:>6} | {:>6} | {ratio:.2} | {}",
+            (start.at - START) as f64 / DAY as f64,
+            trace.cold_but_defect(),
+            start.opened.elapsed.as_millis()
+        );
+        if worst.is_none_or(|(r, _)| ratio > r) {
+            worst = Some((ratio, start));
+        }
+    }
+    if let Some((ratio, start)) = worst
+        && let Some(trace) = &start.trace
+    {
+        eprintln!("worst ratio {ratio:.2}; its statements by cold reads:");
+        let mut statements: Vec<_> = trace.statements.iter().collect();
+        statements.sort_by_key(|s| std::cmp::Reverse(s.cold.unwrap_or(s.reads)));
+        for statement in statements.iter().take(10) {
+            eprintln!(
+                "  {:>7} cold, {:>9} VM steps, {:>6} full-scan steps: {}",
+                statement.cold.unwrap_or(statement.reads),
+                statement.vm_steps,
+                statement.full_scans,
+                statement.sql.chars().take(110).collect::<String>()
+            );
+        }
+    }
+    most_jobs
+}
+
 #[cfg(test)]
 mod flatness_model {
     use super::*;
@@ -3040,6 +3471,131 @@ mod flatness_model {
             fails(&flat, "events b-tree events_new has no model"),
             "{:?}",
             flat.problems
+        );
+    }
+}
+
+#[cfg(test)]
+mod per_job_model_tests {
+    use super::*;
+
+    /// A tail of 30 daily samples: `kept` retained jobs, each owning a job
+    /// row, two resource rows and a plan row, with a result row unless it is
+    /// one of `resultless(t)`; plus `extra(t)` rows of `table` (owned by no
+    /// retained job) and `unqueued(t)` expired unqueued stack plans, the stale
+    /// ones `stale(t)`. Every row 200 bytes, a result 1,000.
+    struct Tail {
+        kept: fn(f64) -> i64,
+        resultless: fn(f64) -> i64,
+        extra: (&'static str, fn(f64) -> i64),
+        unqueued: fn(f64) -> i64,
+        stale: fn(f64) -> i64,
+    }
+    fn flat(_: f64) -> i64 {
+        400
+    }
+    fn zero(_: f64) -> i64 {
+        0
+    }
+    impl Tail {
+        fn steady() -> Self {
+            Tail {
+                kept: flat,
+                resultless: zero,
+                extra: ("job_resources", zero),
+                unqueued: zero,
+                stale: zero,
+            }
+        }
+        fn samples(&self) -> Vec<Sample> {
+            (0..30)
+                .map(|day| {
+                    let t = day as f64 / 29.0;
+                    let jobs = (self.kept)(t);
+                    let results = jobs - (self.resultless)(t);
+                    let unqueued = (self.unqueued)(t);
+                    let mut rows: BTreeMap<&str, i64> = [
+                        ("jobs", jobs),
+                        ("job_resources", 2 * jobs),
+                        ("stack_plans", jobs + unqueued),
+                        ("stack_results", results),
+                    ]
+                    .into();
+                    *rows.get_mut(self.extra.0).unwrap() += (self.extra.1)(t);
+                    let mut core = StoreStat::default();
+                    for (table, n) in rows {
+                        let size = if table == "stack_results" { 1000 } else { 200 };
+                        core.tables.insert(table.to_owned(), (n, n * size));
+                    }
+                    Sample {
+                        at: START + (60 + day) * DAY,
+                        core,
+                        kept_without_result: (self.resultless)(t),
+                        expired_unqueued: [("stack_plans".to_owned(), unqueued)].into(),
+                        stale_unqueued: (self.stale)(t),
+                        ..Sample::default()
+                    }
+                })
+                .collect()
+        }
+        fn judge(&self) -> PerJob {
+            let samples = self.samples();
+            let tail: Vec<&Sample> = samples.iter().collect();
+            per_job_model(&tail)
+        }
+    }
+
+    #[test]
+    fn steady_jobs_and_a_composition_transient_pass() {
+        let model = Tail::steady().judge();
+        assert!(model.problems.is_empty(), "{:?}", model.problems);
+        // Sixty resultless jobs replaced one for one by full-size ones: 60
+        // results (60 KB) gained with the job count flat. Counted by jobs
+        // alone it reads as growth; table by table it is explained.
+        let model = Tail {
+            resultless: |t| 60 - (60.0 * t) as i64,
+            ..Tail::steady()
+        }
+        .judge();
+        assert!(model.problems.is_empty(), "{:?}", model.problems);
+        assert!(model.jobs_only > 40_000.0, "{}", model.jobs_only);
+        assert!(model.net.abs() < 1_000.0, "{}", model.net);
+    }
+
+    #[test]
+    fn expired_unqueued_plans_that_accumulate_fail() {
+        // A plan cleanup that stopped: expired unqueued plans pile up. They
+        // explain no bytes, and they outlive the newer plans' creation.
+        let model = Tail {
+            unqueued: |t| (400.0 * t) as i64,
+            stale: |t| (400.0 * t) as i64,
+            ..Tail::steady()
+        }
+        .judge();
+        assert!(
+            model.problems.iter().any(|p| p.contains("unqueued plans")),
+            "{:?}",
+            model.problems
+        );
+        assert!(model.net > PER_JOB_FLAT, "{}", model.net);
+    }
+
+    #[test]
+    fn rows_per_job_that_grow_fail_though_each_table_explains_its_bytes() {
+        // Resource rows grow by 300 with the retained jobs flat: the bytes
+        // model credits each row at its own size, the rows model does not.
+        let model = Tail {
+            extra: ("job_resources", |t| (300.0 * t) as i64),
+            ..Tail::steady()
+        }
+        .judge();
+        assert!(
+            model
+                .problems
+                .iter()
+                .any(|p| p.contains("retained rows grew")),
+            "{:?}",
+            model.problems
         );
     }
 }

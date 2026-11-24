@@ -325,6 +325,74 @@ async fn resolved_container_action_frees_the_index_keeps_the_receipt_and_sends_n
     );
 }
 
+/// Resolution reads and records; it is never charged against the effect
+/// budget (`limit`) nor refused by it, and it gives no budget back.
+#[tokio::test]
+async fn a_spent_effect_budget_never_refuses_or_refills_through_a_resolution() {
+    let dir = private_dir();
+    let mut store = ReceiptStore::open(dir.path()).unwrap();
+    let engine = RecordingEngine::new(true);
+    let first = single('d', 'a');
+    let receipt = store
+        .execute(&engine, &ceiling(), 1001, &first, || 201)
+        .await
+        .unwrap();
+    assert_eq!(receipt.state, ExecutionState::OutcomeUnknown);
+    // The rest of a's burst, spent by earlier effects.
+    for _ in 1..crate::limit::BURST.effects {
+        store
+            .conn
+            .execute(
+                "INSERT INTO effect_log(at,kind,resource,operation,action,peer,principal,outcome) VALUES(200,'effect',?1,'restart',?2,1001,'alice','effect_accepted')",
+                [snap('a', true).resource, "f".repeat(64)],
+            )
+            .unwrap();
+    }
+    let next = single_from('e', engine.members.lock().unwrap()[0].clone());
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &next, || 201)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::RateLimited
+    );
+    let rows = count(
+        &store,
+        "SELECT count(*) FROM effect_log WHERE kind='effect'",
+    );
+    let mutations = engine.mutations();
+    let evidence = shown(&engine, &[snap('a', true)]).await;
+    resolve(
+        &mut store,
+        &engine,
+        ResolveKind::Container,
+        &first.action,
+        &first.plan_digest,
+        &evidence,
+        DeclaredOutcome::VerifiedDone,
+    )
+    .await
+    .unwrap();
+    assert_eq!(engine.mutations(), mutations);
+    assert_eq!(
+        count(
+            &store,
+            "SELECT count(*) FROM effect_log WHERE kind='effect'"
+        ),
+        rows
+    );
+    // The lock is free, the budget still spent.
+    assert_eq!(
+        store
+            .execute(&engine, &ceiling(), 1001, &next, || 201)
+            .await
+            .unwrap_err()
+            .0,
+        ErrorCode::RateLimited
+    );
+}
+
 #[tokio::test]
 async fn stale_evidence_wrong_ids_and_unsupported_declarations_are_refused_and_change_nothing() {
     let dir = private_dir();
@@ -1239,7 +1307,7 @@ fn schema_four_upgrade_keeps_rows_and_adds_the_resolved_state() {
     drop(ReceiptStore::open(dir.path()).unwrap());
     {
         let conn = Connection::open(dir.path().join("receipts.sqlite")).unwrap();
-        conn.execute_batch("DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_resource_lock; DROP INDEX stack_actions_lock; DROP TABLE actions; DROP TABLE stack_actions; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); INSERT INTO actions VALUES('a1','d','container:r','outcome_unknown','{}','restart'); PRAGMA user_version=4;").unwrap();
+        conn.execute_batch("DROP TABLE effect_log; DROP TABLE effect_days; DROP TABLE retention; DROP TABLE pruned_legacy; DROP INDEX actions_resource_lock; DROP INDEX stack_actions_lock; DROP TABLE actions; DROP TABLE stack_actions; CREATE TABLE actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown')),receipt TEXT NOT NULL,operation TEXT NOT NULL DEFAULT 'restart' CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX actions_resource_lock ON actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); CREATE TABLE stack_actions(action TEXT PRIMARY KEY,digest TEXT NOT NULL,resource TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('prepared','effect_accepted','verified','precondition_changed','outcome_unknown','partly_done')),receipt TEXT NOT NULL,operation TEXT NOT NULL CHECK(operation IN ('restart','start','stop'))); CREATE UNIQUE INDEX stack_actions_lock ON stack_actions(resource) WHERE state IN ('prepared','effect_accepted','outcome_unknown'); INSERT INTO actions VALUES('a1','d','container:r','outcome_unknown','{}','restart'); PRAGMA user_version=4;").unwrap();
     }
     let store = ReceiptStore::open(dir.path()).unwrap();
     let version: u32 = store

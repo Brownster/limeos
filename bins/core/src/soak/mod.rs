@@ -21,6 +21,9 @@
 //!   once a simulated minute, with no help from the harness.
 //! - `automation_limit_at_minimum_interval`: the known automation limit,
 //!   measured (`--ignored`; not a pass/fail gate of the shipped scope).
+//! - `startup_at_high_retained_job_count`: core's open at 3,700 to 5,500
+//!   retained jobs, where its startup reads pass their bound; measured
+//!   (`--ignored`, not a gate; `docs/soak.md`).
 //!
 //! The ignored tests named `soak_*` are CI's soak job.
 mod automation;
@@ -45,6 +48,8 @@ const SMOKE: Profile = Profile {
     days: 3,
     session_burst: (1, 6, 10),
     action_burst: (1, 9, 30),
+    storm_days: 1,
+    hammer_days: 1,
     idle_every: 1,
     trends: false,
     core_restarts_until: Some(2),
@@ -61,6 +66,8 @@ const NINETY_DAYS: Profile = Profile {
     days: 90,
     session_burst: (20, 6, 600),
     action_burst: (25, 8, 720),
+    storm_days: 1,
+    hammer_days: 1,
     idle_every: 7,
     trends: true,
     core_restarts_until: Some(30),
@@ -107,4 +114,33 @@ async fn soak_ninety_days() {
 #[ignore = "the 90-day recovery run, alongside soak_ninety_days in CI's soak job"]
 async fn soak_ninety_days_restarts() {
     soak(NINETY_DAYS_RESTARTS).await;
+}
+
+/// Core's open at a high retained-job count (`docs/soak.md`, "Core startup
+/// at high job counts"): the restart scenario with a four-day storm that
+/// hammers throughout, for 40 days, so several thousand jobs are kept
+/// through retention's 30 days (a four-day storm backing off after its first
+/// day keeps about 2,700, at the bound). Not a gate: it prints, per nightly copy, the
+/// jobs, pages, cold startup reads per page against the bound's factor and
+/// the open's time, and the statements reading most at the worst point, and
+/// asserts only that the operating point was reached.
+const HIGH_JOBS: Profile = Profile {
+    name: "high-jobs",
+    days: 40,
+    storm_days: 4,
+    hammer_days: 4,
+    trends: false,
+    held_open: None,
+    ..NINETY_DAYS_RESTARTS
+};
+
+#[tokio::test(flavor = "current_thread")]
+#[ignore = "measures a known limit (docs/soak.md); not part of CI's soak job"]
+async fn startup_at_high_retained_job_count() {
+    let sim = workload::run(HIGH_JOBS).await;
+    let jobs = checks::report_startup_scaling(&sim);
+    assert!(
+        jobs >= 3_500,
+        "the operating point was not reached: {jobs} jobs"
+    );
 }

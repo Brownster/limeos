@@ -45,9 +45,20 @@
 //!   credentials twice a second (two password workers, about half a second
 //!   per check on a Pi, cap it near four a second): 144,000 events.
 //! - Day 25, 08:00 to 20:00: a scripted client queues a container action
-//!   every 40 s and a stack action every 45 s: 1,080 + 960 proposals, enough
-//!   to overflow both receipt budgets (1,024 standalone, 256 stacks) although
-//!   many of them meet a lock held by a job waiting for the operator.
+//!   every 40 s and a stack action every 45 s, on containers and stacks the
+//!   job list does not show locked: 1,080 + 960 proposals, many of them
+//!   meeting a lock held by a job waiting for the operator. It is more than
+//!   the container executor's effect budget admits (60 effects a container a
+//!   day, a stack charging each target; ADR 0013): the script reads no job
+//!   history and keeps hammering spent containers, whose jobs are refused
+//!   (`checks::effect_budget`), the case the budget exists for. Its single
+//!   container actions go to the three standalone services only, so that
+//!   the stacks' members keep their budget for the stack actions and the
+//!   storm fills the receipt store's 256 stack receipts within the budget.
+//!   A four-day storm that filled them by spreading out made 3,700 to 5,500
+//!   jobs, which took core's open past its page-read bound while retention
+//!   kept them (a property of core's startup scans at that job count, not
+//!   of the budget).
 use super::{
     checks,
     engine::{HOST, STACKS, container_id},
@@ -65,8 +76,17 @@ pub struct Profile {
     pub days: i64,
     /// (day, start hour, minutes) of the runaway-login burst.
     pub session_burst: (i64, i64, i64),
-    /// (day, start hour, minutes) of the scripted action storm.
+    /// (day, start hour, minutes) of the scripted action storm, repeated on
+    /// `storm_days` days from that day.
     pub action_burst: (i64, i64, i64),
+    /// Days the storm runs (one in every profile: a longer storm, while
+    /// retention keeps its jobs, takes core's open past its page-read bound;
+    /// see the module documentation).
+    pub storm_days: i64,
+    /// The first storm days on which its script reads no job history and
+    /// keeps hammering containers the effect budget refused; on the others
+    /// it backs off as a person does (`busy`).
+    pub hammer_days: i64,
     /// Weekday of the idle window (every day when 1).
     pub idle_every: i64,
     /// Trend checks need a steady last third.
@@ -206,6 +226,7 @@ pub async fn run(profile: Profile) -> Sim {
     let mut sim = Sim::new(profile.name, profile.seed, profile.core_restarts_until);
     sim.replacements = profile.replacements.to_vec();
     sim.held_open = profile.held_open;
+    sim.careless_until = day_at(profile.action_burst.0 + profile.hammer_days, 0, 0);
     let mut agenda = Agenda::default();
     bootstrap(&mut sim).await;
     let end = START + profile.days * DAY;
@@ -258,10 +279,12 @@ pub async fn run(profile: Profile) -> Sim {
             until: day_at(day, hour, minutes),
         },
     );
-    let (day, hour, minutes) = profile.action_burst;
-    let until = day_at(day, hour, minutes);
-    agenda.at(day_at(day, hour, 0), Step::ScriptedContainer { until });
-    agenda.at(day_at(day, hour, 1), Step::ScriptedStack { until });
+    let (first, hour, minutes) = profile.action_burst;
+    for day in first..first + profile.storm_days {
+        let until = day_at(day, hour, minutes);
+        agenda.at(day_at(day, hour, 0), Step::ScriptedContainer { until });
+        agenda.at(day_at(day, hour, 1), Step::ScriptedStack { until });
+    }
 
     while drive(&mut sim, &mut agenda, end).await {}
     drain(&mut sim, &mut agenda).await;
@@ -503,17 +526,29 @@ fn fate(sim: &mut Sim) -> Fate {
 }
 
 /// Resources the job list shows as busy: locked by a held job or claimed by
-/// a queued one. People (and a sane script) pick something else; one time
-/// in twenty they act anyway, and meet the lock.
-fn busy(sim: &mut Sim) -> std::collections::HashSet<String> {
+/// a queued one, and a container or stack whose job history says the
+/// executor's effect budget refused it and is spent until a time still to
+/// come (`executor_budget_spent`, which the job's history shows; nothing
+/// else about the budget is visible to a client). People pick something
+/// else; one time in twenty they act anyway, and meet the lock or the
+/// budget. On its first `hammer_days` the storm's script reads no job
+/// history: it keeps hammering spent containers, as a careless script would,
+/// which is what the budget is for; on its later days it backs off too.
+fn busy(sim: &mut Sim, fate: Fate) -> std::collections::HashSet<String> {
     if sim.rng.per_mille(50) {
         return Default::default();
     }
-    let mut stmt = sim
-        .side()
-        .prepare_cached("SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued'")
-        .unwrap();
-    stmt.query_map([], |r| r.get(0))
+    let careless = fate == Fate::Scripted && sim.now() < sim.careless_until;
+    let sql = if careless {
+        "SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued'"
+    } else {
+        "SELECT resource FROM resource_locks UNION SELECT r.resource FROM job_resources r JOIN jobs j ON j.id=r.job WHERE j.state='queued' \
+         UNION SELECT r.resource FROM events e JOIN job_resources r ON r.job=e.job WHERE json_extract(e.kind,'$.kind')='executor_budget_spent' AND json_extract(e.kind,'$.frees_at')>?1"
+    };
+    let now = sim.now();
+    let params: Vec<i64> = if careless { Vec::new() } else { vec![now] };
+    let mut stmt = sim.side().prepare_cached(sql).unwrap();
+    stmt.query_map(rusqlite::params_from_iter(params), |r| r.get(0))
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap()
@@ -522,9 +557,15 @@ fn busy(sim: &mut Sim) -> std::collections::HashSet<String> {
 /// Core's `propose_action`: session, authorization, fresh inspection
 /// through the executor, plan.
 async fn propose_container(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
-    let busy = busy(sim);
+    let busy = busy(sim, fate);
+    // The storm's script restarts the standalone services one by one and
+    // the stacks whole (`ScriptedStack`): a single-container action on a
+    // stack member would spend the effect budget its stack's actions need,
+    // and the storm, within the budget, would not fill the receipt store's
+    // stack receipts.
     let ids: Vec<String> = HOST
         .iter()
+        .filter(|(_, project)| fate != Fate::Scripted || project.is_none())
         .map(|(n, _)| container_id(n))
         .filter(|id| !busy.contains(&format!("container:{id}")))
         .collect();
@@ -560,7 +601,7 @@ async fn propose_container(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64
 /// (every few seconds in production); the cache judges its freshness on the
 /// simulated clock (`Cache::with_clock`, given core's clock at startup).
 async fn propose_stack(sim: &mut Sim, user: usize, fate: Fate) -> Option<u64> {
-    let busy = busy(sim);
+    let busy = busy(sim, fate);
     let free: Vec<&str> = STACKS
         .iter()
         .copied()
@@ -665,7 +706,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
         planned,
         approval: Some(approval),
         key,
-        ..
+        fate,
     }) = sim.flows.remove(&flow)
     else {
         return;
@@ -755,6 +796,7 @@ async fn queue(sim: &mut Sim, agenda: &mut Agenda, flow: u64) {
             fault,
             declared: None,
             user,
+            scripted: fate == Fate::Scripted,
         },
     );
     sim.next_pass = sim.next_pass.min(sim.now() + 1);
@@ -831,25 +873,38 @@ async fn perform(sim: &mut Sim, agenda: &mut Agenda, step: Step, end: i64) {
             let Some(record) = sim.ledger.get(&job) else {
                 return;
             };
-            let (kind, user) = (record.kind, record.user);
+            let (kind, user, scripted) = (record.kind, record.user, record.scripted);
             let Some(token) = sim.users[user].session.as_ref().map(|s| s.token.clone()) else {
                 return;
             };
             let core = sim.core();
+            // The job's state, and whether its history shows it refused by
+            // the effect budget: what the script's client can see.
+            let budget = |events: &[limeos_domain::Event]| {
+                events.iter().any(|e| {
+                    matches!(
+                        e.event,
+                        limeos_domain::EventKind::ExecutorBudgetSpent { .. }
+                    )
+                })
+            };
             let state = match kind {
                 Kind::Container => core
                     .restart_progress(token, job.clone(), 0)
                     .await
-                    .map(|p| p.job.state),
+                    .map(|p| (p.job.state, budget(&p.events))),
                 Kind::Stack => core
                     .stack_progress(token, job.clone(), 0)
                     .await
-                    .map(|p| p.job.state),
+                    .map(|p| (p.job.state, budget(&p.events))),
             };
             sim.stats.reads += 1;
-            if let Some(state) =
+            if let Some((state, refused)) =
                 sim.judge("job progress poll", state, &[ErrorCode::Unauthenticated])
             {
+                if scripted && refused && state == JobState::PreconditionChanged {
+                    sim.stats.budget_refused_seen.push(now);
+                }
                 let terminal = !matches!(
                     state,
                     JobState::Queued

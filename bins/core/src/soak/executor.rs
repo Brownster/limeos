@@ -120,6 +120,8 @@ pub struct Faults {
     pub lost: BTreeMap<&'static str, u64>,
     /// Requests answered with a refusal, by kind and code.
     pub refused: BTreeMap<(&'static str, String), u64>,
+    /// When each execute the effect budget refused was answered.
+    pub rate_limited: Vec<i64>,
     /// Requests served, by kind.
     pub requests: BTreeMap<&'static str, u64>,
     /// Times the process died (or stopped) on its own.
@@ -487,10 +489,18 @@ async fn connection(serving: Arc<Serving>, mut stream: UnixStream) {
             *faults.effects.entry(action).or_default() += world.effects() - effects;
         }
         if let Some(code) = response.error {
-            *faults
-                .refused
-                .entry((what, format!("{code:?}")))
-                .or_default() += 1;
+            // A refusal core hears; one whose answer is lost below is a lost
+            // answer to core, counted as such. (Only the effect budget's
+            // refusals meet an armed answer fault often: the storm's.)
+            if matches!(after, After::Write | After::StopUntil(_)) {
+                *faults
+                    .refused
+                    .entry((what, format!("{code:?}")))
+                    .or_default() += 1;
+            }
+            if code == limeos_domain::ErrorCode::RateLimited {
+                faults.rate_limited.push(now);
+            }
             // `BeyondReceiptHistory` included: the soak never steps the clock
             // back, and a replaced store has pruned nothing it could refuse by.
             if LIFETIME.contains(&code) {

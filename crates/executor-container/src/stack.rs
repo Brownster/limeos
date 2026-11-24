@@ -17,6 +17,16 @@ const ACTIVE: &str = "('prepared','effect_accepted','outcome_unknown')";
 /// Last-resort cap; retention keeps normal operation far below it.
 pub(crate) const MAX_STACK_ROWS: u32 = 8192;
 
+/// What a stack write records in the action log (`limit`) besides.
+#[derive(Clone, Copy)]
+enum Log<'a> {
+    None,
+    /// An insert charges every target to this entry.
+    Charge(&'a crate::limit::Entry<'a>),
+    /// An update records these rows' outcomes.
+    Outcomes(&'a [(i64, ExecutionState)]),
+}
+
 /// The first write of a stack receipt: its plan's expiry and the validating
 /// clock. With `close`, the row is a closure (`closure`).
 #[derive(Clone, Copy)]
@@ -46,6 +56,14 @@ fn member_receipt(stack: &StackReceipt, member: &StackMemberReceipt) -> Result<C
         state: member.state,
         error: member.error,
     })
+}
+/// `member_receipt`, for tests that build saturated stores.
+#[cfg(test)]
+pub(crate) fn member_receipt_for_tests(
+    stack: &StackReceipt,
+    member: &StackMemberReceipt,
+) -> ContainerReceipt {
+    member_receipt(stack, member).unwrap()
 }
 fn unique(error: rusqlite::Error) -> Error {
     match error {
@@ -145,6 +163,21 @@ impl ReceiptStore {
         changed: &[String],
         insert: Option<Insert>,
     ) -> Result<Option<limeos_domain::ReceiptAbsence>> {
+        self.write_stack_logged(receipt, changed, insert, Log::None)
+            .map(|(closed, _)| closed)
+    }
+
+    /// As `write_stack`, with the action log (`limit`) in the same
+    /// transaction: an insert charges every target, an update records the
+    /// outcomes of the members it names. With the rows charged, in target
+    /// order.
+    fn write_stack_logged(
+        &mut self,
+        receipt: &StackReceipt,
+        changed: &[String],
+        insert: Option<Insert>,
+        log: Log<'_>,
+    ) -> Result<(Option<limeos_domain::ReceiptAbsence>, Vec<i64>)> {
         if insert.is_some()
             && fs2::available_space(&self.directory)
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?
@@ -212,6 +245,11 @@ impl ReceiptStore {
                 .map_err(unique)?;
             }
         } else {
+            if let Log::Outcomes(outcomes) = log {
+                for (seq, state) in outcomes {
+                    crate::limit::finish(&tx, *seq, *state)?;
+                }
+            }
             for resource in changed {
                 let member = receipt
                     .member(resource)
@@ -239,13 +277,30 @@ impl ReceiptStore {
                 return Err(Error(ErrorCode::Conflict));
             }
         }
+        let seqs = match (insert, log) {
+            (Some(insert), Log::Charge(entry)) => {
+                let targets: Vec<&str> = receipt
+                    .members
+                    .iter()
+                    .map(|m| m.resource.as_str())
+                    .collect();
+                crate::limit::charge(
+                    &tx,
+                    entry,
+                    &targets,
+                    insert.now,
+                    crate::limit::hold(self.windows),
+                )?
+            }
+            _ => Vec::new(),
+        };
         tx.commit().map_err(durable)?;
         if insert.is_some() {
             File::open(&self.directory)
                 .and_then(|f| f.sync_all())
                 .map_err(|_| Error(ErrorCode::StateNotDurable))?;
         }
-        Ok(closed)
+        Ok((closed, seqs))
     }
 
     /// Record a refusal that happened before any effect. The row is terminal,
@@ -330,6 +385,17 @@ impl ReceiptStore {
             return self.refuse_stack(request, ErrorCode::Conflict, clock());
         }
         let targets = request.plan.targets();
+        // Every target is charged, or none: a stack is never half admitted.
+        let now = clock();
+        let entry = crate::limit::Entry {
+            action: &request.action,
+            operation: request.plan.operation,
+            stack: Some(&request.plan.expected.resource),
+            peer: peer_uid,
+            principal: &request.plan.principal,
+        };
+        let resources: Vec<&str> = targets.iter().map(|t| t.resource.as_str()).collect();
+        self.within_budget(&entry, &resources, now)?;
         let members: Vec<_> = targets
             .iter()
             .map(|t| StackMemberReceipt {
@@ -338,7 +404,7 @@ impl ReceiptStore {
                 error: None,
             })
             .collect();
-        let mut receipt = StackReceipt {
+        let receipt = StackReceipt {
             action: request.action.clone(),
             plan_digest: request.plan_digest.clone(),
             operation: request.plan.operation,
@@ -347,15 +413,46 @@ impl ReceiptStore {
             members,
             error: None,
         };
-        self.write_stack(
+        let (_, seqs) = self.write_stack_logged(
             &receipt,
             &[],
             Some(Insert {
                 expires_at: request.plan.expires_at,
-                now: clock(),
+                now,
                 close: false,
             }),
+            Log::Charge(&entry),
         )?;
+        let receipt = self
+            .run_members(engine, request, receipt, &seqs, clock)
+            .await?;
+        for (member, seq) in receipt.members.iter().zip(&seqs) {
+            self.journal_effect(&entry, *seq, now, &member.resource, member.state);
+        }
+        Ok(receipt)
+    }
+
+    /// The targets of a prepared stack action, one at a time, fail-stop;
+    /// each change written with its members' action-log outcomes (`seqs`,
+    /// in member order).
+    async fn run_members(
+        &mut self,
+        engine: &impl Engine,
+        request: &StackRequest,
+        mut receipt: StackReceipt,
+        seqs: &[i64],
+        clock: impl Fn() -> i64,
+    ) -> Result<StackReceipt> {
+        // The outcomes of the members `changed` names.
+        let outcomes = |receipt: &StackReceipt, changed: &[String]| -> Vec<(i64, ExecutionState)> {
+            receipt
+                .members
+                .iter()
+                .zip(seqs)
+                .filter(|(m, _)| changed.contains(&m.resource))
+                .map(|(m, seq)| (*seq, m.state))
+                .collect()
+        };
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             for member in &mut receipt.members {
@@ -365,7 +462,8 @@ impl ReceiptStore {
             receipt.state = aggregate_state(&receipt.members);
             receipt.error = Some(e.0);
             let all: Vec<_> = receipt.members.iter().map(|m| m.resource.clone()).collect();
-            self.write_stack(&receipt, &all, None)?;
+            let done = outcomes(&receipt, &all);
+            self.write_stack_logged(&receipt, &all, None, Log::Outcomes(&done))?;
             return Ok(receipt);
         }
         let operation = request.plan.operation;
@@ -401,7 +499,8 @@ impl ReceiptStore {
                 receipt.state = aggregate_state(&receipt.members);
                 // Nothing was sent for these, so even a failed write is accurate;
                 // the Prepared rows remain and recovery treats them as uncertain.
-                let _ = self.write_stack(&receipt, &changed, None);
+                let done = outcomes(&receipt, &changed);
+                let _ = self.write_stack_logged(&receipt, &changed, None, Log::Outcomes(&done));
                 return Ok(receipt);
             }
             let result = tokio::time::timeout(budget, async {
@@ -435,7 +534,11 @@ impl ReceiptStore {
                 receipt.error = receipt.members[index].error;
             }
             receipt.state = aggregate_state(&receipt.members);
-            if self.write_stack(&receipt, &changed, None).is_err() {
+            let done = outcomes(&receipt, &changed);
+            if self
+                .write_stack_logged(&receipt, &changed, None, Log::Outcomes(&done))
+                .is_err()
+            {
                 // The effect may have occurred. The protected Prepared rows
                 // remain the barrier to replay; never claim nothing was sent.
                 receipt.members[index].state = ExecutionState::OutcomeUnknown;

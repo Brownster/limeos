@@ -1,6 +1,7 @@
 use args::{Usage, is_help};
 use limeos_contracts::{CoreRequest, CoreResponse, Enrollment, VERSION};
 use std::io::Read;
+mod action_log;
 mod args;
 mod ceiling_check;
 mod job;
@@ -23,6 +24,7 @@ enum Route<'a> {
     Help,
     CheckCeiling(&'a str, &'a str, Option<&'a str>),
     CheckConfig(&'a str),
+    ActionLog(&'a [String]),
     Migrate(&'a str, &'a [String]),
     Job(&'a str, &'a [String]),
     Core(&'a str, &'a str),
@@ -44,6 +46,7 @@ fn route(args: &[String]) -> Result<Route<'_>, Usage> {
         }
         [cmd, file] if cmd == "check-config" => return Ok(Route::CheckConfig(file)),
         [cmd, ..] if cmd == "check-ceiling" || cmd == "check-config" => return Err(invalid()),
+        [cmd, rest @ ..] if cmd == "action-log" => return Ok(Route::ActionLog(rest)),
         _ => {}
     }
     let (socket, rest) = match args.split_first() {
@@ -76,8 +79,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         Route::Help => {
             println!(
-                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}",
+                "Usage: limeosctl [--socket PATH] status|bootstrap|enroll\nbootstrap: root-only, one-use token valid for 15 minutes.\nenroll: root-only JSON from stdin with token, username, password.\nNo passwords or tokens are accepted in command arguments.\nExit status: 0 done, 1 refused or failed, 2 invalid command line (nothing done).\n{}\n{}\n{}\n{}",
                 ceiling_check::USAGE,
+                action_log::USAGE,
                 migrate::USAGE,
                 job::USAGE
             );
@@ -92,6 +96,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Route::CheckConfig(file) => {
             match limeos_persistence::config::read(std::path::Path::new(file))? {limeos_persistence::config::ConfigRead::Valid(_)=>return Ok(()),_=>return Err("Invalid or missing configuration. Repair /etc/limeos/core.json, then run dpkg --configure limeos. Original preserved.".into())}
         }
+        Route::ActionLog(rest) => return action_log::run(rest),
         Route::Migrate(socket, rest) => return migrate::run(socket, rest).await,
         Route::Job(socket, rest) => return job::run(socket, rest).await,
         Route::Core(socket, command) => (socket, command),

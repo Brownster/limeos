@@ -221,6 +221,9 @@ async fn fixture() -> (
                     if let Some(code) = state.execute_error {
                         response.ready = false;
                         response.error = Some(code);
+                        if code == ErrorCode::RateLimited {
+                            response.budget_frees_at = Some(BUDGET_FREES_AT);
+                        }
                     }
                 }
                 if matches!(
@@ -505,6 +508,8 @@ async fn recovery_never_dispatches_again_and_closes_an_action_nothing_recorded()
         task.abort();
     }
 }
+/// When the fake executor says its effect budget frees.
+pub(super) const BUDGET_FREES_AT: i64 = 1_900_000_000;
 fn missing_events(progress: &limeos_contracts::JobProgress) -> usize {
     progress
         .events
@@ -1051,6 +1056,74 @@ async fn a_job_held_across_a_store_epoch_change_reconciles_from_an_intact_receip
         0
     );
     assert_eq!(state.lock().unwrap().posts, 0);
+    task.abort();
+}
+
+/// The executor refuses the execute with `rate_limited`: the container has
+/// spent its effect budget. The executor refuses before it prepares a
+/// receipt or calls the Engine, and core sends one execute per job, so the
+/// job is settled as refused at once, without a lookup or an operator, and
+/// the container is free for a later job.
+#[tokio::test]
+async fn an_execute_refused_by_the_effect_budget_settles_the_job_as_refused() {
+    let (_dir, core, token, csrf, state, _, _, task) = fixture().await;
+    let snapshot = state.lock().unwrap().current.clone();
+    state.lock().unwrap().execute_error = Some(ErrorCode::RateLimited);
+    let (job, _) = queued(&core, &token, &csrf, snapshot.resource.clone()).await;
+    let principal = principal_of(&core, &token).await;
+    core.dispatch_one(principal.clone(), job.clone())
+        .await
+        .unwrap();
+    let progress = settled(&core, &token, &job.id).await;
+    assert_eq!(progress.job.state, JobState::PreconditionChanged);
+    assert_eq!(missing_events(&progress), 0);
+    // The job's history says why, and when the budget frees.
+    assert_eq!(
+        record_events(
+            &progress,
+            &limeos_domain::EventKind::ExecutorBudgetSpent {
+                frees_at: Some(BUDGET_FREES_AT)
+            }
+        ),
+        1
+    );
+    {
+        let fixture = state.lock().unwrap();
+        assert_eq!(
+            (fixture.executes, fixture.posts, fixture.lookups),
+            (1, 0, 0)
+        );
+        assert!(fixture.closed.is_none());
+    }
+    assert!(
+        core.db
+            .call(|s| s.container_candidates())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // The container's lock is released: a later job can claim it.
+    core.db
+        .call(move |s| {
+            let plan = s.plan_container(
+                &principal,
+                limeos_domain::ContainerAction::Restart,
+                &snapshot,
+                now(),
+            )?;
+            let approval = s.approve_container(&principal, &plan.plan.id, &plan.digest, now())?;
+            let queued = s.queue_container(
+                &principal,
+                "later",
+                &plan,
+                &approval.token,
+                &snapshot,
+                now(),
+            )?;
+            s.claim_container(&principal, &queued.id, &snapshot, &"1".repeat(64), now())
+        })
+        .await
+        .unwrap();
     task.abort();
 }
 

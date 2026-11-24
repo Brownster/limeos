@@ -14,12 +14,14 @@ pub mod compose_management;
 pub mod compose_source;
 pub mod deployment;
 pub mod docker;
+pub mod limit;
 mod logs;
 mod resolution;
 mod retention;
 mod stack;
 pub use answer::Answer;
 pub use closure::Lookup;
+pub use limit::ActionRecord;
 pub use resolution::{RESOLVED, ResolveOutcome};
 pub use retention::verified_expiry;
 /// Rows of `actions` the store holds at most: an execute that would pass it is
@@ -35,8 +37,10 @@ const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 /// what migrations filled freed) after any migration and before the check. Its
 /// largest transaction, a stack's first write (a full `PRUNE_BATCH` with
 /// tombstones for legacy rows, then the stack row and sixteen members, random
-/// ids, real receipt sizes), dirties 109 pages and does not spill at 768 KiB
-/// (192 pages); it spilled at 512 KiB (the test
+/// ids, real receipt sizes, and the sixteen members charged to an action log
+/// at its cap of rows of the longest values, pruning as many), dirties 153
+/// pages (109 before the action log) and does not spill at 768 KiB (192
+/// pages); it spilled at 512 KiB (the test
 /// `the_largest_receipt_transaction_does_not_spill`).
 const CACHE_KIB: u32 = 768;
 /// The store's limits, for the long-uptime soak to assert against rather
@@ -50,10 +54,12 @@ pub mod limits {
     pub const RETAINED_ACTIONS: u32 = super::retention::RETAINED_ACTIONS;
     pub const RETAINED_STACKS: u32 = super::retention::RETAINED_STACKS;
     pub const PRUNE_BATCH: u32 = super::retention::PRUNE_BATCH;
+    pub const LOG_ROWS: i64 = super::limit::LOG_ROWS;
+    pub const DAYS_KEPT: i64 = super::limit::DAYS_KEPT;
 }
 /// The receipt store's schema (`PRAGMA user_version`) after every migration.
 /// Opening a newer store refuses; tests and documentation name this constant.
-pub const RECEIPT_SCHEMA_VERSION: u32 = 8;
+pub const RECEIPT_SCHEMA_VERSION: u32 = 9;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 pub use stack::member_action;
@@ -166,6 +172,15 @@ pub struct ReceiptStore {
     directory: PathBuf,
     /// This open's epoch (`epoch`).
     epoch: String,
+    /// The effect budget's windows (`limit::WINDOWS`).
+    windows: &'static [limit::Window],
+    /// Refusals counted since a container's last refusal row (`limit`).
+    suppressed: std::collections::HashMap<String, u32>,
+    /// Action-log rows not yet journaled (`take_journal`).
+    journal: Vec<ActionRecord>,
+    /// When the containers of the last refusal by the budget have room again
+    /// (`take_frees_at`).
+    frees_at: Option<i64>,
 }
 /// Owns the locked `receipts.lock` descriptor; on drop the lock is released, then
 /// the descriptor is closed.
@@ -283,6 +298,15 @@ impl ReceiptStore {
             let check = closure::CLOSED_CHECK;
             conn.execute_batch(&format!("BEGIN IMMEDIATE; ALTER TABLE actions ADD COLUMN closed TEXT {check}; ALTER TABLE stack_actions ADD COLUMN closed TEXT {check}; PRAGMA user_version=8; COMMIT;")).map_err(durable)?;
         }
+        if version < 9 {
+            // The action log, which is also the effect budget (`limit`). A
+            // store upgraded now starts with an empty budget.
+            let schema = limit::SCHEMA;
+            conn.execute_batch(&format!(
+                "BEGIN IMMEDIATE; {schema} PRAGMA user_version=9; COMMIT;"
+            ))
+            .map_err(durable)?;
+        }
         // Every migration step ends at the named schema, or the store is refused.
         if conn
             .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
@@ -314,6 +338,10 @@ impl ReceiptStore {
         let _ = conn
             .prepare("SELECT action FROM pruned_legacy LIMIT 0")
             .map_err(durable)?;
+        let _ = conn.prepare(limit::COLUMNS).map_err(durable)?;
+        let _ = conn
+            .prepare("SELECT day,charges,refusals FROM effect_days LIMIT 0")
+            .map_err(durable)?;
         retention::watermark(&conn)?;
         File::open(directory)
             .and_then(|f| f.sync_all())
@@ -324,6 +352,10 @@ impl ReceiptStore {
             _lock: lock,
             directory: directory.into(),
             epoch,
+            windows: &limit::WINDOWS,
+            suppressed: Default::default(),
+            journal: Vec::new(),
+            frees_at: None,
         })
     }
 
@@ -375,10 +407,20 @@ impl ReceiptStore {
         Ok(Some(receipt))
     }
 
-    /// `expires_at` is the plan's expiry; `now` is the clock that validated it.
-    fn prepare(&mut self, receipt: &RestartReceipt, expires_at: i64, now: i64) -> Result<()> {
-        self.insert_action(receipt, expires_at, now, false)
-            .map(|_| ())
+    /// `expires_at` is the plan's expiry; `now` is the clock that validated
+    /// it. Charges the effect (`limit`) in the same transaction; the action
+    /// log row's sequence number.
+    fn prepare(
+        &mut self,
+        receipt: &RestartReceipt,
+        expires_at: i64,
+        now: i64,
+        entry: &limit::Entry<'_>,
+    ) -> Result<i64> {
+        let (_, seqs) = self.insert_logged(receipt, expires_at, now, false, Some(entry))?;
+        seqs.first()
+            .copied()
+            .ok_or(Error(ErrorCode::StateNotDurable))
     }
     /// The first write of a container receipt, in one transaction with the
     /// retention it triggers. With `close`, the row is a closure: the absence
@@ -391,6 +433,19 @@ impl ReceiptStore {
         now: i64,
         close: bool,
     ) -> Result<Option<limeos_domain::ReceiptAbsence>> {
+        self.insert_logged(receipt, expires_at, now, close, None)
+            .map(|(closed, _)| closed)
+    }
+    /// As `insert_action`, charging `charge`'s effect (`limit::charge`) in
+    /// the same transaction; with the action-log rows written.
+    fn insert_logged(
+        &mut self,
+        receipt: &RestartReceipt,
+        expires_at: i64,
+        now: i64,
+        close: bool,
+        charge: Option<&limit::Entry<'_>>,
+    ) -> Result<(Option<limeos_domain::ReceiptAbsence>, Vec<i64>)> {
         if fs2::available_space(&self.directory).map_err(|_| Error(ErrorCode::StateNotDurable))?
             < 8 * 1024 * 1024
         {
@@ -436,14 +491,27 @@ impl ReceiptStore {
             }
             _ => durable(e),
         })?;
+        let seqs = match charge {
+            Some(entry) => limit::charge(
+                &tx,
+                entry,
+                &[receipt.before.resource.as_str()],
+                now,
+                limit::hold(self.windows),
+            )?,
+            None => Vec::new(),
+        };
         tx.commit().map_err(durable)?;
         File::open(&self.directory)
             .and_then(|f| f.sync_all())
             .map_err(|_| Error(ErrorCode::StateNotDurable))?;
-        Ok(closed)
+        Ok((closed, seqs))
     }
-    fn finish(&mut self, receipt: &RestartReceipt) -> Result<()> {
+    /// The receipt's final state, and the outcome of its action-log row
+    /// `seq`, in one transaction.
+    fn finish(&mut self, receipt: &RestartReceipt, seq: i64) -> Result<()> {
         let tx = self.conn.transaction().map_err(durable)?;
+        limit::finish(&tx, seq, receipt.state)?;
         if tx
             .execute(
                 "UPDATE actions SET state=?,receipt=? WHERE action=? AND digest=? AND state=?",
@@ -509,6 +577,17 @@ impl ReceiptStore {
             .await
             .map_err(|_| Error(ErrorCode::Unavailable))??;
         request.plan.check_current(&actual, clock())?;
+        // Only a new effect is charged: a replay was answered above.
+        let now = clock();
+        let entry = limit::Entry {
+            action: &request.action,
+            operation: request.plan.operation,
+            stack: None,
+            peer: peer_uid,
+            principal: &request.plan.principal,
+        };
+        let resource = request.plan.expected.resource.as_str();
+        self.within_budget(&entry, &[resource], now)?;
         let mut receipt = RestartReceipt {
             action: request.action.clone(),
             plan_digest: request.plan_digest.clone(),
@@ -517,12 +596,13 @@ impl ReceiptStore {
             state: ExecutionState::Prepared,
             error: None,
         };
-        self.prepare(&receipt, request.plan.expires_at, clock())?;
+        let seq = self.prepare(&receipt, request.plan.expires_at, now, &entry)?;
         // Sync may take time. Recheck expiry immediately before initiating IPC.
         if let Err(e) = request.plan.validate(clock()) {
             receipt.state = ExecutionState::PreconditionChanged;
             receipt.error = Some(e.0);
-            self.finish(&receipt)?;
+            self.finish(&receipt, seq)?;
+            self.journal_effect(&entry, seq, now, resource, receipt.state);
             return Ok(receipt);
         }
         let result = tokio::time::timeout(
@@ -547,12 +627,13 @@ impl ReceiptStore {
                 receipt.error = Some(ErrorCode::Unavailable);
             }
         }
-        if self.finish(&receipt).is_err() {
+        if self.finish(&receipt, seq).is_err() {
             // The effect may have occurred. The protected Prepared row remains
             // the barrier to replay; never claim that no effect was dispatched.
             receipt.state = ExecutionState::OutcomeUnknown;
             receipt.error = Some(ErrorCode::StateNotDurable);
         }
+        self.journal_effect(&entry, seq, now, resource, receipt.state);
         Ok(receipt)
     }
 
