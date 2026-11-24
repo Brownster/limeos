@@ -1135,3 +1135,69 @@ fn a_request_is_disputed_when_core_holds_a_record_a_closure_would_contradict() {
             .disputed
     );
 }
+
+/// A stored stack target that is not a container resource refuses the
+/// request; it is never dropped from the expected set, which would let
+/// evidence for the remaining targets alone pass the completeness check.
+#[test]
+fn a_malformed_stored_target_refuses_the_request_instead_of_shrinking_the_targets() {
+    for replacement in ["container:BAD", "stack:media", "BAD"] {
+        let (_d, mut s, p) = setup();
+        let proposal = s
+            .plan_stack(&p, ContainerAction::Restart, "registered", &stack(), 200)
+            .unwrap();
+        let approval = s
+            .approve_stack(&p, &proposal.plan.id, &proposal.digest, 201)
+            .unwrap();
+        let job: StackJob = s
+            .queue_stack(&p, "restart", &proposal, &approval.token, &stack(), 202)
+            .unwrap();
+        let job = s
+            .claim_stack(&p, &job.id, &stack(), &"1".repeat(64), 203)
+            .unwrap();
+        uncertain(&mut s, &job.id);
+        // Evidence for member a only, the one target left well formed.
+        let a = member('a', true);
+        let only_a =
+            ResolutionEvidence::observe(ContainerAction::Restart, &[&a], &[Some(a.clone())])
+                .unwrap();
+        // A corrupt store: rewrite the stored intent past its immutability
+        // trigger, then restore the trigger.
+        let b = member('b', true).resource;
+        let guard: String = s
+            .conn
+            .query_row(
+                "SELECT sql FROM sqlite_schema WHERE name='jobs_identity_immutable'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        s.conn
+            .execute_batch("DROP TRIGGER jobs_identity_immutable")
+            .unwrap();
+        let changed = s
+            .conn
+            .execute(
+                "UPDATE jobs SET intent=replace(intent, ?, ?) WHERE id=?",
+                rusqlite::params![b, replacement, job.id],
+            )
+            .unwrap();
+        s.conn.execute_batch(&guard).unwrap();
+        assert_eq!(changed, 1);
+        assert_eq!(
+            request(
+                &mut s,
+                &p,
+                &job.id,
+                DeclaredOutcome::AcceptedDivergence,
+                LONG,
+                &only_a
+            )
+            .unwrap_err()
+            .0,
+            ErrorCode::InvalidInput,
+            "{replacement}"
+        );
+        assert_eq!(s.job_state(&job.id).unwrap(), "needs_intervention");
+    }
+}

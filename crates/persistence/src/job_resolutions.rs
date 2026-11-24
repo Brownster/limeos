@@ -427,11 +427,16 @@ impl Store {
             {
                 return Err(Error(ErrorCode::Conflict));
             }
-            let mut expected: Vec<&str> = subject
+            // Every stored target must be a container resource: a malformed
+            // one refuses the request, never shrinks the expected set.
+            let mut expected = subject
                 .targets
                 .iter()
-                .filter_map(|t| limeos_domain::container_resource_id(&t.resource))
-                .collect();
+                .map(|t| {
+                    limeos_domain::container_resource_id(&t.resource)
+                        .ok_or(Error(ErrorCode::InvalidInput))
+                })
+                .collect::<Result<Vec<&str>>>()?;
             expected.sort_unstable();
             if evidence
                 .targets
