@@ -276,19 +276,59 @@ jobs as with anything else.
 `crates/persistence/src/resources.rs`). That walk asserts, for every job,
 what the lock invariants' walk asserted (its primary resource is in its
 resource set, and the set has at most 128 resources), and lists the jobs of
-the four operations an owner's check reads (`CHECKED_OPERATIONS`). Each of
-those checks reads the listed jobs through the primary key (`json_each` of
-the ids, `CROSS JOIN jobs`), keeping its own operation test, so it sees
-exactly the jobs it found before: the list is read in the same startup
-transaction, by the same predicate. The automation occurrence check is
-driven from the occurrences (a bounded table) instead of from `jobs`. The
-rest of the lock invariants (every resource of a lock-holding job locked by
-it, no lock held by a job in any other state, resolutions matching
-`resolved`, the foreign keys) were already reached through `jobs_state`,
-the locks and the resolutions, and are unchanged. No check was narrowed,
-sampled or skipped: settled jobs are still held to their resource-set
-invariant, and `quick_check` and the foreign-key check still run in full at
-every start. No schema change: nothing a migration adds is needed.
+the four operations an owner's check reads (`CHECKED_OPERATIONS`), each
+with the rowid it read it at. Each of those checks reads the listed jobs
+through the primary key (`json_each` of the ids, `CROSS JOIN jobs`),
+keeping its own operation test. The automation occurrence check asks
+whether every occurrence's job is a listed observation job. The rest of
+the lock invariants (every resource of a lock-holding job locked by it, no
+lock held by a job in any other state, resolutions matching `resolved`, the
+foreign keys) were already reached through `jobs_state`, the locks and the
+resolutions, and are unchanged. No check was narrowed, sampled or skipped:
+settled jobs are still held to their resource-set invariant, and
+`quick_check` and the foreign-key check still run in full at every start.
+No schema change.
+
+**The table and its index.** The walk reads the `jobs` table; the owners
+read through its primary key's index (`sqlite_autoindex_jobs_1`), and
+`quick_check` does not compare an index with its table. The eight walks
+read the table, so a job row the index did not find, or found under
+another id, was still checked; reading by key alone, it would be listed and
+then read by nobody (found in review, 24 November, and fixed before
+merging). So the walk's list is accounted for once (`LISTED_BY_KEY`): every
+listed job must be found through the index, as the owners find it, at the
+rowid the walk read and with the operation it read, or the open refuses.
+Which statement refuses which disagreement:
+
+| Disagreement on `jobs` | Refused by |
+|---|---|
+| A row the index lacks, or files under another id | `LISTED_BY_KEY` (the id is not found by key) |
+| An index entry leading to another row | `LISTED_BY_KEY` (the entry's rowid is not the walk's) |
+| An index entry leading to no row | the first statement that follows it (SQLite reports the store corrupt) |
+| An index entry for an id no row has | nothing reads it as a job: a job is what the table holds; a foreign key naming that id passes the foreign-key check through it, as before |
+| An occurrence naming an ordinary job, either way | the occurrence check, which reads the occurrences table and the walk's list, no index of `jobs` |
+
+The accounting costs one keyed lookup per listed job, none in the shipped
+scope: one statement more (54 in the open), no reads measurable. Measured
+again with it: the 40-day run read 2.10, 2.24, 2.38, 2.57 and 2.72 pages
+per page at 257, 1,073, 2,191, 3,852 and 5,102 jobs, the CI test 2.62, the
+household runs at most 2.38 and 2.36, all within the run-to-run spread of
+the figures above. Tests build both disagreements by
+rewriting a job's id on its table page (`rewrite_in` in
+`resources/tests.rs`): a forged job of each checked operation that the key
+does not find, and one whose id the key leads to a settled container job's
+row; `quick_check` and the foreign-key check pass on both, the same
+rewrite on a job of an operation nobody checks opens, and the open refuses
+for each checked operation (with the accounting disabled, it opened).
+
+Two older statements read `jobs` through an index the same way and were
+not changed: the lock invariants find the lock-holding jobs through
+`jobs_state` (a running job whose `jobs_state` entry is missing is not
+checked for its locks, and startup recovery, which uses the same index,
+would not mark it), and they find a lock's job, and the walk finds each
+job's resource set, through primary-key indexes. Each was so before this
+change; a fix of the same kind (list the lock-holding jobs from the
+table and account for them through `jobs_state`) is open.
 
 **What remains job-scaled, and why.** The walk: one read of every page of
 `jobs` (2,054 at 5,113 jobs) plus a probe of each job's resource set in
@@ -811,6 +851,7 @@ again:
 | Job-row retention ignores an open resolution request | the candidate query loses `r.confirmation IS NULL OR` | `retention::jobs::tests::every_reference_keeps_its_job`: the batch fails (the `jobs_delete` trigger refuses the job: `StateNotDurable`) |
 | Job-row retention ignores authority events | the candidate query's authority-kind clause made false | `retention::jobs::tests::every_reference_keeps_its_job`: 9 jobs removed where 8 may be (the job with a withdrawal and its authority event gone) |
 | An owner's startup check finds its jobs by walking `jobs` again (24 November) | the storage mount check's job listing reads `FROM jobs j WHERE json_extract(j.intent,'$.operation')='storage_mount'` instead of the jobs the walk listed | `soak_smoke`, core startup reads nothing its checks do not explain: "core open on a copy at day 0.17: a startup statement walks jobs (a table growing with history) whole through jobs (Rewind) without an allowance: SELECT j.id,j.principal,j.intent,…", on every copy and crash image (7 failures); and `resources::tests::only_the_walk_reads_every_job_at_startup`. Dropping the resource-set invariant from the walk fails `settled_jobs_keep_their_resource_sets_and_hold_no_lock_at_startup` ("missing-primary"), and dropping an operation from its list fails `startup_checks_every_job_of_a_checked_operation_among_settled_jobs` ("storage_mount": the open succeeded) |
+| The walk's list read by key without accounting for it (found in review, 24 November) | `Walked::read` no longer compares `LISTED_BY_KEY`'s count with the jobs listed | `resources::tests::a_listed_job_the_key_does_not_find_refuses_startup` and `a_listed_job_the_key_finds_at_another_row_refuses_startup`: "storage_prepare_targets: left: None, right: Some(StateNotDurable)", the open accepting a forged job its owner never read |
 | A crash open that loses a committed event (the harness's own check) | `core_crash` deletes one committed event from the image before the child opens it | `soak_smoke`, startup under its bounds: "day 1 06:05:00: a crash image of the core store lost committed work in its open (18 WAL frames to replay): 1285 events through cursor 1286 digest to 74746d82… (committed: 1286 events, d09ef811…)", on both crash images |
 
 The stack-proposal shim and its mutation are gone with the shim: stack

@@ -144,8 +144,12 @@ it. Eight owners' checks each walked `jobs` to find the jobs of their
 operation by `json_extract(intent,'$.operation')`, and the lock invariants
 walked it again. Startup now walks `jobs` once (`JOB_WALK`): it holds every
 job to its resource-set invariant and lists the jobs those checks read
-through the primary key; no check was narrowed, and `quick_check` and the
-foreign-key check run in full as before. No migration. At 5,113 jobs the
+through the primary key; every listed job must be found by key at the row
+the walk read (`LISTED_BY_KEY`), so a `jobs` index that disagrees with its
+table, which `quick_check` does not see, is refused as the eight walks
+refused it (found in review). No check was narrowed, and `quick_check` and
+the foreign-key check run in full as before. No migration. Open, older than
+this: the lock invariants find lock-holding jobs through `jobs_state` alone. At 5,113 jobs the
 open reads 37,873 pages cold (2.72 a page) instead of 53,388; at 257 jobs
 2.10 instead of 2.18. The bound is now 3.0, and CI's soak job holds the
 operating point (5,120 jobs, built directly) to every startup bound
