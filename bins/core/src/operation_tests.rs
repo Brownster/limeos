@@ -105,7 +105,7 @@ async fn start_and_stop_dispatch_use_the_same_approval_and_verified_job_path() {
                 token.clone(),
                 csrf.clone(),
                 limeos_contracts::ContainerInput {
-                    resource,
+                    resource: resource.parse().unwrap(),
                     operation,
                 },
             )
@@ -382,7 +382,9 @@ async fn queued_as(
         .plan_restart(
             token.into(),
             csrf.into(),
-            limeos_contracts::RestartInput { resource },
+            limeos_contracts::RestartInput {
+                resource: resource.parse().unwrap(),
+            },
         )
         .await
         .unwrap();
@@ -437,6 +439,7 @@ async fn revoking_a_session_during_inspection_prevents_plan_persistence() {
     let copy = core.clone();
     let supplied = token.clone();
     let operation = tokio::spawn(async move {
+        let resource = resource.parse().unwrap();
         copy.plan_restart(supplied, csrf, limeos_contracts::RestartInput { resource })
             .await
     });

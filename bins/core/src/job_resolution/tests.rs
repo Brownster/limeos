@@ -197,7 +197,7 @@ async fn fixture_at(planned: Option<i64>) -> Fixture {
     let (token, csrf) = (session.token.clone(), session.view.csrf_token.clone());
     let job = match planned {
         None => {
-            let resource = engine_state(T0, true).resource;
+            let resource = engine_state(T0, true).resource.parse().unwrap();
             let proposal = core
                 .plan_restart(
                     token.clone(),

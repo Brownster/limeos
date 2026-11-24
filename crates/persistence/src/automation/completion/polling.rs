@@ -165,9 +165,7 @@ pub(super) fn container_bindings(
         return Err(Error(ErrorCode::Forbidden));
     }
     let present = |resource: &str| {
-        resource
-            .strip_prefix("container:")
-            .is_some_and(limeos_domain::opaque_id)
+        limeos_domain::container_resource(resource)
             && cohort
                 .members()
                 .binary_search_by(|m| m.resource.as_str().cmp(resource))

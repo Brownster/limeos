@@ -66,7 +66,10 @@ fn view_of(
             let expected = subject
                 .targets
                 .iter()
-                .find(|t| t.resource.strip_prefix("container:") == Some(&measured.container))
+                .find(|t| {
+                    limeos_domain::container_resource_id(&t.resource)
+                        == Some(measured.container.as_str())
+                })
                 .ok_or(Error(ErrorCode::StateNotDurable))?;
             targets.push(ResolutionTargetView {
                 expected: expected.clone(),

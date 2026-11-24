@@ -341,7 +341,13 @@ impl Store {
         job: &str,
     ) -> Result<Option<Vec<ResolutionMember>>> {
         let subject = self.resolution_subject(principal, job)?;
-        let id = |resource: &str| resource.trim_start_matches("container:").to_owned();
+        // Receipt resources were validated with their receipt; a spelling
+        // that is not a container resource is shown whole, never trimmed.
+        let id = |resource: &str| {
+            limeos_domain::container_resource_id(resource)
+                .unwrap_or(resource)
+                .to_owned()
+        };
         let table = results_of(subject.kind);
         let receipt: Option<String> = self
             .conn
@@ -424,7 +430,7 @@ impl Store {
             let mut expected: Vec<&str> = subject
                 .targets
                 .iter()
-                .filter_map(|t| t.resource.strip_prefix("container:"))
+                .filter_map(|t| limeos_domain::container_resource_id(&t.resource))
                 .collect();
             expected.sort_unstable();
             if evidence

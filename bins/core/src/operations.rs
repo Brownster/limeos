@@ -217,7 +217,7 @@ impl Core {
         .ok_or(Error(ErrorCode::Unavailable))
     }
     pub(super) async fn inspect(&self, resource: &str) -> Result<ContainerSnapshot> {
-        if !limeos_domain::opaque_id(resource.strip_prefix("container:").unwrap_or_default()) {
+        if !limeos_domain::container_resource(resource) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let value = self
@@ -243,7 +243,7 @@ impl Core {
         options: limeos_domain::LogOptions,
     ) -> Result<limeos_domain::ContainerLogs> {
         options.validate()?;
-        if !limeos_domain::opaque_id(resource.strip_prefix("container:").unwrap_or_default()) {
+        if !limeos_domain::container_resource(&resource) {
             return Err(Error(ErrorCode::InvalidInput));
         }
         let value = self

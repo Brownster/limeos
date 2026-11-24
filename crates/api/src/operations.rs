@@ -19,11 +19,9 @@ pub(super) async fn logs<B: Backend>(
 ) -> Response {
     let result = async {
         options.validate()?;
-        if !limeos_domain::opaque_id(&id) {
-            return Err(Error(ErrorCode::InvalidInput));
-        }
+        let resource = limeos_domain::ContainerId::parse(id)?.resource();
         app.backend
-            .container_logs(cookie(&headers)?, format!("container:{id}"), options)
+            .container_logs(cookie(&headers)?, resource.into_string(), options)
             .await
     }
     .await;

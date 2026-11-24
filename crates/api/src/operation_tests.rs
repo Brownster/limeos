@@ -423,3 +423,70 @@ async fn mount_queue_accepts_a_valid_large_plan_but_retains_a_bounded_http_body(
     // Only the bounded, authenticated queue request reaches the typed backend.
     assert_eq!(mutations.load(Ordering::SeqCst), 1);
 }
+
+/// A resource that is not `container:<64 lowercase hex>` is refused while
+/// decoding the body (`ContainerResource`), before any backend call.
+#[tokio::test]
+async fn a_malformed_container_resource_never_reaches_the_backend() {
+    let mutations = Arc::new(AtomicUsize::new(0));
+    let router = router(Mutations(mutations.clone()), "https://localhost".into());
+    let id = "a".repeat(64);
+    let resources = [
+        String::new(),
+        id.clone(),
+        format!("container:{}", id.to_uppercase()),
+        format!("container:container:{id}"),
+        format!("stack:{id}"),
+        format!("container:{}", &id[..63]),
+    ];
+    for (path, extra) in [
+        ("/api/v1/container/restart/plans", None),
+        ("/api/v1/container/plans", Some("stop")),
+    ] {
+        for resource in &resources {
+            let mut body = serde_json::json!({ "resource": resource });
+            if let Some(operation) = extra {
+                body["operation"] = serde_json::json!(operation);
+            }
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(path)
+                        .header("origin", "https://localhost")
+                        .header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
+                        .header("x-csrf-token", "b".repeat(64))
+                        .header("content-type", "application/json")
+                        .body(Body::from(body.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::BAD_REQUEST,
+                "{path} {resource:?}"
+            );
+        }
+    }
+    assert_eq!(mutations.load(Ordering::SeqCst), 0);
+    // Control: the same request with a valid resource reaches the backend.
+    router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/container/restart/plans")
+                .header("origin", "https://localhost")
+                .header("cookie", format!("__Host-limeos={}", "a".repeat(64)))
+                .header("x-csrf-token", "b".repeat(64))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "resource": format!("container:{id}") }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(mutations.load(Ordering::SeqCst), 1);
+}

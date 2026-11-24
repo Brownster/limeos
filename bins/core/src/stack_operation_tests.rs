@@ -179,7 +179,7 @@ impl Fixture {
                 self.token.clone(),
                 self.csrf.clone(),
                 limeos_contracts::StackInput {
-                    project: "media".into(),
+                    project: "media".parse().unwrap(),
                     operation,
                 },
             )
@@ -854,7 +854,7 @@ async fn revoked_grants_and_ineligible_stacks_stop_work_before_the_executor() {
                 f.token.clone(),
                 f.csrf.clone(),
                 limeos_contracts::StackInput {
-                    project: "other".into(),
+                    project: "other".parse().unwrap(),
                     operation: ContainerAction::Stop,
                 },
             )
