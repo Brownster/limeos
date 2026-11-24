@@ -119,6 +119,10 @@ fn pinned_kind_lists_match_the_sql() {
             declared: limeos_domain::DeclaredOutcome::NotDone,
         },
         EventKind::JobResolutionWithdrawn,
+        EventKind::JobResolutionSuperseded {
+            state: JobState::Succeeded,
+        },
+        EventKind::JobCanceledByAdministrator,
     ] {
         let value: serde_json::Value = serde_json::from_str(&json(&kind).unwrap()).unwrap();
         assert!(AUTHORITY_KINDS.contains(&value["kind"].as_str().unwrap()));

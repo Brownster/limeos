@@ -791,3 +791,34 @@ fn the_proof_check_reads_events_by_job_and_its_cost_stays_flat() {
     // mount job, the steps grow with neither.
     assert_eq!(large, small, "{small} steps, then {large} steps");
 }
+
+#[test]
+fn an_administrator_cancels_a_queued_mount_job_and_its_claim_is_refused() {
+    let (dir, mut store, principal, current) = setup();
+    let (_, _, job) = queued(&mut store, &principal, &current);
+    crate::job_admin::tests::cancel_on_behalf(
+        &mut store,
+        &principal,
+        &job.id,
+        JobFamily::StorageMount,
+        203,
+    );
+    assert_eq!(
+        store
+            .claim_storage_mount(&principal, &job.id, &current, 204)
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
+    assert_eq!(locks(&store, &job.id), 0);
+    assert!(
+        store
+            .storage_mount_candidates()
+            .unwrap()
+            .iter()
+            .all(|(_, j)| j.id != job.id)
+    );
+    // The startup checks accept a mount job canceled before dispatch.
+    drop(store);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
+}

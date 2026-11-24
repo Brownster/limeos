@@ -546,3 +546,35 @@ fn genuine_v7_schema_upgrade_preserves_preview_bytes_and_dependent_claims_or_rol
         }
     }
 }
+
+#[test]
+fn an_administrator_cancels_a_queued_target_job_and_its_claim_is_refused() {
+    let (dir, mut s, p, c, current) = setup();
+    let (proposal, token) = approved(&mut s, &p, &c, &current);
+    let job = s
+        .queue_storage_targets(&p, "queued", &proposal, &token, &current, 202)
+        .unwrap();
+    crate::job_admin::tests::cancel_on_behalf(
+        &mut s,
+        &p,
+        &job.id,
+        limeos_domain::JobFamily::StorageTargets,
+        203,
+    );
+    assert_eq!(
+        s.claim_storage_targets(&p, &job.id, &current, 204)
+            .unwrap_err()
+            .0,
+        ErrorCode::Conflict
+    );
+    assert!(!s.storage_target_resources_available(&job.id).unwrap());
+    assert!(
+        s.storage_target_candidates()
+            .unwrap()
+            .iter()
+            .all(|(_, j)| j.id != job.id)
+    );
+    // The startup checks accept a target job canceled before dispatch.
+    drop(s);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
+}

@@ -149,6 +149,25 @@ impl Store {
         })
     }
     pub fn transition(&mut self, id: &str, from: JobState, to: JobState, now: i64) -> Result<()> {
+        self.transition_by(id, from, to, None, now)
+    }
+    /// `transition`, recording who took the step when it was not the job's
+    /// owner or core itself: `operator` is the administrator a root peer named
+    /// (`operator_cancel_job`). Only a queued job's cancellation is taken on
+    /// someone else's behalf. The owner's `job_transition` event and the
+    /// operator's `job_canceled_by_administrator` event commit together with
+    /// the state change, or not at all.
+    pub(crate) fn transition_by(
+        &mut self,
+        id: &str,
+        from: JobState,
+        to: JobState,
+        operator: Option<&str>,
+        now: i64,
+    ) -> Result<()> {
+        if operator.is_some() && (from, to) != (JobState::Queued, JobState::Canceled) {
+            return Err(Error(ErrorCode::Forbidden));
+        }
         if !from.allows(to) {
             return Err(Error(ErrorCode::Conflict));
         }
@@ -205,7 +224,11 @@ impl Store {
                 tx.execute("UPDATE jobs SET state=? WHERE id=? AND state=? AND deadline>? AND revision=(SELECT grant_revision FROM users WHERE id=jobs.principal)",params![to.as_str(),id,from.as_str(),now]).map_err(|_|Error(ErrorCode::Conflict))?
             } else { tx.execute("UPDATE jobs SET state=?,settled=? WHERE id=? AND state=?",params![to.as_str(),settled_at(to,now),id,from.as_str()]).map_err(durable)? };
             if changed!=1 { return Err(Error(ErrorCode::Conflict)); }
-            event(tx,Some(&principal),Some(id),EventKind::JobTransition { state: to },now)
+            event(tx,Some(&principal),Some(id),EventKind::JobTransition { state: to },now)?;
+            match operator {
+                Some(operator) => event(tx,Some(operator),Some(id),EventKind::JobCanceledByAdministrator,now),
+                None => Ok(()),
+            }
         })
     }
     /// A successful executor lookup found no receipt for this uncertain

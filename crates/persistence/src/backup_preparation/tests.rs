@@ -635,3 +635,29 @@ fn oversized_metadata_refuses_before_allocation_with_compiled_guards_present() {
         generation
     );
 }
+
+#[test]
+fn an_administrator_cancels_a_queued_backup_preparation_and_startup_accepts_it() {
+    let (dir, mut s, p) = setup();
+    let (plan, token) = approved(&mut s, &p);
+    let job = s
+        .queue_backup_preparation(&p, "request", &plan, &token, &binding(), 202)
+        .unwrap();
+    crate::job_admin::tests::cancel_on_behalf(
+        &mut s,
+        &p,
+        &job.id,
+        limeos_domain::JobFamily::BackupPreparation,
+        203,
+    );
+    assert_eq!(
+        s.replay_backup_preparation(&p, "request", &plan, &token)
+            .unwrap()
+            .unwrap()
+            .state,
+        JobState::Canceled
+    );
+    assert_eq!(count(&s, "resource_locks"), 0);
+    drop(s);
+    Store::open(&dir.path().join("core.sqlite")).unwrap();
+}

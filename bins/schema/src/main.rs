@@ -406,6 +406,13 @@ fn main() {
     ts!(limeos_contracts::ResolutionTargetView);
     ts!(limeos_contracts::ResolutionView);
     ts!(limeos_domain::NeedsAttentionJob);
+    ts!(limeos_domain::JobFamily);
+    ts!(limeos_domain::OperatorJob);
+    ts!(limeos_domain::OperatorJobFilter);
+    ts!(limeos_domain::OperatorJobPage);
+    ts!(limeos_domain::CancelRefusal);
+    ts!(limeos_domain::CancelOutcome);
+    ts!(limeos_domain::OperatorCancel);
     ts!(limeos_contracts::ResolveJobInput);
     ts!(limeos_contracts::ResolveStatus);
     ts!(limeos_contracts::ResolveJobResponse);
