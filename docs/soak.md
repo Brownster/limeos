@@ -338,7 +338,7 @@ disagreement:
 | `jobs`: a state or deadline `jobs_state` holds differently (a job in flight filed as settled, a queued one filed as failed) | `jobs_state`'s tally |
 | `jobs`: a `jobs_state` entry out of place (a running job no `state=?` search finds) | `jobs_state`'s order |
 | `jobs`: an entry of the partial `jobs_resource_lock` for a job that holds no lock, or under another job's primary resource, or a lock-holding job it lacks | its tally (and its order, for a resource held twice) |
-| `job_resources` of a job not yet settled: a row its index lacks, files under another resource, or holds out of place, or an entry leading elsewhere | the unsettled jobs' resource rows read from the table, against the entries found by seeking each job (a misplaced entry is not found) |
+| `job_resources` of a job not yet settled: a row its index lacks, files under another resource, or holds out of place, or an entry leading elsewhere; a resource held twice in table and index alike | the unsettled jobs' resource rows read from the table, against the entries found by seeking each job (a misplaced entry is not found); no two of those entries alike (each seek's come in key order) |
 | `resource_locks` or `job_resolutions`: any disagreement with any of their indexes, order and UNIQUE included | `PRAGMA integrity_check` of each table (it seeks every row's entry in every index) |
 | any index entry leading to no row, where a statement follows it | that statement (SQLite reports the store corrupt) |
 | an occurrence naming an ordinary job on its table page | the occurrence check, which reads the occurrences table (`NOT INDEXED`) and the walk's list |
@@ -410,6 +410,7 @@ accounting was removed in turn and the tests run again (24 November):
 | `jobs_resource_lock`'s tally | `a_lock_index_entry_that_disagrees_refuses_startup` (an entry for a job holding no lock) |
 | `jobs_resource_lock`'s order | none alone: its only case, an entry under another job's primary resource, is refused by the tally too, and a resource held twice in the table never reaches it (the resource-set check, the lock invariants or the lock table's check refuses first) |
 | the unsettled jobs' `job_resources` | `a_running_jobs_resources_or_locks_their_index_disagrees_with_refuse_startup` (a resource renamed on the table page) |
+| no two alike among the unsettled jobs' entries | `a_resource_an_unsettled_job_holds_twice_refuses_startup` (third review) |
 | `integrity_check(resource_locks)` | the same (two locks' resources swapped) |
 | `integrity_check(job_resolutions)` | `resolutions_their_index_disagrees_with_refuse_startup` |
 | `NOT INDEXED` in the occurrence check | `an_occurrence_naming_an_ordinary_job_on_its_table_page_refuses_startup` |

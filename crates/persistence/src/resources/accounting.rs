@@ -211,7 +211,7 @@ impl Accounts {
                 UNSETTLED_RESOURCE_ENTRIES,
                 &[&unsettled],
                 2,
-                Order::Any,
+                Order::DistinctKeys,
             )?;
             if table != index {
                 return Err(Error(ErrorCode::StateNotDurable));
@@ -243,6 +243,10 @@ pub(super) enum Order {
     /// A unique index read whole, as stored: each entry's key alone strictly
     /// after the one before (so no key twice either).
     UniqueKeys,
+    /// A unique index's entries found by seeks, each seek's in key order:
+    /// no two neighbours with the same key (a pair held twice, in the table
+    /// and the index alike, agrees in both tallies).
+    DistinctKeys,
 }
 
 /// The tally of `sql`'s rows (`columns` values, then the rowid), refused
@@ -283,7 +287,11 @@ pub(super) fn index_tally(
         if order == Order::Entries {
             entry.push(Key::Integer(rowid));
         }
-        if previous.as_ref().is_some_and(|before| *before >= entry) {
+        let refused = match order {
+            Order::DistinctKeys => previous.as_ref() == Some(&entry),
+            _ => previous.as_ref().is_some_and(|before| *before >= entry),
+        };
+        if refused {
             return Err(Error(ErrorCode::StateNotDurable));
         }
         previous = Some(entry);

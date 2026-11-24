@@ -1712,6 +1712,19 @@ fn the_accounting_reads_each_side_alone() {
             !opcodes.iter().any(|op| op.starts_with("Sorter")),
             "{sql}: {opcodes:?}"
         );
+        // And forwards (`Rewind`/`Next`, never `Last`/`Prev`): the order
+        // check expects ascending entries, so a backward scan (which
+        // `PRAGMA reverse_unordered_selects`, set nowhere and not enabled in
+        // the bundled build, would give these reads, having no ORDER BY)
+        // would refuse every store, on a device nobody watches.
+        assert!(
+            !opcodes.iter().any(|op| op == "Last" || op == "Prev"),
+            "{sql}: {opcodes:?}"
+        );
+        assert!(
+            opcodes.iter().any(|op| op == "Rewind"),
+            "{sql}: {opcodes:?}"
+        );
     }
     // The partial index: the table's cursor is opened for a deferred seek
     // that no column needs, so the seek is never made.
@@ -1941,4 +1954,37 @@ fn resolutions_their_index_disagrees_with_refuse_startup() {
     );
     drop(conn);
     refused_unchanged(&dir, generation, "resolutions swapped");
+}
+
+/// A queued job's resource held twice, in `job_resources` and its index
+/// alike (a UNIQUE violation `quick_check` does not check; both tallies
+/// agree): the next dispatch would insert the same lock twice. Refused by
+/// the unsettled jobs' entries read by seek, no two neighbours alike.
+#[test]
+fn a_resource_an_unsettled_job_holds_twice_refuses_startup() {
+    let (dir, _, _) = forged_among_settled("no_such_operation", None);
+    let path = dir.path().join("core.sqlite");
+    let mut s = Store::open(&path).unwrap();
+    let p = s.login_record("alice").unwrap().unwrap().principal;
+    let job = queue(&mut s, &p, "queued-twice", "b");
+    dependencies(&mut s, &job.id, &["storage:uuid:aaaa", "storage:uuid:aaab"]);
+    let generation = s.generation;
+    drop(s);
+    // Renamed to its neighbour in key order: every index stays in order.
+    for btree in ["job_resources", "sqlite_autoindex_job_resources_1"] {
+        assert!(rewrite_in(&path, btree, "storage:uuid:aaab", "storage:uuid:aaaa") >= 1);
+    }
+    whole_file_checks_pass(&path);
+    let conn = Connection::open(&path).unwrap();
+    assert_eq!(
+        conn.query_row(
+            "SELECT count(*) FROM job_resources NOT INDEXED WHERE job=? AND resource='storage:uuid:aaaa'",
+            [&job.id],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        2
+    );
+    drop(conn);
+    refused_unchanged(&dir, generation, "a resource held twice");
 }
