@@ -19,8 +19,9 @@
 //! the walk of `jobs` ([`super::JOB_WALK`]) or by a walk of the table: the
 //! rows on each side are counted and summed as keyed hashes of their values
 //! and rowid ([`Tally`]; a disagreement passes with probability 2^-64, the
-//! keys are drawn afresh for every open), and a unique index is read in key
-//! order, so a duplicated key shows as two equal neighbours.
+//! keys are drawn afresh for every open); each index read whole is read as
+//! stored and must be in order ([`index_tally`]): every entry after the one
+//! before and, in a unique index, every key after the one before.
 //!
 //! - `jobs`: its primary key (`sqlite_autoindex_jobs_1`, which every keyed
 //!   read of a job and every foreign key naming one uses, and which must be
@@ -64,23 +65,26 @@ pub(super) const SETTLED: [&str; 5] = [
     "resolved",
 ];
 
-/// The primary key's entries, in key order.
-pub(super) const ID_ENTRIES: &str =
-    "SELECT id,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_1 ORDER BY id";
-/// The idempotency key's entries, in key order.
-pub(super) const IDEMPOTENCY_ENTRIES: &str = "SELECT principal,idempotency,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_2 ORDER BY principal,idempotency";
+/// The primary key's entries, as the index holds them (a plain scan of it:
+/// no sorter, so the order read is the order stored).
+pub(super) const ID_ENTRIES: &str = "SELECT id,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_1";
+/// The idempotency key's entries, as the index holds them.
+pub(super) const IDEMPOTENCY_ENTRIES: &str =
+    "SELECT principal,idempotency,rowid FROM jobs INDEXED BY sqlite_autoindex_jobs_2";
 /// `jobs_state`'s entries.
 pub(super) const STATE_ENTRIES: &str =
     "SELECT state,deadline,rowid FROM jobs INDEXED BY jobs_state";
-/// `jobs_resource_lock`'s entries, in key order. Its condition is the
-/// index's own, so SQLite reads the entries alone (the table cursor's seek is
-/// deferred and never made).
-pub(super) const LOCK_ENTRIES: &str = "SELECT resource,rowid FROM jobs INDEXED BY jobs_resource_lock WHERE state IN ('running','verifying','outcome_unknown','needs_intervention') ORDER BY resource";
+/// `jobs_resource_lock`'s entries, as the index holds them. Its condition is
+/// the index's own, so SQLite reads the entries alone (the table cursor's
+/// seek is deferred and never made).
+pub(super) const LOCK_ENTRIES: &str = "SELECT resource,rowid FROM jobs INDEXED BY jobs_resource_lock WHERE state IN ('running','verifying','outcome_unknown','needs_intervention')";
 /// The resource rows of the jobs listed (`?1`, the unsettled jobs), read
 /// from the table.
 pub(super) const UNSETTLED_RESOURCES: &str = "SELECT r.job,r.resource,r.rowid FROM job_resources r NOT INDEXED WHERE r.job IN (SELECT value FROM json_each(?1))";
-/// The same jobs' entries in `job_resources`' primary key, in key order.
-pub(super) const UNSETTLED_RESOURCE_ENTRIES: &str = "SELECT job,resource,rowid FROM job_resources INDEXED BY sqlite_autoindex_job_resources_1 WHERE job IN (SELECT value FROM json_each(?1)) ORDER BY job,resource";
+/// The same jobs' entries in `job_resources`' primary key, found as every
+/// reader finds them, by seeking each job: an entry the seek misses (out of
+/// place, or under another key) is missing here, and an extra one is counted.
+pub(super) const UNSETTLED_RESOURCE_ENTRIES: &str = "SELECT job,resource,rowid FROM job_resources INDEXED BY sqlite_autoindex_job_resources_1 WHERE job IN (SELECT value FROM json_each(?1))";
 /// The lock tables, each checked against all its indexes.
 pub(super) const LOCK_TABLES: [&str; 2] = [
     "PRAGMA integrity_check(resource_locks)",
@@ -178,28 +182,40 @@ impl Accounts {
     /// `integrity_check`.
     pub(super) fn verify(self, conn: &Connection) -> Result<()> {
         let keys = &self.keys;
-        let entries = |sql: &str, columns: usize, unique: bool| -> Result<Tally> {
-            index_tally(conn, keys, sql, &[], columns, unique)
+        let entries = |sql: &str, columns: usize, order: Order| -> Result<Tally> {
+            index_tally(conn, keys, sql, &[], columns, order)
         };
-        let agree = self.ids == entries(ID_ENTRIES, 1, true)?
-            && self.idempotency == entries(IDEMPOTENCY_ENTRIES, 2, true)?
-            && self.states == entries(STATE_ENTRIES, 2, false)?
-            && self.locks == entries(LOCK_ENTRIES, 1, true)?;
+        let agree = self.ids == entries(ID_ENTRIES, 1, Order::UniqueKeys)?
+            && self.idempotency == entries(IDEMPOTENCY_ENTRIES, 2, Order::UniqueKeys)?
+            && self.states == entries(STATE_ENTRIES, 2, Order::Entries)?
+            && self.locks == entries(LOCK_ENTRIES, 1, Order::UniqueKeys)?;
         if !agree {
             return Err(Error(ErrorCode::StateNotDurable));
         }
-        let unsettled = crate::json(&self.unsettled)?;
-        let table = index_tally(conn, keys, UNSETTLED_RESOURCES, &[&unsettled], 2, false)?;
-        let index = index_tally(
-            conn,
-            keys,
-            UNSETTLED_RESOURCE_ENTRIES,
-            &[&unsettled],
-            2,
-            true,
-        )?;
-        if table != index {
-            return Err(Error(ErrorCode::StateNotDurable));
+        // With no unsettled job both sides are empty, known without reading
+        // (the table side is a walk of `job_resources`, the largest cost of
+        // the usual case, where every job has settled): skipped.
+        if !self.unsettled.is_empty() {
+            let unsettled = crate::json(&self.unsettled)?;
+            let table = index_tally(
+                conn,
+                keys,
+                UNSETTLED_RESOURCES,
+                &[&unsettled],
+                2,
+                Order::Any,
+            )?;
+            let index = index_tally(
+                conn,
+                keys,
+                UNSETTLED_RESOURCE_ENTRIES,
+                &[&unsettled],
+                2,
+                Order::Any,
+            )?;
+            if table != index {
+                return Err(Error(ErrorCode::StateNotDurable));
+            }
         }
         for check in LOCK_TABLES {
             let mut statement = conn.prepare(check).map_err(durable)?;
@@ -216,45 +232,84 @@ impl Accounts {
     }
 }
 
-/// The tally of `sql`'s rows (`columns` values, then the rowid); with
-/// `unique`, refused if two neighbouring rows have the same values (the
-/// statement reads a unique key in its order).
-fn index_tally(
+/// What [`index_tally`] requires of the order rows come in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Order {
+    /// None: rows found by seeks, or a table's.
+    Any,
+    /// An index read whole, as stored: each entry (its key, then its rowid)
+    /// strictly after the one before, under SQLite's ordering.
+    Entries,
+    /// A unique index read whole, as stored: each entry's key alone strictly
+    /// after the one before (so no key twice either).
+    UniqueKeys,
+}
+
+/// The tally of `sql`'s rows (`columns` values, then the rowid), refused
+/// unless they come in `order`.
+///
+/// `quick_check` checks key order in table b-trees only, never in an index
+/// (3.54.1: the "Rowid out of order" check is under `if( pPage->intKey )`).
+/// An entry out of place keeps the index's multiset, so the tally passes,
+/// but a seek, which binary-searches the index, misses it: a job filed out
+/// of place in `jobs_state` is found by no `state=?` search. An index read
+/// whole as stored with no sorter (the statements here), every entry after
+/// the one before, is one in which every seek finds every entry.
+pub(super) fn index_tally(
     conn: &Connection,
     keys: &RandomState,
     sql: &str,
     params: &[&dyn rusqlite::ToSql],
     columns: usize,
-    unique: bool,
+    order: Order,
 ) -> Result<Tally> {
     let mut statement = conn.prepare(sql).map_err(durable)?;
     let mut rows = statement.query(params).map_err(durable)?;
     let mut tally = Tally::default();
-    let mut previous: Option<Vec<(u8, Vec<u8>)>> = None;
+    let mut previous: Option<Vec<Key>> = None;
     while let Some(row) = rows.next().map_err(durable)? {
         let values = (0..columns)
             .map(|n| row.get_ref(n).map_err(durable))
             .collect::<Result<Vec<_>>>()?;
         let rowid: i64 = row.get(columns).map_err(durable)?;
         tally.add(keys, &values, rowid);
-        if unique {
-            let owned: Vec<(u8, Vec<u8>)> = values.iter().map(|v| owned(*v)).collect();
-            if previous.as_ref() == Some(&owned) {
-                return Err(Error(ErrorCode::StateNotDurable));
-            }
-            previous = Some(owned);
+        if order == Order::Any {
+            continue;
         }
+        let mut entry = values
+            .iter()
+            .map(|v| Key::of(*v))
+            .collect::<Result<Vec<_>>>()?;
+        if order == Order::Entries {
+            entry.push(Key::Integer(rowid));
+        }
+        if previous.as_ref().is_some_and(|before| *before >= entry) {
+            return Err(Error(ErrorCode::StateNotDurable));
+        }
+        previous = Some(entry);
     }
     Ok(tally)
 }
 
-/// A value with its type, owned, to compare with the next row's.
-fn owned(value: ValueRef<'_>) -> (u8, Vec<u8>) {
-    match value {
-        ValueRef::Null => (0, Vec::new()),
-        ValueRef::Integer(n) => (1, n.to_le_bytes().to_vec()),
-        ValueRef::Real(f) => (2, f.to_bits().to_le_bytes().to_vec()),
-        ValueRef::Text(bytes) => (3, bytes.to_vec()),
-        ValueRef::Blob(bytes) => (4, bytes.to_vec()),
+/// A key column's value, ordered as SQLite orders the types that occur in
+/// these indexes under BINARY: NULL, then integers, then text by its bytes
+/// (a prefix first), then blobs by theirs. A real is refused: no accounted
+/// column holds one, and its order against integers is not modelled here.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum Key {
+    Null,
+    Integer(i64),
+    Text(Vec<u8>),
+    Blob(Vec<u8>),
+}
+impl Key {
+    fn of(value: ValueRef<'_>) -> Result<Self> {
+        Ok(match value {
+            ValueRef::Null => Self::Null,
+            ValueRef::Integer(n) => Self::Integer(n),
+            ValueRef::Text(bytes) => Self::Text(bytes.to_vec()),
+            ValueRef::Blob(bytes) => Self::Blob(bytes.to_vec()),
+            ValueRef::Real(_) => return Err(Error(ErrorCode::StateNotDurable)),
+        })
     }
 }

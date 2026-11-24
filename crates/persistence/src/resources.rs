@@ -227,4 +227,4 @@ pub(crate) fn listed_job_queries() -> Vec<(&'static str, &'static str)> {
 
 mod accounting;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

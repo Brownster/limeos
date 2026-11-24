@@ -932,7 +932,7 @@ fn settled_copies(conn: &Connection, template: &str, from: i64, copies: i64) {
 
 /// What the open refused, and that it changed nothing: the generation is
 /// the one before it.
-fn refused_unchanged(dir: &tempfile::TempDir, generation: i64, case: &str) {
+pub(crate) fn refused_unchanged(dir: &tempfile::TempDir, generation: i64, case: &str) {
     let path = dir.path().join("core.sqlite");
     assert_eq!(
         Store::open(&path).err().map(|e| e.0),
@@ -1153,23 +1153,9 @@ fn only_the_walk_reads_every_job_at_startup() {
 /// sound, so `quick_check` passes, but no longer agreeing with the others
 /// (`quick_check` counts an index's entries; it does not compare them with
 /// the rows: `accounting`). Returns how many it rewrote.
-fn rewrite_in(path: &std::path::Path, btree: &str, from: &str, to: &str) -> usize {
+pub(crate) fn rewrite_in(path: &std::path::Path, btree: &str, from: &str, to: &str) -> usize {
     assert_eq!(from.len(), to.len());
-    let conn = Connection::open(path).unwrap();
-    conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
-        .unwrap();
-    let size = conn
-        .query_row("PRAGMA page_size", [], |r| r.get::<_, i64>(0))
-        .unwrap() as usize;
-    let pages: Vec<usize> = conn
-        .prepare("SELECT pageno FROM dbstat WHERE name=?")
-        .unwrap()
-        .query_map([btree], |r| Ok(r.get::<_, i64>(0)? as usize))
-        .unwrap()
-        .collect::<std::result::Result<_, _>>()
-        .unwrap();
-    drop(conn);
-    assert!(!std::fs::metadata(path.with_extension("sqlite-wal")).is_ok_and(|m| m.len() > 0));
+    let (size, pages) = pages_of(path, btree);
     let mut bytes = std::fs::read(path).unwrap();
     let mut rewritten = 0;
     for page in pages {
@@ -1189,9 +1175,93 @@ fn rewrite_in(path: &std::path::Path, btree: &str, from: &str, to: &str) -> usiz
     rewritten
 }
 
+/// The page size and the pages of the b-tree `btree` of the closed store at
+/// `path`, after folding its WAL in (so the file is the whole store).
+fn pages_of(path: &std::path::Path, btree: &str) -> (usize, Vec<usize>) {
+    let conn = Connection::open(path).unwrap();
+    conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+        .unwrap();
+    let size = conn
+        .query_row("PRAGMA page_size", [], |r| r.get::<_, i64>(0))
+        .unwrap() as usize;
+    let pages: Vec<usize> = conn
+        .prepare("SELECT pageno FROM dbstat WHERE name=?")
+        .unwrap()
+        .query_map([btree], |r| Ok(r.get::<_, i64>(0)? as usize))
+        .unwrap()
+        .collect::<std::result::Result<_, _>>()
+        .unwrap();
+    drop(conn);
+    assert!(!std::fs::metadata(path.with_extension("sqlite-wal")).is_ok_and(|m| m.len() > 0));
+    (size, pages)
+}
+
+/// A SQLite varint at the start of `bytes`: its value and length.
+fn varint(bytes: &[u8]) -> (u64, usize) {
+    let mut value = 0u64;
+    for (n, byte) in bytes.iter().take(9).enumerate() {
+        if n == 8 {
+            return ((value << 8) | u64::from(*byte), 9);
+        }
+        value = (value << 7) | u64::from(byte & 0x7f);
+        if byte & 0x80 == 0 {
+            return (value, n + 1);
+        }
+    }
+    (value, bytes.len())
+}
+
+/// On the leaf page of the index `btree` that holds the last entry whose
+/// record contains `marker`, moves that entry's cell pointer to the front of
+/// the page's pointer array: every entry keeps its bytes and the page its
+/// count, only the order of the entries changes (`quick_check` checks key
+/// order in table b-trees only). Panics unless it moved one.
+pub(crate) fn move_entry_first(path: &std::path::Path, btree: &str, marker: &[u8]) {
+    let (size, pages) = pages_of(path, btree);
+    let mut bytes = std::fs::read(path).unwrap();
+    let mut moved = false;
+    for page in pages {
+        let page = &mut bytes[(page - 1) * size..page * size];
+        // An index leaf: its header is 8 bytes, then the pointer array.
+        if page[0] != 0x0a {
+            continue;
+        }
+        let cells = usize::from(u16::from_be_bytes([page[3], page[4]]));
+        let pointer = |page: &[u8], n: usize| {
+            usize::from(u16::from_be_bytes([page[8 + 2 * n], page[9 + 2 * n]]))
+        };
+        let holding = (0..cells).rev().find(|n| {
+            let at = pointer(page, *n);
+            let (payload, length) = varint(&page[at..]);
+            let end = (at + length + payload as usize).min(size);
+            page[at..end].windows(marker.len()).any(|w| w == marker)
+        });
+        let Some(n) = holding else { continue };
+        assert!(n > 0, "the entry is first on its page already");
+        let pointers: Vec<[u8; 2]> = (0..cells)
+            .map(|i| [page[8 + 2 * i], page[9 + 2 * i]])
+            .collect();
+        let mut order = vec![pointers[n]];
+        order.extend(
+            pointers
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != n)
+                .map(|(_, p)| *p),
+        );
+        for (i, p) in order.iter().enumerate() {
+            page[8 + 2 * i..10 + 2 * i].copy_from_slice(p);
+        }
+        moved = true;
+        break;
+    }
+    assert!(moved, "no leaf of {btree} holds the entry");
+    std::fs::write(path, bytes).unwrap();
+}
+
 /// What `quick_check` and the foreign-key check make of a store: both pass
 /// on the stores the next tests build.
-fn whole_file_checks_pass(path: &std::path::Path) {
+pub(crate) fn whole_file_checks_pass(path: &std::path::Path) {
     let conn = Connection::open(path).unwrap();
     assert_eq!(
         conn.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0))
@@ -1313,14 +1383,17 @@ fn a_listed_job_the_key_finds_at_another_row_refuses_startup() {
     }
 }
 
-/// One more settled container job, a copy of `copy-1` under `id`, in the
+/// One more container job, a copy of `copy-1` under `id` and the
+/// idempotency key `key` (which must not contain `id`, so that rewriting
+/// one leaves the other), with `copy-1`'s deadline or `deadline`, in the
 /// closed store at `path`, in `state` (queued, then moved there).
-fn another_copy(path: &std::path::Path, id: &str, state: &str) {
+fn another_copy(path: &std::path::Path, id: &str, key: &str, state: &str, deadline: Option<i64>) {
+    assert!(!key.contains(id));
     let conn = Connection::open(path).unwrap();
     conn.execute(
         "INSERT INTO jobs(id,principal,idempotency,intent,digest,resource,state,generation,revision,deadline)
-         SELECT ?1,principal,'copy-'||?1,intent,digest,resource,'queued',generation,revision,deadline FROM jobs WHERE idempotency='copy-1'",
-        [id],
+         SELECT ?1,principal,?2,intent,digest,resource,'queued',generation,revision,coalesce(?3,deadline) FROM jobs WHERE idempotency='copy-1'",
+        params![id, key, deadline],
     )
     .unwrap();
     conn.execute("UPDATE jobs SET state=?2 WHERE id=?1", [id, state])
@@ -1335,22 +1408,24 @@ fn another_copy(path: &std::path::Path, id: &str, state: &str) {
 /// resource-set and foreign-key checks pass. A duplicated primary key is
 /// corruption whatever the jobs' operations: before, a duplicate of an
 /// observation job's id let the occurrence check pass where the eight walks
-/// refused (review, 24 November). The open refuses both: the first by the
-/// accounting of the key's index against the table, the second by the key
-/// read in order (two equal neighbours).
+/// refused (review, 24 November). The open refuses all three: the table-only
+/// duplicate by the tally of the key's index against the table, the
+/// duplicate in the index too by the keys read in order (a key not after
+/// the one before), and the same with the two entries apart (one moved to
+/// the front of its page) likewise.
 #[test]
 fn a_primary_key_the_table_holds_twice_refuses_startup() {
     // Neighbours in key order that no other bytes run into (an id ending in
     // the same 63 characters, followed by a principal id, could).
     let first = "d".repeat(63) + "1";
-    for in_index in [false, true] {
+    for (in_index, apart) in [(false, false), (true, false), (true, true)] {
         let (dir, generation, _) = forged_among_settled("no_such_operation", None);
         let path = dir.path().join("core.sqlite");
         // The second copy, under `first`'s neighbour in key order, so that
         // renaming `twice` to `first` keeps every index in order.
         let twice = "d".repeat(63) + "2";
-        another_copy(&path, &first, "canceled");
-        another_copy(&path, &twice, "canceled");
+        another_copy(&path, &first, "extra-1", "canceled", None);
+        another_copy(&path, &twice, "extra-2", "canceled", None);
         let mut btrees = vec!["jobs"];
         if in_index {
             btrees.extend([
@@ -1362,7 +1437,22 @@ fn a_primary_key_the_table_holds_twice_refuses_startup() {
         for btree in btrees {
             assert!(rewrite_in(&path, btree, &twice, &first) >= 1, "{btree}");
         }
-        whole_file_checks_pass(&path);
+        if apart {
+            // The second entry of the key moved away from the first, to the
+            // front of its page: no longer neighbours, and out of order. That
+            // also hides the page's first entry from a search, so the
+            // foreign-key check (whose parent lookups search this index) may
+            // refuse it as well: only `quick_check` is asserted to pass.
+            move_entry_first(&path, "sqlite_autoindex_jobs_1", first.as_bytes());
+            let conn = Connection::open(&path).unwrap();
+            assert_eq!(
+                conn.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "ok"
+            );
+        } else {
+            whole_file_checks_pass(&path);
+        }
         let conn = Connection::open(&path).unwrap();
         assert_eq!(
             conn.query_row(
@@ -1374,7 +1464,11 @@ fn a_primary_key_the_table_holds_twice_refuses_startup() {
             2
         );
         drop(conn);
-        refused_unchanged(&dir, generation, &format!("in the index too: {in_index}"));
+        refused_unchanged(
+            &dir,
+            generation,
+            &format!("in the index too: {in_index}, apart: {apart}"),
+        );
     }
 }
 
@@ -1384,13 +1478,13 @@ fn a_primary_key_the_table_holds_twice_refuses_startup() {
 /// `quick_check` and the foreign-key check pass, the lock invariants and
 /// startup recovery (which find such jobs through `jobs_state`) would see
 /// no interrupted job, and the job would keep its unlocked resources, open
-/// to another dispatch. The open refuses: `jobs_state` and the partial
-/// index are held to the table.
+/// to another dispatch. The open refuses, through two accountings at once
+/// (`jobs_state`'s and the partial index's); each alone is isolated below.
 #[test]
 fn a_job_state_its_index_does_not_hold_refuses_startup() {
     let (dir, generation, _) = forged_among_settled("no_such_operation", None);
     let path = dir.path().join("core.sqlite");
-    another_copy(&path, &"c".repeat(64), "succeeded");
+    another_copy(&path, &"c".repeat(64), "extra-c", "succeeded", None);
     assert!(rewrite_in(&path, "jobs", "succeeded", "verifying") >= 1);
     whole_file_checks_pass(&path);
     let conn = Connection::open(&path).unwrap();
@@ -1594,6 +1688,31 @@ fn the_accounting_reads_each_side_alone() {
             "{steps:?}: {sql}"
         );
     }
+    // The indexes read whole are read as stored: no sorter, which would put
+    // entries out of place back in order and hide them.
+    for sql in [
+        accounting::ID_ENTRIES,
+        accounting::IDEMPOTENCY_ENTRIES,
+        accounting::STATE_ENTRIES,
+        accounting::LOCK_ENTRIES,
+    ] {
+        assert!(
+            !plan(sql).iter().any(|step| step.contains("TEMP B-TREE")),
+            "{sql}"
+        );
+        let opcodes: Vec<String> = s
+            .conn
+            .prepare(&format!("EXPLAIN {sql}"))
+            .unwrap()
+            .query_map([], |r| r.get(1))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert!(
+            !opcodes.iter().any(|op| op.starts_with("Sorter")),
+            "{sql}: {opcodes:?}"
+        );
+    }
     // The partial index: the table's cursor is opened for a deferred seek
     // that no column needs, so the seek is never made.
     let root: i64 = s
@@ -1629,4 +1748,197 @@ fn the_accounting_reads_each_side_alone() {
             .iter()
             .any(|step| step == "SCAN jobs USING INDEX jobs_resource_lock")
     );
+}
+
+/// The closed store at `dir` with jobs queued for the containers `bytes`
+/// and claimed (`running`, holding their locks), opened and closed again.
+/// Returns them and the store's generation after.
+fn running_jobs(
+    dir: &tempfile::TempDir,
+    bytes: &[&str],
+) -> (Vec<limeos_domain::ContainerJob>, i64) {
+    let mut s = Store::open(&dir.path().join("core.sqlite")).unwrap();
+    let p = s.login_record("alice").unwrap().unwrap().principal;
+    let jobs: Vec<_> = bytes
+        .iter()
+        .map(|b| {
+            let job = queue(&mut s, &p, &format!("running-{b}"), b);
+            s.claim_container(&p, &job.id, &snapshot(b), &"1".repeat(64), 203)
+                .unwrap();
+            job
+        })
+        .collect();
+    let generation = s.generation;
+    drop(s);
+    (jobs, generation)
+}
+
+/// Removes `job`'s locks, as the release trigger would, without moving its
+/// state: a running job holding no lock (which the lock invariants refuse,
+/// so long as they find the job).
+fn without_locks(dir: &tempfile::TempDir, job: &str) {
+    let conn = Connection::open(dir.path().join("core.sqlite")).unwrap();
+    unguarded(&conn, &["resource_locks_delete"], |conn| {
+        conn.execute("DELETE FROM resource_locks WHERE job=?", [job])
+            .unwrap();
+    });
+}
+
+/// `jobs_state` alone: a job the table says is `queued` that `jobs_state`
+/// still files as `failed` (neither a lock-holding state, so the partial
+/// index has no say), and a deadline `jobs_state` holds differently. The
+/// dispatcher finds queued jobs through `jobs_state`. Refused by its
+/// accounting alone.
+#[test]
+fn a_state_or_deadline_jobs_state_does_not_hold_refuses_startup() {
+    let resource = format!("container:{}", "a".repeat(64));
+    for case in ["state", "deadline"] {
+        let (dir, generation, _) = forged_among_settled("no_such_operation", None);
+        let path = dir.path().join("core.sqlite");
+        if case == "state" {
+            another_copy(&path, &"c".repeat(64), "extra-c", "failed", None);
+            let (from, to) = (format!("{resource}failed"), format!("{resource}queued"));
+            assert!(rewrite_in(&path, "jobs", &from, &to) >= 1);
+        } else {
+            // "ABCDEFGH", big-endian: the largest deadline, so rewritten one
+            // up it stays in order.
+            another_copy(
+                &path,
+                &"c".repeat(64),
+                "extra-c",
+                "canceled",
+                Some(0x4142434445464748),
+            );
+            assert!(rewrite_in(&path, "jobs_state", "ABCDEFGH", "ABCDEFGI") >= 1);
+        }
+        whole_file_checks_pass(&path);
+        refused_unchanged(&dir, generation, case);
+    }
+}
+
+/// `jobs_state` out of order: a running job whose locks are gone, its
+/// `jobs_state` entry moved to the front of its page. The entries and their
+/// count are unchanged, so `quick_check` and every tally pass, but a search
+/// for `state=?` binary-searches past it: the lock invariants and startup
+/// recovery find no running job, and it would stay `running`, holding no
+/// lock, never marked for intervention (the reviewer's store, 24 November).
+/// Refused by the order `jobs_state` is read in.
+#[test]
+fn a_jobs_state_entry_out_of_order_refuses_startup() {
+    let (dir, _, _) = forged_among_settled("no_such_operation", None);
+    let (jobs, generation) = running_jobs(&dir, &["b"]);
+    without_locks(&dir, &jobs[0].id);
+    let path = dir.path().join("core.sqlite");
+    move_entry_first(&path, "jobs_state", b"running");
+    whole_file_checks_pass(&path);
+    let conn = Connection::open(&path).unwrap();
+    let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+    assert_eq!(
+        count("SELECT count(*) FROM jobs NOT INDEXED WHERE state='running'"),
+        1
+    );
+    assert_eq!(
+        count("SELECT count(*) FROM jobs WHERE state IN ('running','verifying')"),
+        0
+    );
+    assert!(
+        !conn
+            .query_row(LOCK_INVARIANTS, [], |r| r.get::<_, bool>(0))
+            .unwrap()
+    );
+    drop(conn);
+    refused_unchanged(&dir, generation, "running entry out of order");
+}
+
+/// The idempotency key's index alone: one entry's key rewritten (a retried
+/// request would no longer find its job), or moved out of order (a search
+/// for it misses it). Refused by that index's tally, and by the order it is
+/// read in.
+#[test]
+fn an_idempotency_entry_that_disagrees_or_is_out_of_order_refuses_startup() {
+    for case in ["key", "order"] {
+        let (dir, generation, _) = forged_among_settled("no_such_operation", None);
+        let path = dir.path().join("core.sqlite");
+        another_copy(&path, &"c".repeat(64), "zzzz-1", "canceled", None);
+        if case == "key" {
+            assert!(rewrite_in(&path, "sqlite_autoindex_jobs_2", "zzzz-1", "zzzz-2") >= 1);
+        } else {
+            move_entry_first(&path, "sqlite_autoindex_jobs_2", b"zzzz-1");
+        }
+        whole_file_checks_pass(&path);
+        refused_unchanged(&dir, generation, case);
+    }
+}
+
+/// The partial `jobs_resource_lock` alone: an entry for a job that holds no
+/// lock (a running job whose locks are gone and whose state the table and
+/// `jobs_state` both now say is `planned`), or one lock-holding job's entry
+/// filed under another's primary resource (so that resource twice, and the
+/// other's missing). Refused by that index's accounting: the first by its
+/// tally, the second by its tally and the order of its keys (each alone
+/// would refuse it). A primary resource held twice in the table as well
+/// never reaches it: the resource-set check, the lock invariants or the lock
+/// table's `integrity_check` refuses that first.
+#[test]
+fn a_lock_index_entry_that_disagrees_refuses_startup() {
+    let (b, c) = (
+        format!("container:{}", "b".repeat(64)),
+        format!("container:{}", "c".repeat(64)),
+    );
+    for case in ["no lock", "another resource"] {
+        let (dir, _, _) = forged_among_settled("no_such_operation", None);
+        let path = dir.path().join("core.sqlite");
+        let generation = if case == "no lock" {
+            let (jobs, generation) = running_jobs(&dir, &["b"]);
+            without_locks(&dir, &jobs[0].id);
+            let (from, to) = (format!("{b}running"), format!("{b}planned"));
+            assert!(rewrite_in(&path, "jobs", &from, &to) >= 1);
+            // The only `running` entry: `planned` sorts after every
+            // `canceled` one too, so the index stays in order.
+            assert!(rewrite_in(&path, "jobs_state", "running", "planned") >= 1);
+            generation
+        } else {
+            let (_, generation) = running_jobs(&dir, &["b", "c"]);
+            assert!(rewrite_in(&path, "jobs_resource_lock", &c, &b) >= 1);
+            generation
+        };
+        whole_file_checks_pass(&path);
+        refused_unchanged(&dir, generation, case);
+    }
+}
+
+/// `job_resolutions` against its index: two running jobs' open resolution
+/// requests with their jobs swapped on the table page (each found through
+/// the index at the other's row). The lock invariants' resolution parts and
+/// the foreign-key check pass. Refused by `integrity_check(job_resolutions)`.
+#[test]
+fn resolutions_their_index_disagrees_with_refuse_startup() {
+    let (dir, _, _) = forged_among_settled("no_such_operation", None);
+    let (jobs, generation) = running_jobs(&dir, &["b", "c"]);
+    let path = dir.path().join("core.sqlite");
+    let conn = Connection::open(&path).unwrap();
+    let user: String = conn
+        .query_row("SELECT id FROM users", [], |r| r.get(0))
+        .unwrap();
+    for job in &jobs {
+        conn.execute(
+            "INSERT INTO job_resolutions(job,resolved_by,declared,reason,evidence,evidence_digest,requested) VALUES(?,?,'not_done','r','e','d',1)",
+            params![job.id, user],
+        )
+        .unwrap();
+    }
+    drop(conn);
+    let swap = "g".repeat(64);
+    assert!(rewrite_in(&path, "job_resolutions", &jobs[0].id, &swap) >= 1);
+    assert!(rewrite_in(&path, "job_resolutions", &jobs[1].id, &jobs[0].id) >= 1);
+    assert!(rewrite_in(&path, "job_resolutions", &swap, &jobs[1].id) >= 1);
+    whole_file_checks_pass(&path);
+    let conn = Connection::open(&path).unwrap();
+    assert!(
+        !conn
+            .query_row(LOCK_INVARIANTS, [], |r| r.get::<_, bool>(0))
+            .unwrap()
+    );
+    drop(conn);
+    refused_unchanged(&dir, generation, "resolutions swapped");
 }
