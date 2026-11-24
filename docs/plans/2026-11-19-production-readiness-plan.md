@@ -136,14 +136,26 @@ users (the restore procedure relies on plan expiry instead). Operator steps:
 | PR-43 | One receipt-journal implementation shared by container actions, storage targets and mounts; one private-object-tree implementation in `backup-archive`. | Duplicates deleted; existing crash tests pass unchanged. |
 | PR-44 | Evidence policy: keep summaries and hashes in git; move raw logs and archives (80 MB today) to release assets. Replace the roadmap's status header with a link to the latest status file. | Tracked `docs/` under 10 MB going forward. |
 
-**Open from PR-30 (core startup at high job counts):** past about 2,700
-retained jobs core's startup statements read more than the soak's 3.2 pages
-per page of file (3.84 at 5,113 jobs, 210 ms in a debug build); job-row
-retention keeps 30 days of settled jobs, so 90 to 170 jobs a day reaches it.
-The job walks by `json_extract(intent,'$.operation')` (eight of them) and
-the lock and resource invariants scale with the jobs. Measured and
-reproducible with `startup_at_high_retained_job_count` (`docs/soak.md`,
-"Core startup at high job counts"); not fixed.
+**Fixed from PR-30 (core startup at high job counts), 24 November:** past
+about 2,700 retained jobs core's startup statements read more than the
+soak's then 3.2 pages per page of file (3.83 at 5,113 jobs); job-row
+retention keeps 30 days of settled jobs, so 90 to 170 jobs a day reaches
+it. Eight owners' checks each walked `jobs` to find the jobs of their
+operation by `json_extract(intent,'$.operation')`, and the lock invariants
+walked it again. Startup now walks `jobs` once (`JOB_WALK`): it holds every
+job to its resource-set invariant and lists the jobs those checks read
+through the primary key; no check was narrowed, and `quick_check` and the
+foreign-key check run in full as before. No migration. At 5,113 jobs the
+open reads 37,873 pages cold (2.72 a page) instead of 53,388; at 257 jobs
+2.10 instead of 2.18. The bound is now 3.0, and CI's soak job holds the
+operating point (5,120 jobs, built directly) to every startup bound
+(`soak_core_startup_at_high_retained_job_count`). Still growing with the
+jobs: the one walk with its resource-set probes (0.35 a page at 5,113 jobs)
+and the whole-file checks' share of table pages. Not measured on the Pi:
+the reads removed are re-reads the kernel's page cache normally serves, so
+the gain there is CPU and system calls (estimated 0.1 to 0.3 s a start at
+5,113 jobs in release), SD reads only under memory pressure.
+`docs/soak.md`, "Core startup at high job counts".
 
 ## Phase 4 — Footprint gates
 
