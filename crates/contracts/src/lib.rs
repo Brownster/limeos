@@ -381,6 +381,10 @@ pub enum ReadResult {
 pub struct ReaderReadOutcome {
     pub read: ReaderRead,
     pub result: ReadResult,
+    /// How a failed read failed (for a container-health read, with the
+    /// reader's own reason when it gave one). On an accepted container-health
+    /// read of an Engine past its 64-container bound, how many containers it
+    /// left out.
     pub reason: Option<String>,
 }
 

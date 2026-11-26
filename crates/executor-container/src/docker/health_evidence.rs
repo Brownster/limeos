@@ -83,7 +83,8 @@ impl ContainerHealth {
         Ok(signal)
     }
 }
-/// Serialize-only past observations. Completeness covers container signals only.
+/// Serialize-only past observations. Completeness covers container signals
+/// only, and is false whenever containers were truncated.
 /// ```compile_fail
 /// use limeos_executor_container::docker::health_evidence::EngineHealthSnapshot;
 /// let imported: EngineHealthSnapshot = serde_json::from_str("{}").unwrap();
@@ -95,6 +96,9 @@ pub struct EngineHealthSnapshot {
     pub containers_observed_at: i64,
     pub complete: bool,
     pub containers: Vec<ContainerHealth>,
+    /// Listed Engine containers beyond the profile's bound (64), stopped ones
+    /// first, that this snapshot does not read. They are unknown, not gone.
+    pub truncated: u16,
 }
 /// The retained socket, original clocks, ledger and validation gate stay private.
 /// ```compile_fail
@@ -132,10 +136,11 @@ impl EngineHealthEvidence {
 }
 
 /// Fixed trusted reader. Runtime registration and independent supervision remain required.
-/// Kept on `CombinedV1` (16 containers, 8 running): its only consumer is the
-/// alert/health-policy automation behind `allow_container_health_read`, which
-/// the basic cutover leaves off. Raise it with an `EngineWideV1`-style profile
-/// before enabling that read on an Engine of more than 16 containers.
+/// On `EngineWideV1`, as the stack inventory: a whole Engine of up to 64
+/// containers of any state is read; past that the selective listing keeps
+/// running containers first and counts the rest in `truncated` instead of
+/// refusing (an Engine of 18 containers, 14 running, refused under the
+/// earlier `CombinedV1` bound of 16 and 8, and rolled a cutover back).
 /// Authenticated by the Engine's root-owned socket and root peer, like
 /// `inspect_compose_membership`; GET requests only; runs in the reader's
 /// health worker with the `docker` group and no capability (PR-32).

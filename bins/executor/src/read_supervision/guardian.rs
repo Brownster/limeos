@@ -40,7 +40,10 @@ impl WorkerBootstrap {
     ) -> limeos_domain::Result<Vec<u8>> {
         crate::stack_read::collect(catalog, &|| process::getppid() != Some(self.guardian)).await
     }
-    pub async fn collect_health(&self, nonce: &str) -> limeos_domain::Result<Vec<u8>> {
+    pub async fn collect_health(
+        &self,
+        nonce: &str,
+    ) -> std::result::Result<Vec<u8>, limeos_executor_protocol::HealthReadFailure> {
         crate::health_read::collect(nonce, &|| process::getppid() != Some(self.guardian)).await
     }
 }
@@ -55,6 +58,11 @@ pub fn write_worker_refusal() -> Result<()> {
 /// manager as `Refusal::WorkerCapability` so it can say so.
 pub fn write_worker_capability_refusal() -> Result<()> {
     write_frame(7, &[])
+}
+/// A worker's refusal with its role's one-byte reason, relayed to the
+/// manager as `Refusal::WorkerFailed`.
+pub fn write_worker_failure(reason: u8) -> Result<()> {
+    write_frame(FAILED, &[reason])
 }
 fn write_frame(status: u8, body: &[u8]) -> Result<()> {
     if body.len() > REPORT {
@@ -186,6 +194,7 @@ pub fn guardian(mut worker: Command) -> Result<()> {
     };
     match result {
         Ok(report) => write_frame(0, report.as_bytes()),
+        Err(Refusal::WorkerFailed(reason)) => write_frame(FAILED, &[reason]),
         Err(error) => write_frame(code(error), &[]),
     }
 }

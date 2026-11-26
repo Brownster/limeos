@@ -441,7 +441,7 @@ pub(super) async fn inspect_health(
         docker,
         policy,
         TimeSource::default(),
-        Some(Admission::new(EngineReadProfile::CombinedV1)),
+        Some(Admission::new(EngineReadProfile::EngineWideV1)),
         Projection::Health,
     )
     .await
@@ -1166,7 +1166,10 @@ async fn collect(
                     .ok_or_else(unavailable)?
                     .string(&declarations.engine_id)?,
                 containers_observed_at: lifetime.observed_at,
-                complete: health_evidence::complete(&health_members)
+                // Containers left out past the bound are unknown, so a
+                // truncated snapshot is never complete.
+                complete: truncated == 0
+                    && health_evidence::complete(&health_members)
                     && health_evidence::complete(&left_out.health),
                 containers: {
                     let mut all = health_members;
@@ -1177,6 +1180,7 @@ async fn collect(
                     all.sort_by(|a, b| a.resource.cmp(&b.resource));
                     all
                 },
+                truncated: u16::try_from(truncated).map_err(|_| unavailable())?,
             })
         } else {
             None
@@ -1208,11 +1212,11 @@ struct Listing<'a> {
     path: &'a str,
 }
 impl Listing<'_> {
-    /// Storage evidence refuses an Engine over its bound. The Compose display
-    /// projection keeps the first containers, running ones first, and counts
-    /// the rest, with the Compose project of every listed row.
+    /// Storage evidence refuses an Engine over its bound. The Compose and
+    /// health display projections keep the first containers, running ones
+    /// first, and count the rest, with the Compose project of every listed row.
     async fn ids(&self, scope: Option<&mut Scope>) -> Result<super::storage::Selected> {
-        if self.projection == Projection::Compose {
+        if matches!(self.projection, Projection::Compose | Projection::Health) {
             let admission = self.admission.ok_or_else(unavailable)?;
             let rows = self
                 .authenticated

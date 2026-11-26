@@ -89,6 +89,33 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
                     receipt.ready = false;
                     receipt.error = Some(ErrorCode::Forbidden);
                 }
+                // A granted read the reader could not answer, with its reason.
+                15 => {
+                    receipt = Receipt::empty();
+                    receipt.ready = false;
+                    receipt.error = Some(ErrorCode::Unavailable);
+                    receipt.health_failure =
+                        Some(limeos_executor_protocol::HealthReadFailure::EngineUnavailable);
+                }
+                // An Engine past the bound: read, with the rest counted.
+                16 => {
+                    let one = receipt.container_health.take().unwrap();
+                    receipt.container_health = Some(
+                        ContainerHealthCohort::with_truncated(
+                            one.nonce().into(),
+                            one.engine_id().into(),
+                            one.sampled_at(),
+                            one.members().to_vec(),
+                            3,
+                        )
+                        .unwrap(),
+                    );
+                }
+                // A reason on an answer that is not a refusal is malformed.
+                17 => {
+                    receipt.health_failure =
+                        Some(limeos_executor_protocol::HealthReadFailure::EngineChanged);
+                }
                 4 => {
                     receipt.stack_cohort = Some(
                         limeos_domain::deployment::discovery::DiscoveryCohort::new(None, None)
@@ -161,6 +188,55 @@ async fn a_read_the_readers_ceiling_refuses_is_forbidden_not_unavailable() {
         Some(Error(ErrorCode::Forbidden))
     );
     assert_eq!(f.requests.load(Ordering::SeqCst), 1);
+}
+#[tokio::test]
+async fn reader_status_says_not_granted_why_it_failed_and_how_many_it_left_out() {
+    use limeos_contracts::{ReadResult, ReaderRead};
+    let outcome = |mode| async move {
+        let f = fixture(mode, 120).await;
+        crate::reader_health::container_health_read(f.reader.clone()).await
+    };
+    let accepted = outcome(0).await;
+    assert_eq!(accepted.read, ReaderRead::ContainerHealth);
+    assert_eq!(
+        (accepted.result, accepted.reason),
+        (ReadResult::Accepted, None)
+    );
+    let denied = outcome(14).await;
+    assert_eq!(
+        (denied.result, denied.reason),
+        (ReadResult::NotGranted, None)
+    );
+    let failed = outcome(15).await;
+    assert_eq!(failed.result, ReadResult::Failed);
+    assert_eq!(
+        failed.reason.as_deref(),
+        Some(
+            "the read failed: Unavailable: the Engine read was refused: the Engine was unreachable or slow, an answer was over its byte bound, or the Engine has more than 1,024 containers or 256 selected mounts"
+        )
+    );
+    // An older reader, or a malformed answer: the code alone.
+    let bare = outcome(3).await;
+    assert_eq!(
+        (bare.result, bare.reason.as_deref()),
+        (ReadResult::Failed, Some("the read failed: Unavailable"))
+    );
+    let truncated = outcome(16).await;
+    assert_eq!(truncated.result, ReadResult::Accepted);
+    assert_eq!(
+        truncated.reason.as_deref(),
+        Some(
+            "truncated: 3 container(s) beyond the 64-container bound (stopped ones first) were not read and are not watched"
+        )
+    );
+    assert_eq!(outcome(17).await.result, ReadResult::Failed);
+}
+#[tokio::test]
+async fn a_truncated_cohort_reaches_core_marked_incomplete_with_its_count() {
+    let f = fixture(16, 120).await;
+    let fresh = f.reader.read(deadline()).await.unwrap();
+    assert_eq!(fresh.cohort().truncated(), 3);
+    assert!(!fresh.cohort().complete());
 }
 #[tokio::test]
 async fn a_socket_core_owns_and_a_symlink_refuse_before_request_bytes() {

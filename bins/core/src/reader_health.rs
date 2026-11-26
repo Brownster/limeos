@@ -219,19 +219,24 @@ enum Asked {
 /// took away still answers `Health`, but fails these.
 pub(crate) async fn read_once(core: &crate::Core, read: ReaderRead) -> ReaderReadOutcome {
     let result = match read {
-        ReaderRead::Stack => stack_once(core).await,
-        ReaderRead::Storage => core.probe_storage().await.map(drop).map_err(failure),
-        ReaderRead::ContainerHealth => crate::health_collection::HealthReader::new(
-            (*core.storage_socket).clone(),
-            core.storage_readers.clone(),
-        )
-        .read(std::time::Instant::now() + crate::health_collection::WINDOW)
-        .await
-        .map(drop)
-        .map_err(failure),
+        ReaderRead::Stack => stack_once(core).await.map(|()| None),
+        ReaderRead::Storage => core.probe_storage().await.map(|_| None).map_err(failure),
+        ReaderRead::ContainerHealth => {
+            return container_health_read(crate::health_collection::HealthReader::new(
+                (*core.storage_socket).clone(),
+                core.storage_readers.clone(),
+            ))
+            .await;
+        }
     };
+    outcome(read, result)
+}
+fn outcome(
+    read: ReaderRead,
+    result: std::result::Result<Option<String>, Failure>,
+) -> ReaderReadOutcome {
     let (result, reason) = match result {
-        Ok(()) => (ReadResult::Accepted, None),
+        Ok(note) => (ReadResult::Accepted, note),
         Err(Failure::NotGranted) => (ReadResult::NotGranted, None),
         Err(Failure::Failed(reason)) => (ReadResult::Failed, Some(reason)),
     };
@@ -244,6 +249,36 @@ pub(crate) async fn read_once(core: &crate::Core, read: ReaderRead) -> ReaderRea
 enum Failure {
     NotGranted,
     Failed(String),
+}
+/// A container-health read through the reader, as `read_once` makes it.
+/// Accepted past the Engine bound, it says how many containers it left out;
+/// refused by the reader's ceiling, it is not granted; failed, it gives the
+/// reader's reason when the reader sent one.
+pub(crate) async fn container_health_read(
+    reader: crate::health_collection::HealthReader,
+) -> ReaderReadOutcome {
+    let result = match reader
+        .read_explained(std::time::Instant::now() + crate::health_collection::WINDOW)
+        .await
+    {
+        Ok(fresh) => Ok(truncation_note(fresh.cohort())),
+        Err(refused) => Err(match (failure(refused.error), refused.reason) {
+            (Failure::Failed(base), Some(reason)) => {
+                Failure::Failed(format!("{base}: {}", reason.message()))
+            }
+            (other, _) => other,
+        }),
+    };
+    outcome(ReaderRead::ContainerHealth, result)
+}
+fn truncation_note(cohort: &limeos_domain::automation::ContainerHealthCohort) -> Option<String> {
+    let left_out = cohort.truncated();
+    (left_out > 0).then(|| {
+        format!(
+            "truncated: {left_out} container(s) beyond the {}-container bound (stopped ones first) were not read and are not watched",
+            limeos_domain::automation::CONTAINER_HEALTH_MEMBERS
+        )
+    })
 }
 /// A read's error: `Forbidden` from a reader whose socket core already
 /// accepted is its ceiling saying no.

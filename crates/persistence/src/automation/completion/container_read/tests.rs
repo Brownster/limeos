@@ -343,3 +343,49 @@ fn queued_partial_collection_cannot_silently_retire_a_retained_container() {
         [job]
     );
 }
+
+#[test]
+fn a_truncated_cohort_never_retires_or_clears_a_container_it_left_out() {
+    // An Engine past 64 containers: the alerted container is one of those
+    // the read left out. It is unknown, not healthy and not gone, so the pass
+    // may not settle as if it were (both completion paths share
+    // `polling::container_bindings`).
+    let (_dir, mut store, actor) = setup();
+    let job = queue(&mut store, &actor, 120);
+    let read = permit(
+        store
+            .automation_container_job_begin(&job, || 121, deadline())
+            .unwrap(),
+    );
+    store
+        .automation_container_read_complete(&read, &cohort(121), || 121, deadline())
+        .unwrap();
+    let left_out = ContainerHealthCohort::with_truncated(
+        "a".repeat(64),
+        "fixture-engine".into(),
+        123,
+        vec![],
+        1,
+    )
+    .unwrap();
+    assert!(!left_out.complete());
+    let job = queue(&mut store, &actor, 122);
+    let read = permit(
+        store
+            .automation_container_job_begin(&job, || 123, deadline())
+            .unwrap(),
+    );
+    let before = counts(&store);
+    assert!(matches!(
+        store.automation_container_read_complete(&read, &left_out, || 123, deadline()),
+        Err(Error(ErrorCode::Conflict))
+    ));
+    assert_eq!(counts(&store), before);
+    assert_eq!(
+        store
+            .automation_queued_observation_page(None, 32)
+            .unwrap()
+            .items,
+        [job]
+    );
+}

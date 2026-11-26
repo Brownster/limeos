@@ -157,7 +157,19 @@ export type AlertEventKind = "incident" | "recovery";
 export type HealthPolicySilence = { kind: AlertKind, key: string, created_at: string, expires_at: string | null, reason: string, };
 export type HealthPolicyDefinition = { fail_threshold: number, disabled: Array<AlertKind>, required_mounts: Array<string>, silences: Array<HealthPolicySilence>, };
 export type ContainerHealthMember = { resource: string, signal: AlertSignal | null, };
-export type ContainerHealthCohort = { version: number, nonce: string, engine_id: string, sampled_at: number, complete: boolean, members: Array<ContainerHealthMember>, };
+export type ContainerHealthCohort = { version: number, nonce: string, engine_id: string, sampled_at: number,
+/**
+ * False when any member's signal is unavailable or any container was
+ * left out (`truncated`): an absent container is unknown, never healthy
+ * or gone.
+ */
+complete: boolean, members: Array<ContainerHealthMember>,
+/**
+ * Engine containers beyond `CONTAINER_HEALTH_MEMBERS` that this cohort
+ * does not read (stopped ones are left out before running ones). Absent
+ * from an older reader's answer, which never truncated.
+ */
+truncated: number, };
 export type HealthPolicyView = { revision: number, updated: number | null, definition: HealthPolicyDefinition, };
 export type ReplaceHealthPolicy = { revision: number, definition: HealthPolicyDefinition, };
 export type AlertEvent = { key: string, generation: number, event: AlertEventKind, kind: AlertKind, severity: AutomationSeverity, summary: string, at: number, };
@@ -217,7 +229,14 @@ reason: string | null,
 read: ReaderReadOutcome | null, };
 export type ReaderRead = "stack" | "storage" | "container_health";
 export type ReadResult = "accepted" | "not_granted" | "failed";
-export type ReaderReadOutcome = { read: ReaderRead, result: ReadResult, reason: string | null, };
+export type ReaderReadOutcome = { read: ReaderRead, result: ReadResult,
+/**
+ * How a failed read failed (for a container-health read, with the
+ * reader's own reason when it gave one). On an accepted container-health
+ * read of an Engine past its 64-container bound, how many containers it
+ * left out.
+ */
+reason: string | null, };
 export type SessionView = { principal: Principal, csrf_token: string, expires_at: number, };
 export type ErrorEnvelope = { code: ErrorCode, message: string, retry: boolean, audit_id: string, };
 export type CoreRequest = { "request": "health", version: number, } | { "request": "issue_bootstrap", version: number, } | { "request": "enroll", version: number, enrollment: Enrollment, } | { "request": "import_legacy_users", version: number, users: Array<LegacyUser>, } | { "request": "reader_status", version: number, read: ReaderRead | null, } | { "request": "read_resolution", version: number, admin: string, job: string, } | { "request": "resolve_job", version: number, admin: string, job: string, declared: DeclaredOutcome, reason: string, evidence_digest: string, } | { "request": "list_jobs", version: number, filter: OperatorJobFilter, limit: number, } | { "request": "cancel_job", version: number, admin: string, job: string, } | { "request": "check_task", version: number, token: string, task: string, operation: Operation, resource: string, } | { "request": "propose_restart", version: number, token: string, task: string, resource: string, } | { "request": "queue_restart", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "propose_container", version: number, token: string, task: string, resource: string, operation: ContainerAction, } | { "request": "queue_container", version: number, token: string, task: string, input: QueueRestartInput, } | { "request": "read_container_logs", version: number, token: string, task: string, resource: string, options: LogOptions, } | { "request": "propose_compose", version: number, token: string, task: string, selection: ComposeSelection, };
@@ -554,6 +573,7 @@ export type StrandedReads = { count: number,
  * When the oldest of them was abandoned (Unix seconds).
  */
 since: number, };
+export type HealthReadFailure = "reader_budget" | "worker_busy" | "worker_deadline" | "worker_capability" | "worker_failed" | "worker_cleanup" | "worker_memory" | "worker_descriptors" | "engine_forbidden" | "engine_unavailable" | "engine_overloaded" | "engine_changed" | "cohort_bound";
 export type Receipt = { container_health?: ContainerHealthCohort | null, stack_cohort?: DiscoveryCohort | null, storage_mount_catalog?: StorageMountCatalog | null, storage_mount_inspection?: StorageMountInspection | null, storage_mount?: StorageMountReceipt | null, mounted_storage?: StorageMountedSnapshot | null, version: number, ready: boolean, observations?: ObservationBatch | null, inspection?: ContainerSnapshot | null, restart?: ContainerReceipt | null, stack?: StackReceipt | null, stack_members?: StackSnapshot | null, resolution?: ResolveReceipt | null,
 /**
  * Set by a receipt lookup or `ResolveAction` that has no receipt to act
@@ -594,7 +614,12 @@ budget_frees_at?: number, storage?: StorageInventory | null, storage_targets?: S
  * Set on the storage reader's answer to `Health` while it has a stuck
  * read.
  */
-stranded_reads?: StrandedReads | null, };
+stranded_reads?: StrandedReads | null,
+/**
+ * Set with `error` on the storage reader's refusal of a granted
+ * container-health read: why it could not answer.
+ */
+health_failure?: HealthReadFailure | null, };
 export type RestartPlan = ContainerPlan;
 export type PlannedRestart = PlannedContainerAction;
 export type RestartJob = ContainerJob;

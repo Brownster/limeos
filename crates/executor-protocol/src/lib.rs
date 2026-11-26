@@ -220,6 +220,83 @@ pub struct StrandedReads {
     #[ts(type = "number")]
     pub since: i64,
 }
+/// Why the storage reader could not answer a container-health read it was
+/// granted: a closed, non-secret code (no Engine text, name or path) sent
+/// with `error` so an operator can act on "unavailable". The reader logs the
+/// same reason in its journal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum HealthReadFailure {
+    /// The reader itself was over its memory or descriptor budget before
+    /// starting the health worker.
+    ReaderBudget,
+    /// Another protected read held the single worker slot.
+    WorkerBusy,
+    /// The worker did not finish within its 4 s window.
+    WorkerDeadline,
+    /// The worker held a capability and refused to read.
+    WorkerCapability,
+    /// The worker or its guardian could not start, exited abnormally or
+    /// wrote a malformed report.
+    WorkerFailed,
+    /// A worker's cleanup was not confirmed earlier; protected reads stay
+    /// refused until the reader restarts.
+    WorkerCleanup,
+    /// The worker was over its memory budget.
+    WorkerMemory,
+    /// The worker was over its descriptor, file-limit or thread budget.
+    WorkerDescriptors,
+    /// The Engine's socket or peer is not the root-owned Engine.
+    EngineForbidden,
+    /// The Engine read was refused: the Engine was unreachable or slow, an
+    /// answer was over its byte bound, or the Engine is past a bound the read
+    /// does not truncate (more than 1,024 listed or 256 selected mounts).
+    EngineUnavailable,
+    /// The Engine read ran out of its counted memory allowance.
+    EngineOverloaded,
+    /// The Engine changed while it was read; the next read may succeed.
+    EngineChanged,
+    /// The answer was over the cohort's member or byte bound.
+    CohortBound,
+}
+impl HealthReadFailure {
+    /// One line for the reader's journal and `limeosctl reader-status`.
+    pub fn message(self) -> &'static str {
+        match self {
+            Self::ReaderBudget => {
+                "the storage reader was over its memory or descriptor budget before starting the health worker"
+            }
+            Self::WorkerBusy => "another protected read held the health worker's slot",
+            Self::WorkerDeadline => "the health worker did not finish within its 4 s window",
+            Self::WorkerCapability => {
+                "the health worker held a capability and refused to read (its guardian did not clear the ambient set)"
+            }
+            Self::WorkerFailed => {
+                "the health worker could not start, exited abnormally or wrote a malformed report"
+            }
+            Self::WorkerCleanup => {
+                "an earlier worker's cleanup was not confirmed; protected reads stay refused until the reader restarts"
+            }
+            Self::WorkerMemory => "the health worker was over its 20 MiB memory budget",
+            Self::WorkerDescriptors => {
+                "the health worker was over its descriptor, file-limit or thread budget"
+            }
+            Self::EngineForbidden => {
+                "the Engine socket or its peer is not the root-owned Docker Engine"
+            }
+            Self::EngineUnavailable => {
+                "the Engine read was refused: the Engine was unreachable or slow, an answer was over its byte bound, or the Engine has more than 1,024 containers or 256 selected mounts"
+            }
+            Self::EngineOverloaded => "the Engine read ran out of its counted memory allowance",
+            Self::EngineChanged => "the Engine changed while it was read",
+            Self::CohortBound => "the health answer was over its member or byte bound",
+        }
+    }
+}
+// A whole container-health cohort and the receipt around it fit one frame.
+const _: () = assert!(
+    limeos_domain::automation::CONTAINER_HEALTH_BYTES + 4 * 1024 <= limeos_contracts::FRAME_LIMIT
+);
 #[derive(Serialize, Deserialize, JsonSchema, TS)]
 #[serde(deny_unknown_fields)]
 pub struct Receipt {
@@ -297,6 +374,10 @@ pub struct Receipt {
     /// read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stranded_reads: Option<StrandedReads>,
+    /// Set with `error` on the storage reader's refusal of a granted
+    /// container-health read: why it could not answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub health_failure: Option<HealthReadFailure>,
 }
 /// Independent, root-owned authority for the one closed nonpersistent mount.
 #[derive(Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -868,6 +949,7 @@ impl Receipt {
             target_preparation: None,
             container_storage: None,
             stranded_reads: None,
+            health_failure: None,
         }
     }
 }

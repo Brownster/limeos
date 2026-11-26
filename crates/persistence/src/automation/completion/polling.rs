@@ -164,6 +164,9 @@ pub(super) fn container_bindings(
     if scopes != resources {
         return Err(Error(ErrorCode::Forbidden));
     }
+    // Only members are present. A container a truncated cohort left out
+    // (`cohort.truncated()`, past the Engine bound) is unknown: a retained
+    // alert or silence for it is a conflict here, never resolved or retired.
     let present = |resource: &str| {
         resource
             .strip_prefix("container:")

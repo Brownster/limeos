@@ -22,8 +22,14 @@ root-only Engine reader, its complete double inspection and fresh revalidation.
 The existing independent supervisor retains the shared read gate and image
 until confirmed descendant cleanup; unconfirmed cleanup still poisons admission.
 Existing manager/guardian/worker limits, service ceilings and Engine budgets
-remain unchanged. The nonce-bound plain report caps sixteen sorted full-ID
-members at 32 KiB and contains only sanitized optional container signals.
+remain unchanged. The nonce-bound plain report caps 64 sorted full-ID members
+(the product's Engine bound; sixteen until 26 November 2026) at 56 KiB, under
+the 64-KiB executor frame, plus a `truncated` count of containers past the
+bound, and contains only sanitized optional container signals. A truncated
+report is never complete, and core never resolves, retires or silences
+anything about a container it left out. A refused read carries a closed
+reason (`HealthReadFailure`), which the reader logs when it changes and
+`limeosctl reader-status --read container-health` prints.
 
 Core authenticates a retained root-owned socket, unchanged descriptor/name
 identity and kernel root peer before sending the frame. It accepts only the

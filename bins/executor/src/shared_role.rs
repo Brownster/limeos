@@ -88,13 +88,23 @@ impl SharedRole {
                     .await
                     .ok_or(Error(ErrorCode::Overloaded))?;
                 let manager = self.read_supervisor.clone();
-                receipt.container_health = Some(
-                    tokio::task::spawn_blocking(move || {
-                        crate::health_read::refresh(&nonce, &manager, guard)
-                    })
-                    .await
-                    .map_err(|_| Error(ErrorCode::Unavailable))??,
-                );
+                let answer = tokio::task::spawn_blocking(move || {
+                    crate::health_read::refresh(&nonce, &manager, guard)
+                })
+                .await
+                .unwrap_or(Err(crate::health_read::Failed {
+                    error: Error(ErrorCode::Unavailable),
+                    failure: limeos_executor_protocol::HealthReadFailure::WorkerFailed,
+                }));
+                match answer {
+                    Ok(cohort) => receipt.container_health = Some(cohort),
+                    // The refusal says why, so core can report it.
+                    Err(failed) => {
+                        let mut refused = refusal(failed.error);
+                        refused.health_failure = Some(failed.failure);
+                        return Ok(refused);
+                    }
+                }
             }
             Request::StackInventory { .. } if self.storage_reader => {
                 if !self.stack_scan {

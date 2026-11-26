@@ -47,6 +47,9 @@ struct Config {
     health_inspect_after: Option<Value>,
     /// Only this container sees `health_inspect_after` (one health flip).
     health_after_only: Option<usize>,
+    /// Per-container health facts merged over `health_inspect` on every
+    /// inspection: a mixed Engine of checked, unchecked and failing members.
+    health_by_index: Vec<(usize, Value)>,
     /// This container restarts between any two inspections (crash loop).
     crash_looping: Option<usize>,
     /// This container's mounts have this type instead of `bind`.
@@ -82,6 +85,7 @@ impl Default for Config {
             health_inspect: None,
             health_inspect_after: None,
             health_after_only: None,
+            health_by_index: Vec::new(),
             crash_looping: None,
             mount_type: None,
             vanishing: None,
@@ -308,6 +312,11 @@ async fn fixture(config: Config) -> Fixture {
                 } else {
                     config.health_inspect.as_ref()
                 } {
+                    merge(&mut value, health);
+                }
+                if let Some((_, health)) =
+                    config.health_by_index.iter().find(|(at, _)| *at == index)
+                {
                     merge(&mut value, health);
                 }
                 let selected_labels = if nth > 1 {
