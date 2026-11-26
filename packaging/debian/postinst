@@ -40,15 +40,46 @@ fct_state_owned_elsewhere() {
 }
 # Every entry of one of LimeOS's trees belongs to its account: an entry another
 # account owns (systemd's recursive chown above, or an operator's) goes back
-# to the account and its primary group. Nothing is followed (find -P, chown -h)
-# and nothing outside the tree is touched; entries already the account's keep
-# their group and mode.
+# to the account and its primary group. The foreign owners are listed first;
+# then, per owner, GNU chown -R -P -h --from=OWNER walks the tree with fts,
+# each directory opened relative to its parent's descriptor without following
+# a symlink and checked against the walk's own lstat, and changes an entry
+# with fchownat(AT_SYMLINK_NOFOLLOW) only while OWNER still owns it. A path is
+# never resolved again after the walk, so an account owning entries inside
+# cannot redirect the change outside the tree by swapping in a symlink.
+# Entries already the account's keep their group and mode. Fails (the caller
+# warns) when the listing or a chown fails.
 fct_reclaim_tree() {
-    local directory="${1}" account="${2}" uid gid
+    local directory="${1}" account="${2}" uid gid owners owner
     [[ -d "${directory}" && ! -L "${directory}" ]] || return 0
-    uid="$(id -u "${account}")"
-    gid="$(id -g "${account}")"
-    find "${directory}" -xdev ! -uid "${uid}" -exec chown -h "${uid}:${gid}" -- '{}' +
+    uid="$(id -u "${account}")" || return 1
+    gid="$(id -g "${account}")" || return 1
+    owners="$(find "${directory}" -xdev ! -uid "${uid}" -printf '%U\n' | sort -u)" || return 1
+    while IFS= read -r owner; do
+        [[ -n "${owner}" ]] || continue
+        chown -R -P -h --from="${owner}" -- "${uid}:${gid}" "${directory}" || return 1
+    done <<<"${owners}"
+}
+# The trees and their accounts.
+RECLAIMED_TREES=("/var/lib/limeos/core limeos-core" "/var/lib/limeos/assistant limeos-assistant"
+    "/var/lib/limeos/executors/container limeos-containerd" "/var/lib/limeos/executors/storage root")
+# A tree's own top directory belongs to another account: systemd's recursive
+# chown (or an operator's) went through it. Checked before configure creates
+# or adjusts the directories, which resets only their tops.
+fct_tree_drifted() {
+    local pair directory account
+    for pair in "${RECLAIMED_TREES[@]}"; do
+        directory="${pair% *}" account="${pair##* }"
+        [[ -d "${directory}" && ! -L "${directory}" ]] || continue
+        getent passwd "${account}" >/dev/null || continue
+        [[ "$(stat -c %u -- "${directory}")" == "$(id -u "${account}")" ]] || return 0
+    done
+    return 1
+}
+# One line on stderr and in the journal: dpkg's output scrolls away.
+fct_notice() {
+    printf '%s\n' "${1}" >&2
+    if command -v logger >/dev/null 2>&1; then logger -t limeos-postinst -- "${1}" || true; fi
 }
 # A ceiling loaded by an unprivileged role: root-owned, readable through the
 # group the role's unit runs with (its primary group, so no membership in
@@ -180,11 +211,15 @@ fct_execute_this() {
         getent group "${group}" >/dev/null || addgroup --system "${group}"
     done
     if [[ -L /var/lib/limeos || -L /etc/limeos/system-policy ]]; then printf '%s\n' 'Refusing symlink in managed state paths.' >&2; return 1; fi
-    local elsewhere=0
+    local elsewhere=0 reclaim=0
+    # The trees are reclaimed only on the transition, never on an ordinary
+    # upgrade: while /var/lib/limeos belongs to another account, or when a
+    # tree's top shows that a recursive chown went through it.
+    if fct_tree_drifted; then reclaim=1; fi
     if fct_state_owned_elsewhere; then
         elsewhere=1
-        printf 'LimeOS: /var/lib/limeos belongs to %s (%s), the state directory of the app LimeOS replaces; its owner and mode are left as they are, and the LimeOS services are installed but neither enabled nor started. The cutover (scripts/cutover/activate.sh) stops that app, makes the directory root'"'"'s again and starts them.\n' \
-            "$(stat -c '%U:%G' -- /var/lib/limeos)" "$(stat -c '%a' -- /var/lib/limeos)" >&2
+        reclaim=1
+        fct_notice "LimeOS: /var/lib/limeos belongs to $(stat -c '%U:%G' -- /var/lib/limeos) ($(stat -c '%a' -- /var/lib/limeos)), the state directory of the app LimeOS replaces; its owner and mode are left as they are, and the LimeOS services are installed but neither enabled nor started. The cutover (scripts/cutover/activate.sh) stops that app, makes the directory root's again and starts them."
     else
         fct_directory /var/lib/limeos root 0755
     fi
@@ -195,10 +230,18 @@ fct_execute_this() {
     fct_directory /var/lib/limeos/executors/storage root 0700
     fct_directory /var/lib/limeos/executors/container limeos-containerd 0700
     fct_directory /etc/limeos/system-policy root 0755
-    fct_reclaim_tree /var/lib/limeos/core limeos-core
-    fct_reclaim_tree /var/lib/limeos/assistant limeos-assistant
-    fct_reclaim_tree /var/lib/limeos/executors/container limeos-containerd
-    fct_reclaim_tree /var/lib/limeos/executors/storage root
+    if (( reclaim )); then
+        local pair
+        fct_notice "LimeOS: giving every entry of LimeOS's trees under /var/lib/limeos that another account owns back to its LimeOS account ($( (( elsewhere )) && printf 'the directory belongs to another account' || printf 'a recursive chown went through them'))."
+        for pair in "${RECLAIMED_TREES[@]}"; do
+            # A failure here warns: failing configure would leave the package
+            # half-configured with every unit stopped, for a repair the cutover
+            # (activate.sh) makes again anyway.
+            if ! fct_reclaim_tree "${pair% *}" "${pair##* }"; then
+                fct_notice "LimeOS warning: could not give every entry of ${pair% *} back to ${pair##* }; run by hand, with the services stopped: chown -R -P -h ${pair##* }: ${pair% *}"
+            fi
+        done
+    fi
     core_uid="$(id -u limeos-core)"
     local target temporary role reason unit
     local -a refused=() restart=()
@@ -252,7 +295,7 @@ fct_execute_this() {
         if (( elsewhere )); then
             # Nothing is started: units prerm recorded as running stay stopped too.
             if (( ${#RECORDED[@]} )); then
-                printf 'LimeOS: not starting %s, stopped for this package change, while /var/lib/limeos belongs to another account.\n' "${RECORDED[*]}" >&2
+                fct_notice "LimeOS: not starting ${RECORDED[*]}, stopped for this package change, while /var/lib/limeos belongs to another account."
             fi
             return 0
         fi
