@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Basic-cutover rehearsal; exclusively inside the disposable Debian VM that imitates wybie.
 
-Runs the real scripts/cutover/{preflight,activate,return}.sh and `limeosctl migrate` against:
-  * an imitated frozen app: pi-health.service (HTTP on 0.0.0.0:8002 as `holly`), pihealth-helper.service
-    (PartOf), the metrics-collector and package-reconcile timers (the collector writes a SQLite file),
-    /etc/limeos/credentials.env with a real Werkzeug scrypt and PBKDF2 hash, state JSON/SQLite files;
-  * bystander units limeops-*, limeos-agent, flask-shutdown that must never change;
-  * the packaged Docker Engine (socket-activated, as on a stock host), seven real containers created by
-    `holly` (compose project `media` with four running members and one stopped, plus two standalone),
+Runs the real scripts/cutover/{preflight,activate,return}.sh, from a directory built by
+scripts/cutover/bundle.sh and copied to /root/limeos-cutover as on the host, and `limeosctl migrate` against:
+  * an imitated frozen app with wybie's units (26 Nov host facts): pi-health.service (HTTP on 0.0.0.0:8002 as
+    holly:pihealth with StateDirectory=limeos, StateDirectoryMode=0750, ConfigurationDirectory, LogsDirectory,
+    UMask=0027), pihealth-helper.service (PartOf), the package-reconcile timer and the metrics-collector timer
+    whose service also runs as holly:pihealth with StateDirectory=limeos and writes /var/lib/limeos/metrics.sqlite3;
+    so systemd owns /var/lib/limeos for them (holly:pihealth 0750) and chowns it at their starts;
+    /etc/limeos/credentials.env with a real Werkzeug scrypt and PBKDF2 hash, state JSON/SQLite files named as on
+    wybie, the agent supervisor's Python virtual environment (deeper than the scan's depth bound);
+  * bystander units limeops-*, limeos-agent, flask-shutdown that must never change; limeops-worker, as its own
+    account limeops-action-worker in group pihealth (as wybie's limeops-* accounts), keeps writing
+    /var/lib/limeos/agent-actions/supervision.sqlite3 (agent-actions holly:pihealth 2770) while the cutover runs; docker-compose-start.service is failed since boot, as on wybie;
+  * the packaged Docker Engine (socket-activated, as on a stock host), eleven real containers created by
+    `holly` (compose project `media` with four running members and one stopped, project `mattermost` under
+    /opt/stacks with three stopped, project `docker` outside /opt/stacks with one stopped, plus two standalone),
     /opt/stacks owned by holly;
   * Caddy from Debian, installed but inactive, serving the cutover site on 8002 with its internal CA;
   * a Jellyfin stand-in: the `jellyfin` container serves an idle `/Sessions` list on 8096 (busybox httpd).
@@ -49,7 +57,8 @@ HOST = "wybie.lan"
 PORT = 8002
 SITE = f"https://{HOST}:{PORT}"
 SRC = Path("/root/limeos-src")
-CUTOVER = SRC / "scripts/cutover"
+# The operator copies the directory bundle.sh builds (runbook step 1a); every script runs from there.
+CUTOVER = Path("/root/limeos-cutover")
 LOGS = Path("/root/cutover-logs")
 CA = Path("/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt")
 CORE_DB = Path(fx.CORE_DB)
@@ -61,11 +70,22 @@ FROZEN_UNITS = ["pihealth-helper.service", "pi-health.service", "limeos-metrics-
 BYSTANDERS = ["limeops-actuatord.service", "limeops-worker.service", "limeos-agent.service", "flask-shutdown.service"]
 RUST_UNITS = ["limeos-storaged.service", "limeos-containerd.service", "limeos-core.service"]
 RUNNING = ["jellyfin", "radarr", "sonarr", "transmission", "watchtower", "vpn"]
+MATTERMOST = ["limeos-mattermost", "limeos-mattermost-db", "limeos-alertd"]
+EXITED = ["airsonic-advanced", *MATTERMOST, "airsonic-old"]
 MEDIA_RUNNING = ["jellyfin", "radarr", "sonarr", "transmission"]
-METRICS_DB = Path("/var/lib/limeos/metrics/metrics.sqlite")
+METRICS_DB = Path("/var/lib/limeos/metrics.sqlite3")
+SUPERVISION_DB = Path("/var/lib/limeos/agent-actions/supervision.sqlite3")
+VENV = Path("/var/lib/limeos/agent-supervisor/venv")
+CLAIMANTS = ["pi-health.service", "limeos-metrics-collector.service"]
+GUARD = "zz-limeos-cutover-guard.conf"
+# LimeOS's trees inside the shared state directory and their accounts.
+PACKAGE_TREES = {"/var/lib/limeos/core": "limeos-core", "/var/lib/limeos/assistant": "limeos-assistant", "/var/lib/limeos/executors/container": "limeos-containerd"}
 RUNBOOK = SRC / "docs/p06-cutover-runbook.md"
 # The runbook's file names (step 1 and step 2).
 STATE_LIST = Path("/root/cutover-state-paths.txt")
+LIVE_LIST = Path("/root/cutover-live-paths.txt")
+# What the live list must cover here (as on wybie): the limeops-* homes and the file the "host backup" rewrites.
+LIVE_PATHS = ("/var/lib/limeos/agent-actions/", "/var/lib/limeos/agent-supervisor/")
 KEY_FILE = Path("/root/jellyfin.key")
 JELLYFIN_KEY = "0123456789abcdef0123456789abcdef"
 UPGRADE_VERSION = "0.4.17+cutover.2"
@@ -167,11 +187,39 @@ def bystanders():
 
 
 def hash_tree():
-    """sha256 of every frozen-app file recorded at fixture time (SQLite excluded; see sqlite_facts)."""
+    """sha256 of every frozen-app file recorded at fixture time (SQLite and live state excluded; see sqlite_facts)."""
     return {p: sha(p) for p in state["frozen_files"] if Path(p).exists()}
 
 
-def sqlite_facts():
+def owner_mode(path):
+    st = os.lstat(path)
+    return st.st_uid, st.st_gid, st.st_mode & 0o7777
+
+
+def foreign_entries(tree, account):
+    """Entries under TREE that ACCOUNT does not own (systemd's recursive chown of 26 Nov leaves them holly's)."""
+    uid = pwd.getpwnam(account).pw_uid
+    found = []
+    for base, dirs, names in os.walk(tree):
+        found += [os.path.join(base, n) for n in [*dirs, *names] if os.lstat(os.path.join(base, n)).st_uid != uid]
+    if os.lstat(tree).st_uid != uid:
+        found.append(tree)
+    return found
+
+
+def expect_state_dir_frozen(label):
+    """/var/lib/limeos is the frozen app's (holly:pihealth 0750), LimeOS's trees inside it LimeOS's, no guard left."""
+    holly = pwd.getpwnam("holly").pw_uid
+    pihealth = int(sh("getent group pihealth | cut -d: -f3")[1].strip())
+    check(owner_mode("/var/lib/limeos") == (holly, pihealth, 0o750), f"{label}: /var/lib/limeos is not holly:pihealth 0750", now=permitted("/var/lib/limeos"))
+    for tree, account in PACKAGE_TREES.items():
+        if Path(tree).exists():
+            check(not foreign_entries(tree, account), f"{label}: {tree} has entries not owned by {account}", entries=foreign_entries(tree, account)[:10])
+    for unit_name in CLAIMANTS:
+        check(not Path(f"/etc/systemd/system/{unit_name}.d/{GUARD}").exists(), f"{label}: the cutover guard on {unit_name} is left behind")
+
+
+def sqlite_facts():  # the frozen app's metrics database
     with sqlite3.connect(f"file:{METRICS_DB}?mode=ro", uri=True) as db:
         return {"rows": db.execute("select count(*) from samples").fetchone()[0], "integrity": db.execute("pragma integrity_check").fetchone()[0]}
 
@@ -276,10 +324,22 @@ S(("0.0.0.0", 8002), H).serve_forever()
 '''
 
 COLLECTOR = '''import sqlite3, time
-db = sqlite3.connect("/var/lib/limeos/metrics/metrics.sqlite")
+db = sqlite3.connect("/var/lib/limeos/metrics.sqlite3")
 db.execute("create table if not exists samples (t integer, load real)")
 db.execute("insert into samples values (?, ?)", (int(time.time()), 0.1))
 db.commit()
+'''
+
+# wybie's limeops-* services write their supervision database continuously and do not stop for the cutover.
+# Here one bystander does it every 2 s.
+LIMEOPS_WRITER = '''import sqlite3, time
+while True:
+    db = sqlite3.connect("/var/lib/limeos/agent-actions/supervision.sqlite3")
+    db.execute("create table if not exists beats (t real)")
+    db.execute("insert into beats values (?)", (time.time(),))
+    db.commit()
+    db.close()
+    time.sleep(2)
 '''
 
 
@@ -292,6 +352,9 @@ def write_fixture(version_hashes):
     sh("apt-get update -qq", timeout=300)
     sh("DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io busybox-static caddy sqlite3 iproute2 curl strace", timeout=900, log="apt-fixture")
     sh("usermod -aG docker holly")
+    sh("groupadd --system pihealth")
+    # wybie's limeops-* services run as their own accounts and reach agent-actions through group pihealth.
+    sh("useradd --system --no-create-home --shell /usr/sbin/nologin limeops-action-worker && usermod -aG pihealth limeops-action-worker")
     sh("systemctl stop caddy; systemctl disable caddy", check_rc=False)
     Path("/etc/caddy/Caddyfile").write_text("import /etc/caddy/conf.d/*.caddy\n")
     with open("/etc/hosts", "a") as hosts:
@@ -314,28 +377,55 @@ def write_fixture(version_hashes):
     Path("/etc/limeos/policy-backups").mkdir()
     for n in range(5):
         Path(f"/etc/limeos/policy-backups/agent-policy-2026100{n}T010203Z.json").write_text(f'{{"backup": {n}}}\n')
-    for d in ("agent-actions", "integrations", "metrics"):
+    for d in ("agent-actions", "agent-supervisor", "integrations"):
         Path(f"/var/lib/limeos/{d}").mkdir(parents=True)
-    for name in ("auto_update.json", "backup.json", "package-approvals.json", "pending-actions.json"):
+    for name in ("auto_update.json", "backup_config.json", "package-approvals.json", "pending-actions.json"):
         Path(f"/var/lib/limeos/{name}").write_text('{"frozen": true}\n')
     Path("/var/lib/limeos/integrations/jellyfin.json").write_text('{"api_key": "synthetic-not-real"}\n')
     for name in ("actions", "automation", "findings", "supervision"):
-        with sqlite3.connect(f"/var/lib/limeos/agent-actions/{name}.sqlite") as db:
+        with sqlite3.connect(f"/var/lib/limeos/agent-actions/{name}.sqlite3") as db:
             db.execute("create table t (a)")
             db.execute("insert into t values (1)")
-    sh(f"python3 {app}/collector.py")  # creates metrics.sqlite with the first sample
-    # Units.
-    unit_file("pi-health.service", f"[Unit]\nDescription=Pi-Health (frozen app imitation)\nAfter=network.target\n[Service]\nUser=holly\nWorkingDirectory={app}\nExecStart=/usr/bin/python3 {app}/app.py\nRestart=on-failure\n[Install]\nWantedBy=multi-user.target\n")
+    # Group pihealth may write there (setgid, as wybie's drwxrws---); systemd's chown keeps the modes.
+    os.chmod("/var/lib/limeos/agent-actions", 0o2770)
+    os.chmod(SUPERVISION_DB, 0o660)
+    # The limeops accounts' homes hold skeleton files; the agent supervisor's virtualenv is 9 levels deep.
+    for home in ("agent-actions", "agent-supervisor"):
+        for skel in (".bashrc", ".profile", ".bash_logout"):
+            Path(f"/var/lib/limeos/{home}/{skel}").write_text("# skeleton\n")
+    deep = VENV / "lib/python3.11/site-packages/pip/_internal/cli/__pycache__/a/b/c/d"
+    deep.mkdir(parents=True)
+    (VENV / "pyvenv.cfg").write_text("home = /usr/bin\ninclude-system-site-packages = false\nversion = 3.11.2\n")
+    (deep / "main.cpython-311.pyc").write_bytes(b"\x00pyc")
+    (VENV / "lib/python3.11/site-packages/pip/__init__.py").write_text("__version__ = '23.0'\n")
+    sh(f"python3 {app}/collector.py")  # creates metrics.sqlite3 with the first sample
+    Path("/usr/local/lib/limeops-writer.py").write_text(LIMEOPS_WRITER)
+    # Units, as `systemctl cat` showed them on wybie (26 Nov) where it matters: who owns /var/lib/limeos.
+    unit_file("pi-health.service", (
+        f"[Unit]\nDescription=Pi-Health (frozen app imitation)\nAfter=network.target docker.service\nWants=docker.service\n[Service]\nType=simple\n"
+        f"User=holly\nGroup=pihealth\nWorkingDirectory={app}\nEnvironmentFile=-/etc/limeos/credentials.env\n"
+        "Environment=LIMEOS_CONFIG_DIR=/etc/limeos\nEnvironment=LIMEOS_STATE_DIR=/var/lib/limeos\n"
+        f"ExecStart=/usr/bin/python3 {app}/app.py\nRestart=on-failure\nRestartSec=3\nUMask=0027\n"
+        "ConfigurationDirectory=limeos\nConfigurationDirectoryMode=0750\nStateDirectory=limeos\nStateDirectoryMode=0750\n"
+        "LogsDirectory=limeos\nLogsDirectoryMode=0750\n[Install]\nWantedBy=multi-user.target\n"))
     unit_file("pihealth-helper.service", "[Unit]\nDescription=Pi-Health helper (root)\nPartOf=pi-health.service\n[Service]\nExecStart=/bin/sleep infinity\n[Install]\nWantedBy=multi-user.target\n")
-    unit_file("limeos-metrics-collector.service", f"[Unit]\nDescription=metrics collector\n[Service]\nType=oneshot\nExecStart=/usr/bin/python3 {app}/collector.py\n")
+    unit_file("limeos-metrics-collector.service", (
+        f"[Unit]\nDescription=metrics collector\nAfter=local-fs.target\n[Service]\nType=oneshot\nUser=holly\nGroup=pihealth\n"
+        f"WorkingDirectory={app}\nEnvironment=LIMEOS_STATE_DIR=/var/lib/limeos\nExecStart=/usr/bin/python3 {app}/collector.py\n"
+        "NoNewPrivileges=true\nProtectSystem=strict\nProtectHome=read-only\nPrivateTmp=true\nReadWritePaths=/var/lib/limeos\n"
+        "UMask=0027\nStateDirectory=limeos\nStateDirectoryMode=0750\n"))
     unit_file("limeos-metrics-collector.timer", "[Unit]\nDescription=metrics collector timer\n[Timer]\nOnBootSec=5s\nOnUnitActiveSec=20s\n[Install]\nWantedBy=timers.target\n")
     unit_file("limeos-package-reconcile.service", "[Unit]\nDescription=package reconcile\n[Service]\nType=oneshot\nExecStart=/bin/true\n")
     unit_file("limeos-package-reconcile.timer", "[Unit]\nDescription=package reconcile timer\n[Timer]\nOnCalendar=hourly\nPersistent=false\n[Install]\nWantedBy=timers.target\n")
     unit_file("limeops-actuatord.service", "[Unit]\nDescription=limeops actuatord\nAfter=pihealth-helper.service\n[Service]\nExecStart=/bin/sleep infinity\n[Install]\nWantedBy=multi-user.target\n")
-    for name in ("limeops-worker", "limeos-agent", "flask-shutdown"):
+    unit_file("limeops-worker.service", "[Unit]\nDescription=limeops worker (writes its supervision database)\n[Service]\nUser=limeops-action-worker\nGroup=limeops-action-worker\nUMask=0007\nRestart=on-failure\nReadWritePaths=/var/lib/limeos/agent-actions\nExecStart=/usr/bin/python3 /usr/local/lib/limeops-writer.py\n[Install]\nWantedBy=multi-user.target\n")
+    for name in ("limeos-agent", "flask-shutdown"):
         unit_file(f"{name}.service", f"[Unit]\nDescription={name}\n[Service]\nExecStart=/bin/sleep infinity\n[Install]\nWantedBy=multi-user.target\n")
+    # wybie's docker-compose-start.service has been failed since boot; nothing in the cutover may trip on it.
+    unit_file("docker-compose-start.service", "[Unit]\nDescription=compose start (fails, as on wybie)\n[Service]\nType=oneshot\nExecStart=/bin/false\n[Install]\nWantedBy=multi-user.target\n")
     sh("systemctl daemon-reload")
     sh("systemctl enable --now pi-health.service pihealth-helper.service limeos-metrics-collector.timer limeos-package-reconcile.timer limeops-actuatord.service limeops-worker.service limeos-agent.service flask-shutdown.service", log="enable-fixture")
+    sh("systemctl enable docker-compose-start.service; systemctl start docker-compose-start.service", check_rc=False)
     fx.eventually(lambda: plain_get(8002)[0] == 200, timeout=20)
     # Docker: image from static busybox; containers created by holly in the docker group.
     fx.eventually(lambda: sh("docker info", check_rc=False)[0] == 0, timeout=90)
@@ -345,20 +435,32 @@ def write_fixture(version_hashes):
     sessions.write_text("[]\n")  # Jellyfin's /Sessions with nobody playing
     with tarfile.open(rootfs, "w") as archive:
         archive.add("/bin/busybox", arcname="bin/busybox")
+        # Docker runs a health check through /bin/sh (CMD-SHELL); case 24 gives containers one.
+        shell = tarfile.TarInfo("bin/sh")
+        shell.type = tarfile.SYMTYPE
+        shell.linkname = "busybox"
+        archive.addfile(shell)
         archive.add(str(sessions.parent), arcname="www")
     sh(f"docker import {rootfs} {IMAGE}")
     stack = Path("/opt/stacks/media")
     stack.mkdir(parents=True)
     (stack / "compose.yaml").write_text("services:\n  jellyfin:\n    image: x\n  radarr:\n    image: x\n  sonarr:\n    image: x\n  transmission:\n    image: x\n  airsonic-advanced:\n    image: x\n")
-    sh("chown -R holly:holly /opt/stacks; chmod 0755 /opt/stacks /opt/stacks/media; chmod 0644 /opt/stacks/media/compose.yaml")
+    Path("/opt/stacks/mattermost").mkdir()
+    Path("/opt/stacks/mattermost/compose.yaml").write_text("services:\n  limeos-mattermost:\n    image: x\n  limeos-mattermost-db:\n    image: x\n  limeos-alertd:\n    image: x\n")
+    sh("chown -R holly:holly /opt/stacks; chmod 0755 /opt/stacks /opt/stacks/media /opt/stacks/mattermost; chmod 0644 /opt/stacks/media/compose.yaml /opt/stacks/mattermost/compose.yaml")
+    # wybie's one-container project `docker` lives outside /opt/stacks (propose-catalog refuses it).
+    Path("/home/pi/docker").mkdir(parents=True)
+    Path("/home/pi/docker/docker-compose.yml").write_text("services:\n  airsonic-old:\n    image: x\n")
 
-    def create(name, project=None, extra=""):
+    def create(name, project=None, extra="", directory=None):
         labels = ""
         if project:
+            directory = directory or f"/opt/stacks/{project}"
+            compose = "docker-compose.yml" if directory.startswith("/home/") else "compose.yaml"
             labels = (
                 f"--label com.docker.compose.project={project} --label com.docker.compose.service={name} "
-                f"--label com.docker.compose.project.working_dir=/opt/stacks/{project} "
-                f"--label com.docker.compose.project.config_files=/opt/stacks/{project}/compose.yaml --label com.docker.compose.oneoff=False "
+                f"--label com.docker.compose.project.working_dir={directory} "
+                f"--label com.docker.compose.project.config_files={directory}/{compose} --label com.docker.compose.oneoff=False "
             )
         # jellyfin answers preflight's playback check on 8096 like the real one (an idle session list).
         serve = "/bin/busybox httpd -f -p 8096 -h /www & " if name == "jellyfin" else ""
@@ -374,6 +476,10 @@ def write_fixture(version_hashes):
     sh("runuser -u holly -- docker stop -t 1 airsonic-advanced")
     ids["watchtower"] = create("watchtower")
     ids["vpn"] = create("vpn")
+    for name in MATTERMOST:
+        ids[name] = create(name, "mattermost")
+    ids["airsonic-old"] = create("airsonic-old", "docker", directory="/home/pi/docker")
+    sh("runuser -u holly -- docker stop -t 1 " + " ".join([*MATTERMOST, "airsonic-old"]))
     state["ids"] = ids
     # No management catalog exists yet: `limeosctl migrate propose-catalog` generates it (case 4b).
     # Baseline of the frozen app's files (taken before any LimeOS package exists).
@@ -382,7 +488,9 @@ def write_fixture(version_hashes):
         if Path(root).is_file():
             files.append(root)
         for base, _, names in os.walk(root):
-            files += [os.path.join(base, n) for n in names if not n.endswith((".sqlite", ".pyc"))]
+            # SQLite files and their journals, and the live state the bystander writes, are checked otherwise.
+            files += [os.path.join(base, n) for n in names
+                      if not n.endswith((".sqlite3", ".pyc", "-journal", "-wal", "-shm")) or base.startswith("/home/")]
     files += [f"/etc/systemd/system/{n}" for n in ("pi-health.service", "pihealth-helper.service", "limeos-metrics-collector.service", "limeos-metrics-collector.timer", "limeos-package-reconcile.service", "limeos-package-reconcile.timer", "limeops-actuatord.service", "limeops-worker.service", "limeos-agent.service", "flask-shutdown.service")]
     state["frozen_files"] = sorted(set(files))
     state["frozen_hashes"] = hash_tree()
@@ -395,6 +503,9 @@ def setup(repository, version):
     sh("install -m 0644 " + str(repository / "limeos-archive-keyring.gpg") + " /usr/share/keyrings/limeos-test.gpg")
     Path("/etc/apt/sources.list.d/limeos-test.list").write_text(f"deb [signed-by=/usr/share/keyrings/limeos-test.gpg] file:{repository} stable main\n")
     sh("apt-get update -qq", timeout=300)
+    # Runbook step 1a: the operator copies the directory bundle.sh builds and checks its SHA256SUMS there.
+    shutil.rmtree(CUTOVER, ignore_errors=True)
+    sh(f"{SRC}/scripts/cutover/bundle.sh /root/limeos-cutover-build && cp -a /root/limeos-cutover-build {CUTOVER} && cd {CUTOVER} && sha256sum -c SHA256SUMS", log="bundle")
     debs = glob.glob(str(repository / f"**/limeos_{version}_*.deb"), recursive=True)
     check(len(debs) == 1, "expected exactly one limeos .deb in the repository", debs=debs)
     state["deb"] = debs[0]
@@ -406,7 +517,7 @@ def setup(repository, version):
 
 
 # ---------------------------------------------------------------- cases
-@case("0 fixture: frozen app serving 8002 as holly, bystanders, 6 running + 1 stopped container, Caddy installed but inactive")
+@case("0 fixture: frozen app serving 8002 as holly:pihealth owning /var/lib/limeos, bystanders writing, 6 running + 5 stopped containers, a failed unit, Caddy installed but inactive")
 def fixture_check():
     status, body = plain_get(8002)
     check(status == 200 and "pi-health-imitation" in body, "frozen app not serving", status=status)
@@ -416,7 +527,14 @@ def fixture_check():
     check(all(frozen_world()[u] == {"active": "active", "enabled": "enabled"} for u in FROZEN_UNITS), "frozen units not enabled+active", world=frozen_world())
     c = containers()
     check(sorted(n for n, v in c.items() if v["running"]) == sorted(RUNNING), "running container set differs", names=list(c))
-    check(not c["airsonic-advanced"]["running"], "stopped container is running")
+    check(all(not c[n]["running"] for n in EXITED), "a stopped container is running", names=list(c))
+    # systemd made /var/lib/limeos the app's at its first start (StateDirectory=limeos), recursively.
+    holly, pihealth = pwd.getpwnam("holly").pw_uid, int(sh("getent group pihealth | cut -d: -f3")[1].strip())
+    check(owner_mode("/var/lib/limeos") == (holly, pihealth, 0o750), "/var/lib/limeos is not holly:pihealth 0750", now=permitted("/var/lib/limeos"))
+    check(os.lstat("/var/lib/limeos/auto_update.json").st_uid == holly, "systemd did not chown the state files to holly")
+    check(active("docker-compose-start.service") == "failed", "docker-compose-start.service is not failed", state=active("docker-compose-start.service"))
+    beats = sqlite3.connect(f"file:{SUPERVISION_DB}?mode=ro", uri=True).execute("select count(*) from beats").fetchone()[0]
+    check(beats > 0, "the limeops writer is not writing")
     check("docker" in sh("id -nG holly")[1].split(), "holly not in the docker group")
     check(sh("runuser -u holly -- docker ps -q")[1].split(), "holly cannot use docker")
     check(permitted("/opt/stacks/media") == "holly:holly 755", "stacks root not owned by holly")
@@ -431,23 +549,29 @@ def fixture_check():
     return {"docker": state["docker_info"], "caddy": state["caddy_version"], "docker_socket_peer(pid,uid,gid)": peer, "containers": {n: {"running": v["running"], "id": v["id"][:12]} for n, v in c.items()}, "bystanders": state["baseline_bystanders"]}
 
 
-@case("1 package install (apt, pinned version) with frozen app untouched")
+@case("1 package install (apt, pinned version) while the frozen app owns /var/lib/limeos: directory left as it is, LimeOS trees created, services neither enabled nor started; frozen app untouched")
 def install_package():
     before_c = containers()
     before_b = bystanders()
-    sh(f"DEBIAN_FRONTEND=noninteractive apt-get install -y limeos={state['version']}", timeout=600, log="apt-install-limeos")
-    fx.eventually(lambda: active("limeos-core") == "active", timeout=60)
+    rc, out = sh(f"DEBIAN_FRONTEND=noninteractive apt-get install -y limeos={state['version']}", timeout=600, log="apt-install-limeos")
+    check("/var/lib/limeos belongs to holly:pihealth (750)" in out and "neither enabled nor started" in out, "configure did not say it left LimeOS stopped", out=out[-1500:])
+    time.sleep(3)
+    check(all(active(u) in ("inactive", "failed") and enabled(u) == "disabled" for u in RUST_UNITS), "configure enabled or started a LimeOS service", units={u: (active(u), enabled(u)) for u in RUST_UNITS})
+    expect_state_dir_frozen("after the package install")
+    check(all(Path(t).is_dir() for t in PACKAGE_TREES), "configure did not create LimeOS's trees")
     check(plain_get(8002)[0] == 200, "frozen app disturbed by package install")
     check(containers() == before_c, "containers changed by package install")
     check(bystanders() == before_b, "bystanders changed by package install")
     check(hash_tree() == state["frozen_hashes"], "frozen files changed by package install")
-    # The operator sets the origin (runbook decision 3) and the core reloads.
+    # A start of the frozen app now (its timer fires every 20 s too) changes nothing of LimeOS's.
+    sh("systemctl restart pi-health.service")
+    fx.eventually(lambda: plain_get(8002)[0] == 200, timeout=20)
+    expect_state_dir_frozen("after the frozen app restarted with LimeOS installed")
+    # The operator sets the origin (runbook decision 3); core reads it when activation starts it.
     config = json.loads(Path("/etc/limeos/core.json").read_text())
     config["origin"] = SITE
     Path("/etc/limeos/core.json").write_text(json.dumps(config, indent=2) + "\n")
-    sh("systemctl restart limeos-core")
-    fx.eventually(lambda: sh("/usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock status", check_rc=False)[0] == 0, timeout=30)
-    return {"version": state["version"]}
+    return {"version": state["version"], "configure_notice": [l for l in out.splitlines() if l.startswith("LimeOS:")]}
 
 
 @case("2 migrate scan: names every state source, redacted, originals unchanged")
@@ -455,8 +579,11 @@ def scan():
     before = hash_tree()
     rc, out = sh("/usr/lib/limeos/limeosctl migrate scan --checkout /home/holly/pi-health", check_rc=False, log="migrate-scan")
     rc2, js = sh("/usr/lib/limeos/limeosctl migrate scan --checkout /home/holly/pi-health --json", check_rc=False, log="migrate-scan-json")
-    check(rc == 0 and rc2 == 0, "scan failed", rc=rc, rc2=rc2, out=out[-1500:])
-    for needle in ("credentials.env", "agent-policy.json", "auto_update.json", "backup.json", "package-approvals.json", "pending-actions.json", "jellyfin.json", "actions.sqlite", "automation.sqlite", "findings.sqlite", "supervision.sqlite", "metrics.sqlite", "policy-backups", "compose.yaml", "backup_config.json", "media_paths.json", "storage_plugins"):
+    check(rc == 0 and rc2 == 0, "scan failed or incomplete (wybie: the agent supervisor's virtualenv past the depth bound)", rc=rc, rc2=rc2, out=out[-1500:])
+    report = json.loads(js[js.index("{"):])
+    venv = [f for f in report["files"] if f["path"].startswith("agent-supervisor/venv")]
+    check([(f["path"], f["kind"]) for f in venv] == [("agent-supervisor/venv", "virtualenv")] and report["complete"], "the virtualenv is not one entry", venv=venv[:5], problems=report["problems"][:5])
+    for needle in ("credentials.env", "agent-policy.json", "auto_update.json", "package-approvals.json", "pending-actions.json", "jellyfin.json", "actions.sqlite3", "automation.sqlite3", "findings.sqlite3", "supervision.sqlite3", "metrics.sqlite3", "policy-backups", "compose.yaml", "backup_config.json", "media_paths.json", "storage_plugins"):
         check(needle in out, f"scan report does not name {needle}", out=out[:1500])
     credentials = Path("/etc/limeos/credentials.env").read_text()
     for secret in re.findall(r"(?:scrypt|pbkdf2)[:\w]*\$[^\s,]+", credentials) + ["synthetic-not-real", PASSWORD]:
@@ -466,7 +593,6 @@ def scan():
     return {"classes_mentioned": classes, "report_lines": len(out.splitlines()), "report_head": out.splitlines()[:12]}
 
 
-@case("3 import-users: Werkzeug scrypt and PBKDF2 hashes imported; login works; hash upgrades; idempotent; bad entry imports nothing")
 def import_users():
     before = hash_tree()
     rc, out = sh("/usr/lib/limeos/limeosctl migrate import-users --env-file /etc/limeos/credentials.env", check_rc=False, log="import-users-1")
@@ -498,7 +624,7 @@ def out_first():
     return state["logs"]["import-users-1"][-400:]
 
 
-@case("4 propose-ceiling: deny-by-default, accepted by check-ceiling; operator enable step; ceiling installed")
+@case("4 propose-ceiling: deny-by-default, accepted by check-ceiling; operator enable step; ceiling installed (LimeOS not running yet)")
 def ceiling():
     docker_ps = Path("/root/docker-ps.jsonl")
     docker_ps.write_text(sh("docker ps --no-trunc --format '{{json .}}'")[1])
@@ -509,19 +635,9 @@ def ceiling():
     value = json.loads(proposed.read_text())
     check(not any(v for k, v in value.items() if k.startswith("allow_")), "proposal enables something", value=value)
     check(sorted(value["managed_containers"]) == sorted(state["ids"][n] for n in RUNNING), "managed containers differ from docker ps")
-    check(value["managed_stacks"] == ["media"], "managed_stacks differ", stacks=value["managed_stacks"])
+    check(value["managed_stacks"] == ["mattermost", "media"], "managed_stacks differ", stacks=value["managed_stacks"])
     check(sh(f"/usr/lib/limeos/limeosctl check-ceiling {proposed} {uid} container", check_rc=False)[0] == 0, "check-ceiling refused the proposal")
-    # Nothing acts before the flags are set: install it as proposed first and observe refusal.
-    shutil_copy(proposed, POLICY)
-    sh("systemctl reset-failed limeos-containerd; systemctl restart limeos-containerd")
-    fx.eventually(lambda: active("limeos-containerd") == "active", timeout=30)
-    time.sleep(3)  # allow_health is false in the proposal: the executor's health probe is refused by design
-    status, headers, view = login("holly", via_https=False)
-    check(status == 200, "login on the core failed", status=status)
-    cookie, csrf = headers["set-cookie"].split(";")[0], view["csrf_token"]
-    status, _, refused = fx.http("/api/v1/container/plans", "POST", {"resource": "container:" + state["ids"]["radarr"], "operation": "restart"}, cookie, csrf, origin=SITE)
-    check(status != 201, "a deny-by-default ceiling allowed a restart plan", status=status, body=refused)
-    denied_status = status
+    state["proposed_ceiling"] = proposed
     # Operator-enable step (scripted): flip exactly the intended flags.
     for key in ("allow_health", "allow_container_read", "allow_container_logs", "allow_restart", "allow_start", "allow_stop", "allow_stack"):
         value[key] = True
@@ -529,10 +645,10 @@ def ceiling():
     enabled_file.write_text(json.dumps(value, indent=2) + "\n")
     check(sh(f"/usr/lib/limeos/limeosctl check-ceiling {enabled_file} {uid} container", check_rc=False)[0] == 0, "check-ceiling refused the enabled ceiling")
     shutil_copy(enabled_file, POLICY)
-    sh("systemctl reset-failed limeos-containerd; systemctl restart limeos-containerd")
-    fx.wait_container_ready(timeout=45)
+    check(permitted(POLICY) == "root:root 644", "container ceiling is not root:root 0644", mode=permitted(POLICY))
     state["policy"] = value
-    return {"denied_plan_status": denied_status, "proposal_listing": out.splitlines()[:12], "managed": len(value["managed_containers"]), "stacks": value["managed_stacks"], "enabled": [k for k, v in value.items() if k.startswith("allow_") and v]}
+    state["enabled_ceiling"] = enabled_file
+    return {"proposal_listing": out.splitlines()[:12], "managed": len(value["managed_containers"]), "stacks": value["managed_stacks"], "enabled": [k for k, v in value.items() if k.startswith("allow_") and v]}
 
 
 def shutil_copy(source, destination):
@@ -542,7 +658,8 @@ def shutil_copy(source, destination):
 
 def preflight_args():
     """Runbook step 2: the state list and the root-only Jellyfin key file (default URL, the jellyfin container)."""
-    return ["--state-list", STATE_LIST, "--jellyfin-key-file", KEY_FILE]
+    return ["--state-list", STATE_LIST, "--live-list", LIVE_LIST, "--jellyfin-key-file", KEY_FILE,
+            "--host", HOST, "--package", state["deb"], "--expected-version", state["version"]]
 
 
 def snapshot_ready(name):
@@ -572,21 +689,17 @@ def snap_summary(directory):
     return {n: (directory / n).read_text()[:600] for n in ("units.txt", "docker-ps.txt", "proxy.txt", "findings.txt", "meta.env", "pagesize.txt", "packages.txt")}
 
 
-def expect_frozen_serving(label, snap=None, rust_running=True):
-    """Frozen app serves plain HTTP on 8002 as holly, caddy inactive, the Rust units in their snapshot state.
+def expect_frozen_serving(label, snap=None, rust_running=False):
+    """Frozen app serves plain HTTP on 8002 as holly, caddy inactive, the Rust units stopped and disabled.
 
-    Since 19 Nov return.sh returns the Rust units to the state the snapshot recorded instead of always
-    stopping them. The runbook installs the package (step 1) before preflight (step 2), so every snapshot
-    here records them active and enabled, and the core keeps its loopback port 8003."""
+    The frozen app owns /var/lib/limeos (StateDirectory=limeos), as on wybie: configure does not start the
+    Rust units while it does, and return.sh leaves them stopped and disabled whatever the snapshot recorded
+    (since 26 Nov). The directory is holly:pihealth 0750 again and LimeOS's trees in it are still LimeOS's."""
     status, body = plain_get(8002)
     check(status == 200 and "pi-health-imitation" in body, f"{label}: frozen app not serving over plain HTTP", status=status, body=body[:200])
     check(active("caddy") == "inactive" and enabled("caddy") == "disabled", f"{label}: caddy not inactive/disabled")
     check(not Path("/etc/caddy/conf.d/limeos-cutover.caddy").exists(), f"{label}: Caddy site left behind")
-    if snap is not None:
-        recorded = snapshot_units(snap, RUST_UNITS)
-        now = {u: (active(u), enabled(u)) for u in RUST_UNITS}
-        check(now == recorded, f"{label}: Rust units differ from the snapshot's record", snapshot=recorded, now=now)
-        rust_running = all(a == "active" for a, _ in recorded.values())
+    expect_state_dir_frozen(label)
     for u in RUST_UNITS:
         if rust_running:
             check(active(u) == "active" and enabled(u) == "enabled", f"{label}: {u} not active+enabled", state=(active(u), enabled(u)))
@@ -618,6 +731,7 @@ def state_list():
     and later cases fall back to the same block with limeosctl's full path, so their results stay readable."""
     block = runbook_block("Build the state list")
     STATE_LIST.unlink(missing_ok=True)
+    LIVE_LIST.unlink(missing_ok=True)
     rc, out = sh(block, check_rc=False, log="runbook-state-list")
     produced = STATE_LIST.read_text() if STATE_LIST.exists() else ""
     paths = [p for p in produced.splitlines() if p.strip()]
@@ -632,9 +746,15 @@ def state_list():
     package_owned = [p for p in paths if p.startswith(PACKAGE_PATHS) or p == "/etc/limeos/core.json"]
     if package_owned:
         problems.append(f"the list names {len(package_owned)} file(s) of the LimeOS package itself, which change while the cutover runs: {package_owned}")
-    for wanted in ("/etc/limeos/credentials.env", "/home/holly/pi-health/config/backup_config.json", "/home/holly/pi-health/config/media_paths.json", "/var/lib/limeos/metrics/metrics.sqlite"):
+    for wanted in ("/etc/limeos/credentials.env", "/home/holly/pi-health/config/backup_config.json", "/home/holly/pi-health/config/media_paths.json", "/var/lib/limeos/metrics.sqlite3"):
         if wanted not in paths:
             problems.append(f"the list misses the frozen app's {wanted}")
+    # Reviewable: no virtualenv file, nothing the running limeops services write.
+    if any("/venv/" in p for p in paths) or any(p.startswith(LIVE_PATHS) or p in LIVE_PATHS for p in paths):
+        problems.append(f"the state list holds virtualenv or live paths: {[p for p in paths if '/venv/' in p or p.startswith(LIVE_PATHS)][:8]}")
+    live = [l for l in LIVE_LIST.read_text().splitlines() if l and not l.startswith("#")] if LIVE_LIST.exists() else []
+    if sorted(live) != sorted(LIVE_PATHS):
+        problems.append(f"the live list differs from the runbook's entries: {live}")
     if any(not p.startswith("/") for p in paths) or any(p.startswith("/opt/stacks") for p in paths):
         problems.append("the list holds a relative path or a stacks file")
     # Jellyfin API key, root-only, written with an editor (here: appended by Python, never on a command line).
@@ -645,7 +765,7 @@ def state_list():
         problems.append(f"the runbook's key-file command did not leave a root-only file ({rc_key}, {permitted(KEY_FILE)}): {out_key}")
     state["state_list"] = paths
     check(not problems, "; ".join(problems))
-    return {"paths": paths, "key_file": permitted(KEY_FILE)}
+    return {"paths": paths, "live": LIVE_LIST.read_text() if LIVE_LIST.exists() else None, "helper_output": out.strip().splitlines()[-12:], "key_file": permitted(KEY_FILE)}
 
 
 def runbook_key_command():
@@ -673,6 +793,13 @@ def catalog():
         "version": 1,
         "engine_id": engine_id,
         "stacks": [{
+            "stack": "mattermost",
+            "project": "mattermost",
+            "working_directory": "/opt/stacks/mattermost",
+            "operator": {"name": "compose.yaml", "sha256": sha(Path("/opt/stacks/mattermost/compose.yaml"))},
+            "managed": {"state": "absent"},
+            "services": sorted(MATTERMOST),
+        }, {
             "stack": "media",
             "project": "media",
             "working_directory": "/opt/stacks/media",
@@ -681,8 +808,9 @@ def catalog():
             "services": ["airsonic-advanced", "jellyfin", "radarr", "sonarr", "transmission"],
         }],
     }
-    check(value == expected, "proposed catalog differs from the Compose project", value=value)
-    check("stack media (project media)" in out and "container(s) without a Compose project" in out, "proposal listing incomplete", out=out)
+    check(value == expected, "proposed catalog differs from the Compose projects", value=value)
+    check("stack media (project media)" in out and "stack mattermost (project mattermost)" in out and "refused project docker" in out
+          and "container(s) without a Compose project" in out, "proposal listing incomplete", out=out)
     again = sh(f"{ctl} migrate propose-catalog --out {proposed}", check_rc=False)
     check(again[0] != 0 and "already exists" in again[1], "propose-catalog overwrote its output", out=again[1])
     # The operator installs it with --install (a second proposal file, same content).
@@ -740,7 +868,7 @@ def preflight_refusals():
     rc3, out3 = run_script("activate.sh", "/var/lib/limeos-cutover/refused-playback", "--yes-i-have-operator-approval", *deb_args(), log="activate-refused-snapshot")
     check(rc3 != 0 and "refused preflight" in out3, "activate accepted a refused snapshot", out=out3)
     expect_world_equal("after refusals", before_c, before_b)
-    expect_frozen_serving("after refusals", rust_running=True)
+    expect_frozen_serving("after refusals")
     return {"stopped": out.strip().splitlines()[-2:], "no_key": out0.strip().splitlines()[-2:], "playback": out2.strip().splitlines()[-2:], "activate_on_refused": out3.strip().splitlines()[-1:]}
 
 
@@ -751,8 +879,11 @@ def cycle1_activate():
     state["c1_containers"] = before_c
     rc, out, snap = snapshot_ready("snap1")
     check(rc == 0 and "preflight passed" in out, "preflight did not pass", out=out)
-    # Kernel 6.1 with the unified hierarchy: return.sh --force can use cgroup.kill, so no warning.
-    check("cgroup.kill is not available" not in out and "WARN" not in out, "preflight warned on a host that has cgroup.kill", out=out)
+    # Kernel 6.1 with the unified hierarchy: return.sh --force can use cgroup.kill, so no warning; nothing else either
+    # (LimeOS is stopped, Caddy is stopped, the activation inputs were checked).
+    check("cgroup.kill is not available" not in out and "WARN" not in out, "preflight warned", out=out)
+    check((snap / "state-claimants.txt").read_text().split() == CLAIMANTS, "preflight did not record who owns /var/lib/limeos", claimants=(snap / "state-claimants.txt").read_text())
+    check("docker-compose-start" not in (snap / "units.txt").read_text(), "a unit the cutover does not manage was recorded")
     check((snap / "state-paths.txt").read_text().split("\n")[:-1] == state["state_list"], "snapshot's state-paths.txt is not the state list")
     state["snap1"] = snap
     snap_text = snap_summary(snap)
@@ -764,12 +895,33 @@ def cycle1_activate():
     check({u: (active(u), enabled(u)) for u in [*FROZEN_UNITS, *RUST_UNITS, "caddy"]} == unit_before, "dry-run changed unit state")
     expect_world_equal("after dry-run", before_c, before_b)
     check(plain_get(8002)[0] == 200, "frozen app stopped by dry-run")
+    # A holly-owned subtree inside one of LimeOS's trees (what a recursive chown leaves) holding a symlink to
+    # a root-owned file outside: the takeover must give the subtree back without following the link.
+    outside = Path("/root/outside-the-tree")
+    outside.write_text("must stay root's\n")
+    planted = Path("/var/lib/limeos/assistant/planted")
+    planted.mkdir()
+    (planted / "escape").symlink_to(outside)
+    (planted / "dirlink").symlink_to("/etc")
+    sh(f"chown -h -R holly:pihealth {planted}")
     # Let the collector write once more so the SQLite file really changes between preflight and the stop.
     time.sleep(22)
     started = time.monotonic()
     rc, out = run_script("activate.sh", snap, "--yes-i-have-operator-approval", *deb_args(), log="activate-1")
     elapsed = round(time.monotonic() - started, 1)
     check(rc == 0 and "activate complete" in out, "activate failed", out=out[-3000:])
+    # The state directory is LimeOS's, the old units are guarded, LimeOS's trees are its own.
+    check(owner_mode("/var/lib/limeos") == (0, 0, 0o755), "/var/lib/limeos is not root:root 0755 after activation", now=permitted("/var/lib/limeos"))
+    check(all(Path(f"/etc/systemd/system/{u}.d/{GUARD}").exists() for u in CLAIMANTS), "the cutover guards are missing")
+    for tree, account in PACKAGE_TREES.items():
+        check(not foreign_entries(tree, account), f"{tree} has entries not owned by {account} after activation", entries=foreign_entries(tree, account)[:10])
+    check(owner_mode(outside)[:2] == (0, 0) and owner_mode("/etc")[:2] == (0, 0), "the takeover followed a planted symlink out of the tree", outside=owner_mode(outside), etc=owner_mode("/etc"))
+    check(os.lstat(planted / "escape").st_uid == pwd.getpwnam("limeos-assistant").pw_uid, "the planted symlink itself was not given back")
+    # The limeops writer, an account in group pihealth, still writes through the root:root 0755 directory.
+    beats = lambda: sqlite3.connect(f"file:{SUPERVISION_DB}?mode=ro", uri=True).execute("select count(*) from beats").fetchone()[0]  # noqa: E731
+    before_beats = beats()
+    fx.eventually(lambda: beats() > before_beats, timeout=20)
+    check(active("limeops-worker.service") == "active", "the limeops writer stopped after the takeover")
     # Detached by default, inside the snapshot's transient scope, which is gone once the run ends.
     scope = (snap / "activation-scope").read_text().strip()
     check(re.fullmatch(r"limeos-cutover-activate-[0-9a-f]{32}\.scope", scope) and f"running detached in scope {scope}" in out, "activation did not run detached in its scope", out=out[:800])
@@ -792,7 +944,34 @@ def cycle1_activate():
     b = sqlite_facts()
     check(a == b and a["integrity"] == "ok", "frozen SQLite changed while writers are stopped", a=a, b=b)
     state["poststop_baseline_exists"] = (snap / "state.poststop.sha256").exists()
-    return {"activate_seconds": elapsed, "activate_output_tail": out.strip().splitlines()[-12:], "poststop_baseline": state["poststop_baseline_exists"], "listeners": ports}
+    # 26 Nov: a start of pi-health (by the rollback then; by hand, or by its timer, at any time) chowned
+    # /var/lib/limeos and LimeOS's trees to holly. The guard makes a hand start fail and change nothing.
+    guard_rc, guard_out = sh("systemctl start pi-health.service", check_rc=False, log="start-guarded-pi-health")
+    collector_rc, _ = sh("systemctl start limeos-metrics-collector.service", check_rc=False, log="start-guarded-collector")
+    check(guard_rc != 0 and "ssertion" in guard_out and collector_rc != 0, "a start of the guarded frozen units did not fail", out=guard_out)
+    check(active("pi-health.service") != "active" and owner_mode("/var/lib/limeos") == (0, 0, 0o755), "the guarded start changed something", now=permitted("/var/lib/limeos"))
+    check(sh("/usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock status", check_rc=False)[0] == 0, "core does not answer after the guarded starts")
+    check(active("docker-compose-start.service") == "failed", "the pre-existing failed unit changed state")
+    return {"guarded_start": guard_out.strip().splitlines()[-2:], "activate_seconds": elapsed, "activate_output_tail": out.strip().splitlines()[-12:], "poststop_baseline": state["poststop_baseline_exists"], "listeners": ports}
+
+
+@case("6a import-users right after activation (runbook step 1g): Werkzeug scrypt and PBKDF2 hashes imported; login works; hash upgrades; idempotent; bad entry imports nothing; a deny-by-default ceiling refuses a plan")
+def import_users_after_activation():
+    detail = import_users()
+    # Nothing acts before the flags are set: the ceiling as proposed refuses a restart plan.
+    shutil_copy(state["proposed_ceiling"], POLICY)
+    sh("systemctl reset-failed limeos-containerd; systemctl restart limeos-containerd")
+    fx.eventually(lambda: active("limeos-containerd") == "active", timeout=30)
+    time.sleep(3)  # allow_health is false in the proposal: the executor's health probe is refused by design
+    status, headers, view = login("holly", via_https=False)
+    check(status == 200, "login on the core failed", status=status)
+    cookie, csrf = headers["set-cookie"].split(";")[0], view["csrf_token"]
+    status, _, refused = fx.http("/api/v1/container/plans", "POST", {"resource": "container:" + state["ids"]["radarr"], "operation": "restart"}, cookie, csrf, origin=SITE)
+    check(status != 201, "a deny-by-default ceiling allowed a restart plan", status=status, body=refused)
+    shutil_copy(state["enabled_ceiling"], POLICY)
+    sh("systemctl reset-failed limeos-containerd; systemctl restart limeos-containerd")
+    fx.wait_container_ready(timeout=45)
+    return {**detail, "denied_plan_status": status}
 
 
 @case("7 cycle 1 (activated): HTTPS login with the internal CA; list/status/logs; stack view; host metrics")
@@ -843,6 +1022,10 @@ def cycle1_return():
     before_c = state["c1_containers"]
     rc, out = run_script("return.sh", state["snap1"], log="return-1")
     check(rc == 0 and "return verified" in out, "return.sh failed", problems=problems(out), out=out[-1500:])
+    # The limeops writer kept writing through the whole cycle: reported, not failed on.
+    check("live state changed since preflight (not a failure" in out and "supervision.sqlite3" in out, "the live writer's changes were not reported", out=out[-2500:])
+    check("leaving the LimeOS services stopped and disabled: /var/lib/limeos belongs to pi-health.service limeos-metrics-collector.service again" in out, "return.sh did not say why LimeOS is left stopped", out=out[-2500:])
+    check(Path(fx.CORE_DB).exists() and users(), "core's database or its users did not survive the return")
     expect_frozen_serving("after return", state["snap1"])
     expect_world_equal("after return", before_c, state["baseline_bystanders"])
     s1 = sqlite_facts()
@@ -1248,6 +1431,8 @@ def hardening():
     spec = importlib.util.spec_from_file_location("check_unit_exposure", SRC / "scripts/check_unit_exposure.py")
     gate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gate)
+    # LimeOS runs only while activated on a host whose frozen app owns /var/lib/limeos.
+    snap = activated("snapH")
     installed = sorted(p.name for p in Path("/lib/systemd/system").glob("limeos-*.service"))
     check(installed == sorted(SHIPPED_UNITS) == sorted(gate.CEILINGS), "shipped units differ from the gate's list", installed=installed, ceilings=sorted(gate.CEILINGS))
     # What starts without storage hardware: the reader (activate.sh starts it) and the targets executor under a
@@ -1273,8 +1458,10 @@ def hardening():
         units = {u: unit(u, "ActiveState", "SubState", "Result", "NRestarts", "ConditionResult", "MainPID") for u in SHIPPED_UNITS}
     finally:
         for u in extra:
-            sh(f"systemctl stop {u}", check_rc=False)
+            if u != "limeos-storage-reader.service":
+                sh(f"systemctl stop {u}", check_rc=False)
         policy.unlink(missing_ok=True)
+        rc_return, out_return = run_script("return.sh", snap, log="return-after-hardening")
     running = SHIPPED_UNITS[:5]
     check(all(starts[u][0] == 0 for u in extra), "a unit failed to start", starts={u: starts[u][1][-400:] for u in extra})
     check(all(units[u]["ActiveState"] == "active" and units[u]["NRestarts"] == "0" for u in running), "a started unit is not active or has restarted", units=units)
@@ -1286,6 +1473,7 @@ def hardening():
     pinged = {u: int(watch2[u]["WatchdogTimestampMonotonic"]) > int(watch1[u]["WatchdogTimestampMonotonic"]) for u in running if watch2[u]["WatchdogUSec"] not in ("0", "infinity")}
     check(all(pinged.values()), "a watchdog-armed unit sent no keep-alive", pinged=pinged, before=watch1, after=watch2)
     check(not above, "a unit's exposure is above its ceiling on systemd 252", above=above, margin=gate.MARGIN)
+    check(rc_return == 0 and "return verified" in out_return, "return.sh after the hardening case failed", problems=problems(out_return))
     systemd = sh("systemctl --version | head -1")[1].strip()
     return {"systemd": systemd, "scores_tenths": scores, "core": core2, "watchdog_pinged": pinged, "not_started": {u: units[u] for u in SHIPPED_UNITS[5:]}}
 
@@ -1318,8 +1506,11 @@ def package_lifecycle():
     apt = "DEBIAN_FRONTEND=noninteractive apt-get"
     data = package_data()
     started = time.time() - 1
+    check(all(Path(f"/etc/systemd/system/{u}.d/{GUARD}").exists() for u in CLAIMANTS), "the activation's guards are missing")
     rc, out = sh(f"{apt} remove -y limeos", check_rc=False, timeout=600, log="apt-remove-1")
     check(rc == 0, "apt-get remove failed", out=out[-2500:])
+    # LimeOS removed by hand cannot leave the frozen app unstartable: postrm deletes the guards.
+    check(not any(Path(f"/etc/systemd/system/{u}.d/{GUARD}").exists() for u in CLAIMANTS) and "removed the cutover guard" in out, "removal left a cutover guard", out=out[-1500:])
     stops = journal_stops(started)
     order_seen = [u for u, *_ in stops]
     check(order_seen == ["limeos-core.service", "limeos-containerd.service", "limeos-storaged.service", "limeos-storage-reader.service"], "units were not stopped core, executors, reader", stops=stops)
@@ -1351,18 +1542,48 @@ def package_lifecycle():
     check(rc5 == 0, "upgrade failed", out=out5[-2500:])
     version = sh("dpkg-query -W -f='${Status} ${Version}' limeos")[1].strip()
     check(version == f"install ok installed {UPGRADE_VERSION}", "upgrade not installed", version=version)
+    check("giving every entry of LimeOS's trees" not in out5, "an ordinary upgrade reclaimed LimeOS's trees", out=out5[-1500:])
     after = {u: (active(u), enabled(u), unit(u)["MainPID"]) for u in [*RUST_UNITS, "limeos-storage-reader.service"]}
     check(all(after[u][0] == "active" and after[u][1] == "enabled" for u in RUST_UNITS) and after["limeos-storage-reader.service"][0] == "active", "a service is not running after the upgrade", after=after)
     check(all(after[u][2] != pids[u] for u in pids), "the upgrade did not restart every running service", before=pids, after=after)
     check(not Path("/run/limeos-package").exists(), "the restart record outlived the upgrade")
     check(package_data() == data, "the upgrade changed state or configuration")
     check(login("holly")[0] == 200, "login through the proxy failed after the upgrade")
+    # An interrupted package change finished by `dpkg --configure -a` while the activation's guards are in place
+    # (they were deleted with the removal above; put them back as activate.sh writes them).
+    for name in CLAIMANTS:
+        Path(f"/etc/systemd/system/{name}.d").mkdir(exist_ok=True)
+        Path(f"/etc/systemd/system/{name}.d/{GUARD}").write_text(f"[Unit]\nAssertPathExists=!/etc/systemd/system/{name}.d/{GUARD}\n")
+    sh("systemctl daemon-reload")
+    upgrade_deb = glob.glob(f"/opt/limeos-repo/**/limeos_{UPGRADE_VERSION}_*.deb", recursive=True)[0]
+    sh(f"dpkg --unpack {upgrade_deb}", timeout=300, log="dpkg-unpack-under-guard")
+    check("unpacked" in sh("dpkg-query -W -f='${Status}' limeos")[1], "the unpack did not leave the package unconfigured")
+    rc7, out7 = sh("DEBIAN_FRONTEND=noninteractive dpkg --configure -a", check_rc=False, timeout=600, log="dpkg-configure-a-under-guard")
+    check(rc7 == 0 and sh("dpkg-query -W -f='${Status}' limeos")[1].strip() == "install ok installed", "dpkg --configure -a did not finish the package", out=out7[-1500:])
+    check(all(active(u) == "active" for u in RUST_UNITS) and owner_mode("/var/lib/limeos") == (0, 0, 0o755), "configure under the guard did not start LimeOS in the taken-over directory")
+    check(sh("systemctl start pi-health.service", check_rc=False)[0] != 0 and active("pi-health.service") != "active", "the guard did not hold after dpkg --configure -a")
     # Back to the frozen app; the upgraded package stays installed.
     rc6, out6 = run_script("return.sh", snap, log="return-after-package")
     check(rc6 == 0 and "return verified" in out6, "return.sh after the package changes failed", problems=problems(out6), out=out6[-1500:])
     expect_frozen_serving("after the package changes", snap)
     expect_world_equal("after the package changes", before_c, state["baseline_bystanders"])
     return {"stops": stops, "second_remove": out2.strip().splitlines()[-2:], "dpkg_second_remove": out3.strip().splitlines()[-2:], "after_upgrade": after, "seconds": {k: state["timings"].get(k) for k in ("activate-snapP", "return-after-package")}}
+
+
+@case("22b package change while the frozen app owns /var/lib/limeos: configure leaves it and LimeOS's units alone, says so on stderr and in the journal")
+def package_change_elsewhere():
+    before_c = containers()
+    apt = "DEBIAN_FRONTEND=noninteractive apt-get"
+    started = time.strftime("%Y-%m-%d %H:%M:%S")
+    rc, out = sh(f"{apt} install -y --allow-downgrades limeos={state['version']}", check_rc=False, timeout=600, log="apt-downgrade-elsewhere")
+    check(rc == 0, "the package change failed", out=out[-2500:])
+    check("/var/lib/limeos belongs to holly:pihealth (750)" in out and "neither enabled nor started" in out, "configure did not say it left LimeOS stopped", out=out[-1500:])
+    journal = sh(f"journalctl -t limeos-postinst --since '{started}' --no-pager", check_rc=False)[1]
+    check("neither enabled nor started" in journal, "the notice is not in the journal", journal=journal[-1000:])
+    check(all(active(u) in ("inactive", "failed") and enabled(u) == "disabled" for u in RUST_UNITS), "configure started or enabled a LimeOS unit", units={u: (active(u), enabled(u)) for u in RUST_UNITS})
+    expect_frozen_serving("after a package change while the frozen app owns the directory")
+    expect_world_equal("after a package change while the frozen app owns the directory", before_c, state["baseline_bystanders"])
+    return {"notice": [l for l in out.splitlines() if l.startswith("LimeOS")], "journal": journal.strip().splitlines()[-3:]}
 
 
 @case("23 PR-32: a reader run as root by a leftover drop-in is refused by core (reader-status, degraded, journal); with the drop-in removed, a package upgrade brings it back as limeos-storage-reader and core's reads turn fresh; activation itself refuses a root reader and rolls back")
@@ -1456,6 +1677,121 @@ def reader_root_dropin():
     return facts
 
 
+# --- needs the merged build (production-readiness with pr-health-cohort) ------------------------------------
+# wybie's container mix (26 Nov host facts): 18 containers, 14 running, health checks on some, 51 mounts in all.
+# The 0.4.4 reader failed core's container-health read on that host (`the read failed: Unavailable`) and
+# activation rolled back; the fix is on branch pr-health-cohort. On binaries without it this case is expected
+# to FAIL at the first activation, and every earlier case is independent of it (it runs last, and only adds).
+COHORT_RUNNING = ["sabnzbd", "jackett", "navidrome", "audiobookshelf", "rdtclient", "requestrr", "get_iplayer", "yt-to-jellyfin"]
+COHORT_HEALTHY = ["sabnzbd", "jackett", "navidrome"]
+COHORT_FAILED_CHECK = ["limeos-mattermost", "limeos-alertd"]
+COHORT_MOUNTS = 51
+
+
+def mount_count():
+    return sum(len(json.loads(sh(f"docker inspect {n}")[1])[0]["Mounts"]) for n in sh("docker ps -a --format '{{.Names}}'")[1].split())
+
+
+def health(name):
+    return json.loads(sh(f"docker inspect {name}")[1])[0]["State"].get("Health", {}).get("Status")
+
+
+def storage_ceiling(grant):
+    """Set allow_container_health_read in the reader's ceiling, keeping root:limeos-host-access 0640."""
+    path = Path("/etc/limeos/system-policy/storage.json")
+    value = json.loads(path.read_text())
+    value["allow_container_health_read"] = grant
+    temporary = path.with_name(".storage.json.new")
+    temporary.write_text(json.dumps(value) + "\n")
+    sh(f"chown root:limeos-host-access {temporary} && chmod 0640 {temporary} && mv -f {temporary} {path}")
+    check(permitted(path) == "root:limeos-host-access 640", "storage.json lost its owner or mode", mode=permitted(path))
+
+
+def reads():
+    """{read: (exit, answer)} for core's three reads through the stack reader."""
+    ctl = "/usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock"
+    return {r: sh(f"{ctl} reader-status --read {r}", check_rc=False) for r in ("stack", "storage", "container-health")}
+
+
+@case("24 NEEDS THE MERGED BUILD (pr-health-cohort): wybie's mix of 18 containers (14 running, 3 healthy checks, 2 stopped after a failed check, 51 mounts): activation passes with all three reader reads accepted; with allow_container_health_read false the read is not_granted (exit 0) and activation still passes")
+def health_cohort():
+    managed = Path("/root/managed.txt")
+    facts = {}
+    # The fixture grows to wybie's mix: eight more running media members (three with passing health checks),
+    # the refused outside project's container goes (wybie has 4 stopped), and two mattermost members are
+    # re-created with a check that fails, then stopped, as on the host.
+    sh("docker rm -f airsonic-old", check_rc=False)
+    existing = mount_count()
+    new = [*COHORT_RUNNING, *COHORT_FAILED_CHECK]
+    per, extra = divmod(COHORT_MOUNTS - existing, len(new))
+    check(per >= 1, "too many mounts already", existing=existing)
+    for index, name in enumerate(new):
+        if name in COHORT_FAILED_CHECK:
+            sh(f"docker rm -f {name}")
+        binds = ""
+        for k in range(per + (1 if index < extra else 0)):
+            directory = Path(f"/srv/cohort/{name}/{k}")
+            directory.mkdir(parents=True, exist_ok=True)
+            binds += f"-v {directory}:/data/{k} "
+        project = "mattermost" if name in COHORT_FAILED_CHECK else "media"
+        labels = (f"--label com.docker.compose.project={project} --label com.docker.compose.service={name} "
+                  f"--label com.docker.compose.project.working_dir=/opt/stacks/{project} "
+                  f"--label com.docker.compose.project.config_files=/opt/stacks/{project}/compose.yaml --label com.docker.compose.oneoff=False ")
+        if name in COHORT_HEALTHY:
+            check_flags = "--health-cmd '/bin/busybox true' --health-interval 3s --health-retries 2 "
+        elif name in COHORT_FAILED_CHECK:
+            check_flags = "--health-cmd '/bin/busybox false' --health-interval 2s --health-retries 1 "
+        else:
+            check_flags = ""
+        command = f"echo {name} ready; trap 'exit 0' TERM INT; while :; do /bin/busybox sleep 1; done"
+        state["ids"][name] = sh(f"runuser -u holly -- docker run -d --name {name} --restart unless-stopped {labels}{check_flags}{binds}{IMAGE} /bin/busybox sh -c \"{command}\"")[1].strip()
+    # The media Compose file names its new members, and the catalog is proposed and installed again, as the
+    # runbook says to whenever a Compose file under /opt/stacks changes.
+    compose = Path("/opt/stacks/media/compose.yaml")
+    compose.write_text(compose.read_text() + "".join(f"  {n}:\n    image: x\n" for n in COHORT_RUNNING))
+    Path("/root/management-catalog.cohort.json").unlink(missing_ok=True)
+    sh("/usr/lib/limeos/limeosctl migrate propose-catalog --out /root/management-catalog.cohort.json", log="propose-catalog-cohort")
+    shutil_copy("/root/management-catalog.cohort.json", CATALOG)
+    fx.eventually(lambda: all(health(n) == "healthy" for n in COHORT_HEALTHY), timeout=60)
+    fx.eventually(lambda: all(health(n) == "unhealthy" for n in COHORT_FAILED_CHECK), timeout=60)
+    sh("runuser -u holly -- docker stop -t 1 " + " ".join(COHORT_FAILED_CHECK))
+    c = containers()
+    running = sorted(n for n, v in c.items() if v["running"])
+    facts["mix"] = {"containers": len(c), "running": len(running), "stopped": sorted(n for n, v in c.items() if not v["running"]),
+                    "mounts": mount_count(), "health": {n: health(n) for n in [*COHORT_HEALTHY, *COHORT_FAILED_CHECK]}}
+    check(len(c) == 18 and len(running) == 14 and facts["mix"]["mounts"] == COHORT_MOUNTS, "the fixture is not wybie's mix", mix=facts["mix"])
+    try:
+        managed.write_text("\n".join(running) + "\n")
+        out_dir = "/var/lib/limeos-cutover/snapC1"
+        rc, out = run_script("preflight.sh", *preflight_args(), "--out", out_dir, "--managed-file", managed, log="preflight-snapC1")
+        check(rc == 0 and "preflight passed" in out, "preflight did not pass on the 18-container mix", out=out[-2000:])
+        rc, out = run_script("activate.sh", out_dir, "--yes-i-have-operator-approval", *deb_args(), log="activate-snapC1", timeout=600)
+        check(rc == 0 and "activate complete" in out and "ROLLBACK" not in out, "activation rolled back on wybie's container mix", problems=problems(out), out=out[-2500:])
+        granted = reads()
+        facts["granted"] = {r: (rc_, a.strip()[-300:]) for r, (rc_, a) in granted.items()}
+        check(all(rc_ == 0 and '"result":"accepted"' in a for rc_, a in granted.values()), "a reader read was not accepted", reads=facts["granted"])
+        rc, out = run_script("return.sh", out_dir, log="return-snapC1")
+        check(rc == 0 and "return verified" in out, "return.sh after the cohort activation failed", problems=problems(out))
+        # The read the ceiling does not grant: not_granted with exit 0, and activation tolerates it.
+        storage_ceiling(False)
+        out_dir = "/var/lib/limeos-cutover/snapC2"
+        rc, out = run_script("preflight.sh", *preflight_args(), "--out", out_dir, "--managed-file", managed, log="preflight-snapC2")
+        check(rc == 0, "preflight did not pass", out=out[-2000:])
+        rc, out = run_script("activate.sh", out_dir, "--yes-i-have-operator-approval", *deb_args(), log="activate-snapC2", timeout=600)
+        check(rc == 0 and "activate complete" in out and "ROLLBACK" not in out, "activation did not tolerate a container-health read the ceiling does not grant", problems=problems(out), out=out[-2500:])
+        rc_read, answer = reads()["container-health"]
+        facts["not_granted"] = (rc_read, answer.strip()[-300:])
+        check(rc_read == 0 and '"result":"not_granted"' in answer, "the ungranted container-health read is not not_granted with exit 0", answer=answer[-600:], rc=rc_read)
+        rc, out = run_script("return.sh", out_dir, log="return-snapC2")
+        check(rc == 0 and "return verified" in out, "return.sh after the not_granted activation failed", problems=problems(out))
+    finally:
+        storage_ceiling(True)
+        if active("pi-health.service") != "active":
+            run_script("return.sh", "/var/lib/limeos-cutover/snapC2" if Path("/var/lib/limeos-cutover/snapC2/meta.env").exists() else "/var/lib/limeos-cutover/snapC1", log="return-cohort-cleanup")
+    expect_frozen_serving("after the cohort case")
+    return facts
+
+
 # ---------------------------------------------------------------- driver
 def main(package_version="0.4.17+cutover.1"):
     if os.getuid() != 0 or socket.gethostname() != "limeos-p01-test":
@@ -1478,7 +1814,7 @@ def main(package_version="0.4.17+cutover.1"):
             "kernel": sh("uname -r")[1].strip(),
             "setup_seconds": round(time.time() - started, 1),
             "binary_sha256": {n: sha(f"/usr/lib/limeos/{n}") if Path(f"/usr/lib/limeos/{n}").exists() else None for n in ("limeos-core", "limeos-executor", "limeosctl", "limeos-password-worker")},
-            "script_sha256": {n: sha(CUTOVER / n) for n in ("lib.sh", "preflight.sh", "activate.sh", "return.sh", "measure.sh")},
+            "script_sha256": {n: sha(CUTOVER / n) for n in ("lib.sh", "preflight.sh", "activate.sh", "return.sh", "measure.sh", "state_lists.py", "Caddyfile.cutover.example")},
             "runbook_sha256": sha(RUNBOOK),
             "bash": sh("bash --version | head -1")[1].strip(),
             "systemd": sh("systemctl --version | head -1")[1].strip(),

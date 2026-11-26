@@ -1,0 +1,5 @@
+caddy inactive
+nginx inactive
+traefik inactive
+caddy-binary present
+https-proxy-active no

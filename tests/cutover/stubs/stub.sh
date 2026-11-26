@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep, stat and
-# limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
+# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep, stat,
+# chown, chmod, getent and limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
 # State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log. systemd-run --scope --unit and
 # systemctl is-active/show/kill on a *.scope model a transient scope (see scope_members).
 set -Eeuo pipefail
@@ -112,7 +112,7 @@ scope_refresh() { # unit -> members on stdout
             rm -f "${dir}/cgroup.kill"
         else
             [[ -e "${dir}/cgroup.kill" ]] || : >"${dir}/cgroup.kill"
-            if [[ -e "${STUB_DIR}/cgroup-kill-readonly" ]]; then chmod 0444 "${dir}/cgroup.kill"; fi
+            if [[ -e "${STUB_DIR}/cgroup-kill-readonly" ]]; then command -p chmod 0444 "${dir}/cgroup.kill"; fi
         fi
         printf '%s\n' "${members}"
     else
@@ -201,6 +201,14 @@ case "${tool}" in
                     [[ -e "${f}" ]] || continue
                     b="$(basename -- "${f}" .enabled)"; printf '%s %s enabled\n' "${b}" "$(get_unit "${b}" enabled x)"
                 done ;;
+            list-units)
+                # Loaded units: those with a state, and any listed in $STUB_DIR/loaded-only (no unit file).
+                for f in "${unit_dir}"/*.active; do
+                    [[ -e "${f}" ]] || continue
+                    b="$(basename -- "${f}" .active)"; printf '%s loaded %s running x\n' "${b}" "$(get_unit "${b}" active inactive)"
+                done
+                if [[ -f "${STUB_DIR}/loaded-only" ]]; then cat "${STUB_DIR}/loaded-only"; fi ;;
+            kill) ;;
             stop)
                 for u in "${args[@]}"; do
                     set_unit "${u}" active inactive
@@ -236,6 +244,10 @@ case "${tool}" in
                     ControlGroup) printf '%s\n' "$(get_unit "${args[-1]}" cgroup '')" ;;
                     LoadState) printf '%s\n' "$(get_unit "${args[-1]}" loadstate loaded)" ;;
                     DropInPaths) printf '%s\n' "$(get_unit "${args[-1]}" dropins '')" ;;
+                    StateDirectory) printf '%s\n' "$(get_unit "${args[-1]}" statedir '')" ;;
+                    User) printf '%s\n' "$(get_unit "${args[-1]}" user '')" ;;
+                    Group) printf '%s\n' "$(get_unit "${args[-1]}" group '')" ;;
+                    StateDirectoryMode) printf '%s\n' "$(get_unit "${args[-1]}" statedirmode 0755)" ;;
                     *) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
                 esac ;;
             daemon-reload|reload|reset-failed) ;;
@@ -273,6 +285,14 @@ case "${tool}" in
         [[ -f "${STUB_DIR}/pkg_version" ]] || exit 1
         cat "${STUB_DIR}/pkg_version" ;;
     caddy) ;;
+    # chown changes nothing under the fake root (the tests run unprivileged; the call log is what the
+    # tests read); chmod is the real one.
+    chown) ;;
+    chmod) command -p chmod "$@" ;;
+    getent)
+        # getent passwd NAME: the line for NAME in $STUB_DIR/passwd, exit 2 when there is none.
+        [[ "${1:-}" == passwd || "${1:-}" == group ]] && [[ -f "${STUB_DIR}/${1}" ]] || exit 2
+        grep -m1 "^${2:-}:" "${STUB_DIR}/${1}" || exit 2 ;;
     limeosctl)
         # reader-status --read READ: $STUB_DIR/reader-read-READ (output) and .rc (exit status)
         # model core's read through the stack reader; by default it succeeds.

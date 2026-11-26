@@ -9,6 +9,10 @@
 # journals), the ceilings and every other file under /etc/limeos, operator
 # drop-ins under /etc/systemd/system, and the service accounts and groups.
 # dpkg itself deletes the conffile /etc/limeos/core.json on purge.
+# They also delete the cutover's guard drop-ins (zz-limeos-cutover-guard.conf,
+# written by scripts/cutover/activate.sh on the app LimeOS replaced, whose
+# start they make fail): with LimeOS gone nothing needs them, and leaving them
+# would leave that app unstartable.
 # upgrade, failed-upgrade, abort-install, abort-upgrade and disappear change
 # nothing: postinst still needs the restart record after an upgrade.
 set -Eeuo pipefail
@@ -20,6 +24,15 @@ fct_disable_units() {
     for unit in "${ENABLED_UNITS[@]}"; do
         # Only the link systemctl enable made; never an operator's file.
         if [[ -L "${wants}/${unit}" ]]; then rm -f -- "${wants}/${unit}"; fi
+    done
+}
+fct_drop_guards() {
+    local guard
+    for guard in "${DPKG_ROOT:-}"/etc/systemd/system/*.d/zz-limeos-cutover-guard.conf; do
+        if [[ -e "${guard}" || -L "${guard}" ]]; then
+            rm -f -- "${guard}"
+            printf 'LimeOS: removed the cutover guard %s; that unit can start again.\n' "${guard#"${DPKG_ROOT:-}"}" >&2
+        fi
     done
 }
 fct_drop_restart_record() {
@@ -34,6 +47,7 @@ fct_main() {
     case "${1:-}" in
         remove|purge)
             fct_disable_units
+            fct_drop_guards
             fct_drop_restart_record
             # The files are gone; a manager that cannot reload is not a reason
             # to leave the package half-removed.

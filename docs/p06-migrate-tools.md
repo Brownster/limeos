@@ -14,7 +14,20 @@ backups, `auto_update.json`, `backup_config.json`, `package-approvals.json`,
 `pending-actions.json` and `storage_plugins/` are deferred; the rest is
 unsupported. Names containing `secret` or `env` show size and mode only.
 Symlinks, FIFOs and other non-regular files are listed and never opened or
-followed. The scan is bounded (20000 files, depth 8, 5000 entries per directory,
+followed. A Python virtual environment is listed as one `virtualenv` entry
+(unsupported, no hash) and never descended, whatever its depth, since it is
+software and not state: a directory holding a regular `pyvenv.cfg` whose first
+4 KiB have a `home = ...` line, and either a `bin/python*` entry or a
+`lib/python*/site-packages` directory. A directory that merely holds a file of
+that name is walked like any other. The entries under a virtual environment
+are counted, without following a link, up to 200,000 entries and 64 levels
+(`entries_not_listed`, with `entries_not_listed_bounded` when a bound cut the
+count short), and the summary gives the number of virtual environments and of
+entries not listed. wybie's `/var/lib/limeos/agent-supervisor/venv` (1,096
+files, 74 of its directories past the depth bound) made the scan incomplete on
+26 Nov. `scripts/cutover/state_lists.py` builds the cutover's state and live
+lists from the JSON report (runbook step 1h) and prints each virtual
+environment it left out with its count. The scan is bounded (20000 files, depth 8, 5000 entries per directory,
 256 MiB per hashed file); hitting a bound or an unreadable directory marks the
 report incomplete and exits non-zero. Every original is re-checked at the end
 and any change fails the run. `--json` emits report schema 1.

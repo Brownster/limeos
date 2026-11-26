@@ -17,9 +17,9 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
 3. `core.json` `origin` must equal `https://HOST:8002` exactly (edit before the
    window; `activate.sh` refuses otherwise). HOST is the name household browsers
    use; assumed `wybie`, to confirm.
-4. **Caddy install - APPROVED 2026-11-12.** Caddy is not installed on the host and
-   the scripts do not install it. Install it in the cutover window before
-   `activate.sh` and put `import /etc/caddy/conf.d/*.caddy` in `/etc/caddy/Caddyfile`.
+4. **Caddy install - APPROVED 2026-11-12.** The scripts do not install it (step 1f). On
+   wybie it was installed on 26 Nov and is stopped and disabled, with the import line in
+   `/etc/caddy/Caddyfile` and `/etc/caddy/conf.d` created.
    Caddy may also bind port 80 for redirects; if that port is taken, set
    `auto_https disable_redirects` in the main Caddyfile's global block.
 5. Whether the managed-container list is the default fourteen names (edit with
@@ -30,36 +30,107 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
 
 ## Steps
 
-1. Read-only checks: `limeosctl migrate scan`, then `import-users` and
-   `propose-ceiling` per [migrate tools](p06-migrate-tools.md). Install the
-   ceiling and the `.deb` set; choose the pinned version. Generate and review the
-   stack catalog: `limeosctl migrate propose-catalog --out
-   /root/management-catalog.proposed.json`, read its `stack ...` / `refused ...` lines (a
-   Compose project outside `/opt/stacks`, such as wybie's one-container `docker`, is refused by
-   design), then `install -o root -g root -m 0644 /root/management-catalog.proposed.json
-   /etc/limeos/management-catalog.json` (or rerun with `--install`).
-   Build the state list (the frozen app's files that must not change) from the
-   scan report. The package installs `limeosctl` under `/usr/lib/limeos`, not on
-   `PATH`. The frozen app and LimeOS share `/etc/limeos` and `/var/lib/limeos`, so
-   the second command leaves out what the package itself owns and changes while
-   the cutover runs (`core.json`, `system-policy/`, `management-catalog.json`,
-   and `core/`, `executors/`, `assistant/` under `/var/lib/limeos`; the core's
-   database there changes on every login), and the Compose files:
+1. Before the window (nothing here stops the frozen app). Every command runs as root on the host.
+
+   a. **The scripts.** On a checkout: `scripts/cutover/bundle.sh /tmp/limeos-cutover` builds the
+      directory to copy (the five scripts, `state_lists.py`, `Caddyfile.cutover.example`, this
+      runbook and `SHA256SUMS`). Copy it to `/root/limeos-cutover` on the host and check it there:
+      `cd /root/limeos-cutover && sha256sum -c SHA256SUMS`. Run every script from that directory:
+      `activate.sh` finds the Caddy site template next to itself (or pass `--site-template FILE`),
+      and preflight refuses if a file no longer matches `SHA256SUMS`. (26 Nov: the scripts were
+      copied as loose files, and the dry run failed with `site template not readable`.)
+   b. **The package.** `dpkg -i /root/limeos-migration/limeos_V_arm64.deb` (any `limeosctl`
+      command below needs it installed; it installs `limeosctl` under `/usr/lib/limeos`, not on
+      `PATH`). On a host where `/var/lib/limeos` belongs to the frozen app (see "The shared state
+      directory" below; wybie: `holly:pihealth 0750`), configure leaves that directory as it is,
+      creates LimeOS's own trees inside it, and neither enables nor starts the LimeOS services; it
+      says so in one line. That is intended: they cannot pass a 0750 directory of another account,
+      and the frozen app's next start would take their state. `activate.sh` starts them. A package
+      older than this behaviour (0.4.4, as on wybie on 26 Nov: `DEBIAN_FRONTEND=noninteractive
+      dpkg -i limeos_0.4.4_arm64.deb` enabled and started core, containerd and storaged) set
+      `/var/lib/limeos` to `root:root 0755`; if so, stop them before preflight:
+      `systemctl disable --now limeos-core limeos-containerd limeos-storaged`.
+   c. **The origin.** Edit `/etc/limeos/core.json` so `"origin"` is `https://HOST:8002` (decision 3;
+      26 Nov: a small Python edit of the JSON, then `systemctl restart limeos-core`, which a
+      package that leaves LimeOS stopped does not need).
+   d. **The ceilings** (each `/usr/lib/limeos/limeosctl check-ceiling FILE CORE_UID ROLE` must
+      accept it; `CORE_UID` is `id -u limeos-core`):
+      - `/etc/limeos/system-policy/container.json`, `root:root 0644`: generate with
+        `docker ps --no-trunc --format '{{json .}}' >/root/docker-ps.jsonl` and
+        `/usr/lib/limeos/limeosctl migrate propose-ceiling --docker-ps /root/docker-ps.jsonl --stacks /opt/stacks --core-uid CORE_UID --out /root/container-ceiling.proposed.json`
+        (wybie: `--core-uid 106`), `check-ceiling` it, set the seven rehearsed flags
+        (`allow_health`, `allow_container_read`, `allow_container_logs`, `allow_restart`,
+        `allow_start`, `allow_stop`, `allow_stack`; [migrate tools](p06-migrate-tools.md)) in
+        `/root/container-enabled.json`, `check-ceiling` it again, keep the package's default as
+        `/root/container.json.package-default`, then
+        `install -o root -g root -m 0644 /root/container-enabled.json /etc/limeos/system-policy/container.json`
+        (26 Nov, with LimeOS running: `systemctl restart limeos-containerd`).
+        On wybie it lists the fourteen running containers and the stacks `mattermost` and `media`.
+      - `/etc/limeos/system-policy/storage.json` (the stack reader's) and `host.json`
+        (`limeos-storaged`'s), each `root:limeos-host-access 0640`; configure creates both with
+        safe defaults and sets that owner and mode.
+   e. **The stack catalog.** `/usr/lib/limeos/limeosctl migrate propose-catalog --out
+      /root/management-catalog.proposed.json`, read its `stack ...` / `refused ...` lines (a
+      Compose project outside `/opt/stacks`, such as wybie's one-container `docker`, is refused by
+      design), then `install -o root -g root -m 0644 /root/management-catalog.proposed.json
+      /etc/limeos/management-catalog.json` (or rerun with `--install`).
+   f. **Caddy** (decision 4). `apt-get install -y --no-install-recommends caddy` (it pulls in
+      `libnss3-tools`): Debian's package **starts and enables Caddy at once** with its default site
+      on port 80. Then `systemctl stop caddy; systemctl disable caddy`, copy `/etc/caddy/Caddyfile`
+      to `/etc/caddy/Caddyfile.dist`, replace `/etc/caddy/Caddyfile` with the single line
+      `import /etc/caddy/conf.d/*.caddy`, and `install -d -m 0755 /etc/caddy/conf.d`. Preflight
+      warns while Caddy runs and refuses without the import line. (26 Nov this came first, before
+      the package.)
+   g. **Users.** `/usr/lib/limeos/limeosctl migrate import-users --env-file /etc/limeos/credentials.env`
+      sends the hashes to the core over its socket, so it needs core running: on a host where
+      configure did not start it (b), run it right after `activate.sh` has passed (step 4), before
+      anyone logs in. Imported users stay in core's database across a return (wybie has one since
+      26 Nov; a rerun skips existing names).
+   h. **The state list and the live list.** Build the state list (the frozen app's files that must
+      not change) and the live list (state that services the cutover leaves running write) from
+      the scan report. The frozen app and LimeOS share `/etc/limeos` and `/var/lib/limeos`, so the
+      helper leaves out what the package itself owns and changes while the cutover runs
+      (`core.json`, `system-policy/`, `management-catalog.json`, and `core/`, `executors/`,
+      `assistant/` under `/var/lib/limeos`), the Compose files, and any Python virtual environment
+      (the scan reports one as a single `virtualenv` entry; wybie's agent supervisor has 1,096
+      files in one). The `--live` entries are wybie's: the homes of the `limeops-*` services, which
+      keep running and write `agent-actions/supervision.sqlite3` continuously. Their changes are
+      reported by `return.sh`, never failed on; the frozen app's own state stays strict.
+      `auto_update.json` and `backup_config.json` stay **strict** on purpose: on 25 Nov their mtimes
+      were 04:00 and 02:00, and a host backup job is known to start at 02:00, but that anything
+      other than pi-health writes them is an inference, not established, and pi-health is stopped
+      while LimeOS runs. If a return that spans 02:00 or 04:00 fails on one of them, compare its
+      mtime with the backup job's log before deciding whether the change was the frozen app's.
 
    ```sh
    /usr/lib/limeos/limeosctl migrate scan --json --checkout /home/holly/pi-health/config >/root/migrate-scan.json
-   python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); loc={l["label"]: l["path"].rstrip("/") for l in r["locations"]}; own={"etc": ("core.json", "management-catalog.json", "system-policy/"), "state": ("core/", "executors/", "assistant/")}; print("\n".join(loc[f["location"]] + "/" + f["path"] for f in r["files"] if f["kind"] == "file" and f["location"] != "stacks" and not f["path"].startswith(own.get(f["location"], ()))))' /root/migrate-scan.json >/root/cutover-state-paths.txt
+   python3 /root/limeos-cutover/state_lists.py --scan /root/migrate-scan.json --state-out /root/cutover-state-paths.txt --live-out /root/cutover-live-paths.txt \
+     --live '/var/lib/limeos/agent-actions/=home of the limeops-* services, which the cutover leaves running' \
+     --live '/var/lib/limeos/agent-supervisor/=home of the limeops-* services, which the cutover leaves running'
    ```
 
-   Read the list before preflight: every line must be a file of the frozen app,
-   and the two edited `pi-health/config` files must be in it.
+   It prints what went where. Read both lists before preflight: every line of the state list must
+   be a file of the frozen app (on wybie about 130: the 32 `pi-health/config` files, the policy
+   files and their backups, `credentials.env`, the integration settings, the top-level state
+   files), the two edited `pi-health/config` files must be in it, and every live entry must be
+   written by something that keeps running. `migrate scan` exits non-zero when it is incomplete
+   (an unreadable directory, a bound hit): read its problems before trusting the lists.
 
    Create a Jellyfin API key (Dashboard > API Keys) and store it root-only:
    `install -o root -g root -m 0600 /dev/null /root/jellyfin.key`, then write the
    key into that file with an editor (not on a command line).
-2. `scripts/cutover/preflight.sh --state-list /root/cutover-state-paths.txt
-   --jellyfin-key-file /root/jellyfin.key`
-   (writes `/var/lib/limeos-cutover/<ts>/`, or `--out DIR`). It refuses on
+2. `/root/limeos-cutover/preflight.sh --state-list /root/cutover-state-paths.txt
+   --live-list /root/cutover-live-paths.txt --jellyfin-key-file /root/jellyfin.key
+   --host HOST --package PATH --expected-version V`
+   (writes `/var/lib/limeos-cutover/<ts>/`, or `--out DIR`). It checks everything
+   `activate.sh` will need, so nothing is found missing in the window: the scripts next to it
+   and `SHA256SUMS`, the Caddy site template, `caddy` and the import line in the Caddyfile,
+   `core.json`'s origin against `--host`, and the `.deb`'s fields against `--expected-version`
+   (without `--host`/`--package` it warns that it did not check those two). It records which
+   frozen services declare `StateDirectory=limeos` (`state-claimants.txt`) and the owner and
+   mode of `/etc/limeos` and `/var/lib/limeos` (`shared-dirs.txt`); it refuses when systemd does
+   not answer that, or when a guard drop-in of an earlier activation is still in place, and warns
+   when the LimeOS services run while the frozen app owns `/var/lib/limeos`, and when Caddy runs. It refuses on
    MemAvailable below 1.5 GiB, swap above 90 %, a stopped managed container,
    Jellyfin playback, a listed state path that does not exist, a state path that
    is not a regular file (directories and symlinks included) or cannot be hashed,
@@ -104,7 +175,13 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    `Package` and `Version` fields must be `limeos` and `V`, checked before
    anything changes.
    It stops and disables only `limeos-metrics-collector.timer`,
-   `limeos-package-reconcile.timer`, `pi-health` and `pihealth-helper`; installs
+   `limeos-package-reconcile.timer`, `pi-health` and `pihealth-helper`; when the snapshot names
+   frozen services that own `/var/lib/limeos`, it then puts a guard drop-in on each
+   (`/etc/systemd/system/UNIT.d/zz-limeos-cutover-guard.conf`: a start of the unit fails on its
+   assertion, so a `systemctl start pi-health` by hand cannot chown LimeOS's state away), makes
+   `/var/lib/limeos` `root:root 0755` and gives every entry of LimeOS's trees (`core`,
+   `assistant`, `executors/*`) that another account owns back to its LimeOS account, touching
+   nothing of the frozen app's; then installs
    that file alone with `DEBIAN_FRONTEND=noninteractive dpkg --force-confold -i`,
    so dpkg never prompts and keeps your edited `/etc/limeos/core.json` (a
    conffile); starts the Rust services (first clearing `limeos-core`'s start-limit count
@@ -282,10 +359,19 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
    Otherwise: removes the Caddy
    site, returns the Rust services to their snapshot state (stopped and disabled
    unless they were already running or enabled before the cutover; before starting
-   `limeos-core` again it clears its start-limit count), re-enables
+   `limeos-core` again it clears its start-limit count), removes the guard drop-ins and
+   gives `/var/lib/limeos` the owner and mode preflight recorded, re-enables
    and starts the frozen units (helper, app, timers), then verifies state hashes,
    the managed containers' IDs and StartedAt (other containers only warn), and
-   that port 8002 answers over plain HTTP. It hashes the state files before the
+   that port 8002 answers over plain HTTP, and that every Rust service it started again still
+   works (active, and `limeosctl status` answers) now that the frozen app runs. When frozen
+   services own `/var/lib/limeos`, it leaves the Rust services **stopped and disabled** whatever
+   the snapshot recorded, and says so: each start of those services sets the directory to
+   `holly:pihealth 0750`, which LimeOS's accounts cannot pass (26 Nov: core lost its database two
+   seconds after the rollback started pi-health again, and the return reported nothing). Because
+   the directory is theirs again before they start, systemd does not chown LimeOS's trees, and
+   the next activation finds them intact. A path of the live list that changed is reported as
+   `live state changed since preflight (not a failure: REASON)`. It hashes the state files before the
    frozen units restart but compares them afterwards, so a hashing failure is
    reported and never leaves the frozen app stopped; each path is verified on
    its own, so one that cannot be hashed fails alone and the rest are still
@@ -330,6 +416,72 @@ it. Log in and open the stacks page to confirm it is no longer `unavailable`. Af
 reader is not running: start it by hand (`systemctl start limeos-storage-reader`). Re-run `propose-catalog` and replace the catalog (as root, by hand) whenever a
 Compose file under `/opt/stacks` changes, since its hash is registered.
 
+## The shared state directory
+
+`pi-health.service` and `limeos-metrics-collector.service` run as `holly:pihealth` with
+`StateDirectory=limeos` and `StateDirectoryMode=0750` (the collector is a oneshot: `systemctl show
+'*.service'` lists it only while loaded, so preflight reads every unit file as well as the loaded
+units, and refuses any other unit that declares it). systemd therefore treats `/var/lib/limeos`
+as theirs: at every start of either it sets the directory's mode to 0750 and, when the directory's
+owner is not `holly:pihealth`, chowns it **and everything in it** (LimeOS's `core/`, `assistant/`,
+`executors/*` included) to `holly:pihealth`. LimeOS's own units name only their subdirectories
+(`ReadWritePaths=/var/lib/limeos/core`, `StateDirectory=limeos/executors/container`), so they never
+claim the parent. The model while both are installed:
+
+- Before activation the directory stays the frozen app's (`holly:pihealth 0750`); the package's
+  configure does not change it and does not start LimeOS (step 1b). LimeOS's trees inside it keep
+  LimeOS's owners, because systemd only recurses when the top directory's owner differs.
+- Activation, once the frozen services are stopped and disabled, guards them, makes the directory
+  `root:root 0755` and repairs LimeOS's trees (step 4); the package's configure repairs them too.
+- After activation nothing may start `pi-health` or the metrics collector: they are disabled, and
+  the guard makes a start fail with `Assertion failed`. Removing the guard and starting them by
+  hand would chown LimeOS's state to `holly` (core then fails with `StateNotDurable`, containerd
+  with `unsafe or unavailable receipt store`); go back with `return.sh` only.
+- `return.sh` first gives the directory back (as preflight recorded it; when preflight recorded
+  `root:root` because it ran after a package configure, as the claimant's `User=`, `Group=` and
+  `StateDirectoryMode=` say, which is what systemd would set anyway), then removes the guards,
+  starts the frozen app, and leaves LimeOS and its on-demand units (the stack reader,
+  `limeos-storage-ready`, `-targets`, `-mounts`; none has an Install section) stopped. It then
+  verifies the owner and mode, that no guard is left and that no LimeOS unit runs, and fails the
+  return if not. A LimeOS unit that will not stop, or a chown that fails, does not keep the frozen
+  app down: the return starts it anyway and fails, naming what to do. The frozen app down past
+  09:00 is the worst outcome; LimeOS running under a directory the frozen app owns again (it fails;
+  it cannot harm the frozen app) is the second worst.
+- Removing the package (`apt-get remove limeos` or `purge`) deletes any guard drop-in, so LimeOS
+  removed by hand cannot leave the frozen app unstartable.
+
+What the takeover changes for others: `/var/lib/limeos` goes from `holly:pihealth 0750` to
+`root:root 0755` while LimeOS runs. The `limeops-*` services (accounts in group `pihealth`, each
+with `ReadWritePaths=/var/lib/limeos/agent-actions`) keep their access: they pass the top directory
+through its "other" execute bit and write `agent-actions` (`holly:pihealth 2770`) through their
+group, as the rehearsal's writer, a separate account in group `pihealth`, shows. Two things change:
+anything that creates entries directly in `/var/lib/limeos` as `holly` or through group `pihealth`
+cannot do so until the return (pi-health and its collector, which are stopped; on wybie nothing
+else is known to), and every local account can list the directory's top-level names (not read
+the files: their own modes still apply). 0755 is kept because LimeOS's accounts must pass the
+directory; a tighter mode for both would need LimeOS's accounts in group `pihealth`, which would
+also let them read the frozen app's group-readable state, or 0711, which nothing has qualified.
+
+Giving LimeOS's trees back (activation, and the package's configure on the transition only: while
+the directory belongs to another account, or when a tree's top shows a recursive chown went
+through it) lists the foreign owners first, then runs `chown -R -P -h --from=OWNER UID:GID TREE`
+per owner. GNU chown walks with fts: each directory is opened relative to its parent's
+descriptor without following a symlink and checked against the walk's own `lstat`, and each entry
+is changed with `fchownat(AT_SYMLINK_NOFOLLOW)` only while that owner still owns it, so a path is
+never resolved again after the walk and an account that owns entries inside cannot redirect the
+change outside the tree by swapping a directory for a symlink (the rehearsal plants a symlink in
+a `holly`-owned subtree and checks its target is untouched). Who could own entries inside them:
+before the first night, the LimeOS accounts themselves; after a recursive chown, `holly`, which
+on wybie means the operator's sessions and the containers that run as `holly`'s uid (Sonarr,
+Transmission and others). Those containers reach `/var/lib/limeos` only if a Compose file mounts
+it: the rehearsal's containers do not; that wybie's do not is unverified (to check). A failure of
+the repair warns and never fails configure.
+
+If LimeOS's trees were chowned anyway (26 Nov), the next activation repairs them; by hand, with
+the frozen app stopped: `chown -R limeos-core: /var/lib/limeos/core`, `chown -R limeos-assistant:
+/var/lib/limeos/assistant`, `chown -R limeos-containerd: /var/lib/limeos/executors/container`,
+`chown root:root /var/lib/limeos/executors /var/lib/limeos/executors/storage`.
+
 ## Abort criteria
 
 Run `return.sh` and stop if any of these holds: a preflight refusal you cannot
@@ -344,7 +496,9 @@ retry the cutover: inspect the named failure by hand.
 - Hashes cover every path in the state list (copied into the snapshot as
   `state-paths.txt`, which `activate.sh` and `return.sh` reuse) and
   everything under `/etc/limeos` and `/var/lib/limeos` except the new package's
-  paths. On wybie the list must include the two edited `pi-health/config` files.
+  paths. A path the live list covers (copied as `live-paths.txt`) is recorded with flag `L`
+  and only reported; an entry must exist, may not be a whole shared directory and may not
+  cover a path of the state list. On wybie the list must include the two edited `pi-health/config` files.
   Paths may hold any byte except a newline; a file whose name has one refuses
   preflight. SQLite files and journals can change while the writers run, so they are
   checked against a baseline taken just after the writers stop (`return.sh`

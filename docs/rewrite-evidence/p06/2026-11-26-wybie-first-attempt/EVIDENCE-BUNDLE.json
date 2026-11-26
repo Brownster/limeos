@@ -1,0 +1,19 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p06/2026-11-26-wybie-first-attempt",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-26",
+    "name": "limeos-evidence-p06-2026-11-26-wybie-first-attempt.tar.gz",
+    "size": 196022,
+    "sha256": "cda99a80707c700d6652dfa7bcf9bc3332eb73694ed8164e4327ccda9e6ccda4",
+    "tar_sha256": "06f1ca966c99dc94af17a25432f31d913e317f3b5ee5a5fcf89f5f70d33778fa"
+  },
+  "files": [
+    {"path": "raw/activate.log", "size": 5042, "sha256": "97f27a75473128251761dc354e9937d4d5d7cdbb6176985a9f93c6c64f7f3e30"},
+    {"path": "raw/journal.log", "size": 55138, "sha256": "bbd538ddefeb35cf0989903fbf02d0bbb7102ee7253e711e4d48b73db752acd3"},
+    {"path": "raw/state-paths.txt.gz", "size": 7679, "sha256": "efd4efc9a1eaf10b29d2a2899f465554a423df5183919a362dd476111b1cb61a"},
+    {"path": "raw/state.poststop.sha256.gz", "size": 89216, "sha256": "5ab9de0126aa9496d4f796453fe3590a70375e5baf4ef6cd5e60ecd519c32b7e"},
+    {"path": "raw/state.sha256.gz", "size": 89216, "sha256": "5ab9de0126aa9496d4f796453fe3590a70375e5baf4ef6cd5e60ecd519c32b7e"}
+  ]
+}

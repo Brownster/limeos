@@ -50,7 +50,7 @@ DATA = [
     "etc/limeos/storage-contract.json",
     "etc/systemd/system/limeos-core.service.d/override.conf",
 ]
-TOOLS = ["mkdir", "mktemp", "mv", "rm", "stat", "cut", "chmod"]
+TOOLS = ["mkdir", "mktemp", "mv", "rm", "stat", "cut", "chmod", "find", "sort"]
 
 SYSTEMCTL = r"""#!/bin/bash
 # A model of systemctl over $STUB_STATE/units/UNIT.{load,active,cgroup,unitfile,survive}.
@@ -137,6 +137,9 @@ case "${tool}" in
         if [[ "${1}" == passwd ]]; then printf '%s:x:150:150::/nonexistent:/usr/sbin/nologin\n' "${2}"; else printf '%s:x:150:\n' "${2}"; fi ;;
     id)
         if [[ "${1}" == -u ]]; then printf '150\n'; else printf '%s\n' "${2}"; fi ;;
+    chown)
+        # $STUB_STATE/chown-fails: every recursive chown fails (a damaged tree).
+        [[ "${1}" != -R || ! -f "${STUB_STATE}/chown-fails" ]] || { printf 'chown: stub failure\n' >&2; exit 1; } ;;
     install)
         mode='' directory=''
         while (( $# )); do case "${1}" in -m) mode="${2}"; shift ;; -o|-g) shift ;; -d) ;; *) directory="${1}" ;; esac; shift; done
@@ -658,6 +661,27 @@ class PostrmTests(SandboxTest):
                 self.assertEqual(box.calls(), ["daemon-reload"])
                 self.assertTrue(box.data_intact())
 
+    def test_remove_and_purge_delete_the_cutover_guards_and_nothing_else(self):
+        # A guard left by scripts/cutover/activate.sh would keep the app LimeOS replaced unstartable
+        # once LimeOS is gone; an operator's own drop-in stays.
+        for action in ("remove", "purge"):
+            with self.subTest(action=action):
+                box = self.sandbox()
+                box.installed()
+                system = box.root / "etc/systemd/system"
+                for unit in ("pi-health.service", "limeos-metrics-collector.service"):
+                    (system / f"{unit}.d").mkdir(parents=True)
+                    (system / f"{unit}.d/zz-limeos-cutover-guard.conf").write_text("[Unit]\nAssertPathExists=!/x\n")
+                (system / "pi-health.service.d/operator.conf").write_text("[Service]\nNice=5\n")
+                (system / "other.service.d").mkdir()
+                (system / "other.service.d/zz-limeos-cutover-guard.conf").symlink_to("/nonexistent/guard")
+                result = box.run("postrm", action)
+                self.assertOk(result)
+                self.assertEqual(sorted(p.relative_to(system).as_posix() for p in system.glob("*.d/*")), ["limeos-core.service.d/override.conf", "pi-health.service.d/operator.conf"])
+                self.assertIn("removed the cutover guard /etc/systemd/system/pi-health.service.d/zz-limeos-cutover-guard.conf", result.stderr)
+                self.assertEqual(box.calls(), ["daemon-reload"])
+                self.assertTrue(box.data_intact())
+
     def test_remove_then_purge_and_twice_is_idempotent(self):
         box = self.sandbox()
         box.installed()
@@ -743,6 +767,27 @@ CONFIGURE_TAIL = ["daemon-reload", f"enable {' '.join(ENABLED)}", f"reset-failed
 
 
 class PostinstTests(SandboxTest):
+    def test_drifted_trees_are_reclaimed_by_owner_without_following_links(self):
+        # The 26 Nov drift (the stub's accounts are uid 150, the trees the test user's): reclaimed,
+        # one recursive, non-following chown per foreign owner, limited to that owner. (That an
+        # ordinary upgrade reclaims nothing needs trees owned by a system account: the VM rehearsal.)
+        import os
+        box = self.sandbox()
+        box.installed(running=list(ENABLED))
+        self.assertOk(box.run("postinst", "configure"))
+        reclaims = [c for c in box.calls() if c.startswith("chown -R")]
+        self.assertIn(f"chown -R -P -h --from={os.getuid()} -- 150:limeos-core {box.root}/var/lib/limeos/core", reclaims)
+        self.assertEqual(len(reclaims), 4, reclaims)
+
+    def test_a_failed_reclaim_warns_and_configure_still_starts_the_services(self):
+        box = self.sandbox()
+        box.installed(enabled=False)
+        (box.state / "chown-fails").write_text("")
+        result = box.run("postinst", "configure")
+        self.assertOk(result)
+        self.assertIn("LimeOS warning: could not give every entry of", result.stderr)
+        self.assertEqual(box.manager(), CONFIGURE_TAIL)
+
     def test_configure_on_a_fresh_install_starts_core_and_nothing_optional(self):
         box = self.sandbox()
         box.installed(enabled=False)

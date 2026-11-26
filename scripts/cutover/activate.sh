@@ -35,7 +35,7 @@ Usage: activate.sh SNAPSHOT_DIR --yes-i-have-operator-approval
                    --package PATH --expected-version VERSION --host HOST
                    [--port 8002] [--tls internal | --tls-cert FILE --tls-key FILE]
                    [--site-dir /etc/caddy/conf.d] [--caddyfile /etc/caddy/Caddyfile]
-                   [--template FILE] [--attached] [--dry-run] [--help]
+                   [--site-template FILE] [--attached] [--dry-run] [--help]
 
 PATH is the one limeos .deb to install; its Package and Version fields must be
 limeos and VERSION, checked before anything changes. It is installed with
@@ -73,6 +73,19 @@ completed an activation (SNAPSHOT_DIR/activated), one with an unfinished
 return.sh --force (SNAPSHOT_DIR/force-takeover), one whose units.txt lacks a
 definite state for a unit, or an existing cutover Caddy site, is refused before
 any change.
+
+--site-template names the Caddy site template; by default the one next to the
+scripts (a directory made by bundle.sh), else the repository's
+packaging/Caddyfile.cutover.example. --template is the older name.
+
+When frozen services own /var/lib/limeos through StateDirectory=limeos
+(SNAPSHOT_DIR/state-claimants.txt; on wybie pi-health and the metrics
+collector, holly:pihealth 0750), the activation, once they are stopped, puts a
+guard drop-in on each (a start of it then fails, so a hand-started pi-health
+cannot chown LimeOS's state away), makes /var/lib/limeos root:root 0755 again,
+and gives every entry under LimeOS's own trees (core, assistant, executors)
+that another account took back to its LimeOS account, before the package is
+installed. return.sh undoes the first two.
 
 Each health check is tried 30 times, a second apart. A query that times out
 (30 s) or does not answer counts as a failure of that check, never a pass: the
@@ -311,7 +324,6 @@ fct_port_state() { # port
     if ! listing="$(fct_query ss -H -ltn)"; then printf 'unknown\n'; return 0; fi
     if grep -Eq "[:.]${1}[[:space:]]" <<<"${listing}"; then printf 'used\n'; else printf 'free\n'; fi
 }
-fct_core_origin_ok() { tr -d ' \n' <"${CUTOVER_ROOT}/etc/limeos/core.json" | grep -qF "\"origin\":\"${1}\""; }
 
 # Health checks: each succeeds (yes), fails with 1 (no) or with 2 (could not determine), and sets
 # HEALTH_DETAIL to say why it failed.
@@ -411,9 +423,59 @@ fct_untouched_match() {
     [[ -z "${changed}" ]]
 }
 
+# The guard drop-in for a frozen service that owns /var/lib/limeos: while it exists, a start of
+# the unit fails (the assertion names the drop-in itself), so nothing can chown LimeOS's state.
+fct_guard_text() { # snapshot unit
+    cat <<GUARD
+# Written by LimeOS scripts/cutover/activate.sh for snapshot ${1}.
+# LimeOS owns /var/lib/limeos now. Starting this unit would make systemd chown that directory and
+# everything in it to this unit's User=/Group= (StateDirectory=limeos) and stop LimeOS working.
+# scripts/cutover/return.sh removes this file before it starts the frozen app again: go back with
+# return.sh, not with systemctl start.
+[Unit]
+AssertPathExists=!/etc/systemd/system/${2}.d/${GUARD_NAME}
+GUARD
+}
+
+# Once the frozen services are stopped: guard each one that owns /var/lib/limeos, make the
+# directory root:root 0755 again (as the package creates it; systemd chowns it back to its claimant
+# only when that unit starts), and give every entry of LimeOS's own trees that another account took
+# (systemd's recursive chown when the claimant started while the directory was root's) back to its
+# LimeOS account. Nothing outside LimeOS's trees is changed: the frozen app's files stay its own.
+fct_take_state_dir() { # unit...
+    local text unit dir account ids uid gid
+    for unit in "$@"; do
+        fct_do install -d -m 0755 -- "${CUTOVER_ROOT}/etc/systemd/system/${unit}.d"
+        if (( DRY_RUN )); then
+            printf '[dry-run] install -m 0644 <guard> %s\n' "$(fct_guard_file "${unit}")"
+        else
+            text="$(mktemp)"
+            fct_guard_text "${SNAP}" "${unit}" >"${text}"
+            fct_do install -m 0644 -- "${text}" "$(fct_guard_file "${unit}")"
+            rm -f -- "${text}"
+        fi
+    done
+    fct_do systemctl daemon-reload
+    fct_do chown root:root -- "${CUTOVER_ROOT}${SHARED_STATE_DIR}"
+    fct_do chmod 0755 -- "${CUTOVER_ROOT}${SHARED_STATE_DIR}"
+    if [[ -d "${CUTOVER_ROOT}${PACKAGE_EXECUTORS_DIR}" && ! -L "${CUTOVER_ROOT}${PACKAGE_EXECUTORS_DIR}" ]]; then
+        fct_do chown -h root:root -- "${CUTOVER_ROOT}${PACKAGE_EXECUTORS_DIR}"
+    fi
+    for dir in "${PACKAGE_TREES[@]}"; do
+        account="${dir##* }"
+        dir="${dir% *}"
+        [[ -d "${CUTOVER_ROOT}${dir}" && ! -L "${CUTOVER_ROOT}${dir}" ]] || continue
+        # Before the first install the accounts do not exist yet, and neither do the trees.
+        ids="$(fct_account_ids "${account}")" || continue
+        read -r uid gid <<<"${ids}"
+        fct_reclaim_tree fct_do "${CUTOVER_ROOT}${dir}" "${uid}" "${gid}" \
+            || fct_abort "could not list or give back the entries of ${dir} that another account owns"
+    done
+}
+
 fct_main() {
     local approved=0 package='' version='' host='' port="${FROZEN_PORT_DEFAULT}" tls=internal cert='' key=''
-    local caddyfile='/etc/caddy/Caddyfile' template="${SCRIPT_DIR}/../../packaging/Caddyfile.cutover.example"
+    local caddyfile='/etc/caddy/Caddyfile' template=''
     local -a original_args=("$@")
     while (( $# )); do
         case "${1}" in
@@ -430,7 +492,7 @@ fct_main() {
             --tls-key) key="${2:?--tls-key needs a path}"; shift 2 ;;
             --site-dir) SITE_DIR="${2:?--site-dir needs a directory}"; shift 2 ;;
             --caddyfile) caddyfile="${2:?--caddyfile needs a path}"; shift 2 ;;
-            --template) template="${2:?--template needs a path}"; shift 2 ;;
+            --site-template|--template) template="${2:?--site-template needs a path}"; shift 2 ;;
             -h|--help) fct_usage; return 0 ;;
             -*) fct_usage >&2; fct_die "unknown argument: ${1}" ;;
             *) [[ -z "${SNAP}" ]] || fct_die 'only one snapshot directory is accepted'; SNAP="${1}"; shift ;;
@@ -454,12 +516,17 @@ fct_main() {
     fi
     local site="https://${host}:${port}"
     [[ "${SITE_DIR}" =~ ^/[A-Za-z0-9._/-]+$ ]] || fct_die 'invalid --site-dir'
+    [[ -n "${template}" ]] || template="$(fct_default_template)"
     fct_require_root
 
     fct_snapshot_check "${SNAP}" "${MAX_SNAPSHOT_AGE}"
     [[ -f "${SNAP}/state-paths.txt" ]] || fct_die 'snapshot has no state-paths.txt (taken before state lists); run preflight again'
     [[ -f "${SNAP}/managed.txt" ]] || fct_die 'snapshot has no managed.txt (taken before managed sets were recorded); run preflight again'
+    [[ -f "${SNAP}/state-claimants.txt" && -f "${SNAP}/shared-dirs.txt" ]] \
+        || fct_die 'snapshot has no state-claimants.txt or shared-dirs.txt (taken before the shared state directory was recorded); run preflight again'
     STATE_LIST="${SNAP}/state-paths.txt"
+    # The live list classifies paths as preflight did, so the post-stop baseline matches the snapshot.
+    fct_load_live "${SNAP}/live-paths.txt"
     fct_records_ok "${SNAP}/state.sha256" || fct_die 'the snapshot has a malformed state record; run preflight again'
     local requirement
     while IFS= read -r requirement; do
@@ -507,7 +574,13 @@ fct_main() {
     local catalog_problem
     catalog_problem="$(fct_catalog_problem)"
     [[ -z "${catalog_problem}" ]] || fct_need "${catalog_problem}" false
-    [[ -r "${template}" ]] || fct_die "site template not readable: ${template}"
+    local problem
+    problem="$(fct_template_problem "${template}")"
+    [[ -z "${problem}" ]] || fct_die "${problem}"
+    while IFS= read -r problem; do fct_need "${problem}" false; done < <(fct_layout_problems)
+    # The frozen services that own /var/lib/limeos (StateDirectory=limeos), from the snapshot.
+    local -a claimants=()
+    mapfile -t claimants < <(grep -v '^[[:space:]]*$' "${SNAP}/state-claimants.txt" || true)
     if (( ! DRY_RUN )); then exec {STEP_LOCK_FD}>>"${SNAP}/step.lock" || fct_die "cannot open ${SNAP}/step.lock"; fi
 
     local rendered=''
@@ -547,6 +620,8 @@ fct_main() {
             *) fct_abort "could not determine whether port ${port} is free after the frozen app stopped (ss -H -ltn failed or timed out)" ;;
         esac
     fi
+    # 1b. The shared state directory becomes LimeOS's: see fct_take_state_dir.
+    if (( ${#claimants[@]} )); then fct_take_state_dir "${claimants[@]}"; fi
 
     # 2. Install the pinned package; its postinst starts the services too. Never prompt, and
     # keep the operator's /etc/limeos/core.json (a conffile) when it differs from the package's.

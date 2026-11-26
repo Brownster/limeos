@@ -16,6 +16,18 @@ FORCE=0
 KILL_FALLBACK=0
 HASHES_CAPTURED=0
 WRITERS_RUNNING=0
+# 1 when frozen services own /var/lib/limeos (StateDirectory=limeos), 2 when that could not be
+# determined, 0 otherwise; CLAIMANTS names them.
+CLAIMED=0
+CLAIMANTS=''
+# Rust units this return started again because the snapshot recorded them running.
+RUST_RESTARTED=()
+# The owner and mode this return gave /var/lib/limeos ("UID GID MODE"), checked at the end.
+STATE_DIR_TARGET=''
+TARGET_WHY=''
+# LimeOS units that are only ever started by hand or by activate.sh (no Install section); with the
+# frozen app owning the state directory none may be left running.
+ON_DEMAND_UNITS=(limeos-storage-reader.service limeos-storage-ready.service limeos-storage-targets.service limeos-storage-mounts.service)
 declare -A CURRENT_HASHES=()
 declare -A UNHASHABLE=()
 # How long --force waits for the activation's scope to empty after SIGKILL. Only a process in
@@ -38,9 +50,21 @@ Usage: return.sh SNAPSHOT_DIR [--site-dir DIR] [--force [--allow-systemctl-kill-
 Restores the frozen app from a preflight snapshot. Safe to run repeatedly.
 Exit 0 only when hashes, the managed containers' IDs and StartedAt (from the
 snapshot's managed.txt; other containers only warn) and the frozen port all
-verify. Rust units return to their snapshot state. A snapshot whose units.txt
-lacks a definite state for a unit is refused before any change (write the state
-the unit had before the cutover into it, or restore by hand).
+verify. A path of the snapshot's live list (state a service the cutover leaves
+running writes) that changed is reported, never failed on. A snapshot whose
+units.txt lacks a definite state for a unit is refused before any change (write
+the state the unit had before the cutover into it, or restore by hand).
+
+Rust units return to their snapshot state and must still work once the frozen
+app runs again (each recorded running is active, and core answers limeosctl
+status), or the return is incomplete. Except when frozen services own
+/var/lib/limeos (StateDirectory=limeos; on wybie pi-health and the metrics
+collector): every start of those makes systemd set the directory to their
+User=/Group= and mode, which LimeOS's accounts cannot rely on, so the Rust units
+are stopped and disabled whatever the snapshot recorded, and the return says so.
+Before the frozen units start again it removes activate.sh's guard drop-ins and
+gives /var/lib/limeos the owner and mode preflight recorded (shared-dirs.txt), so
+systemd finds it already theirs and does not chown LimeOS's trees inside it.
 
 When systemd cannot say what state a unit is in now (a query times out after
 30 s or does not answer), return.sh takes the restoring action anyway and says
@@ -137,6 +161,25 @@ fct_restore_frozen() {
 # were enabled before the cutover (a package installed earlier, for example).
 fct_restore_rust() {
     local snap="${1}" unit
+    if (( CLAIMED )); then
+        local why="/var/lib/limeos belongs to ${CLAIMANTS:-the frozen app} again (StateDirectory=limeos)"
+        (( CLAIMED == 1 )) || why='whether frozen services own /var/lib/limeos (StateDirectory=limeos) could not be determined (named above)'
+        fct_log "return: leaving the LimeOS services stopped and disabled: ${why}; every start of those units sets that directory to their User=/Group= and mode, which LimeOS's accounts cannot rely on (if the snapshot records them running, that was only because the package's configure had started them); the next activate.sh starts them again"
+        for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
+            fct_step systemctl stop "${unit}"
+            fct_step systemctl disable "${unit}"
+            fct_ensure_stopped "${unit}"
+        done
+        # The on-demand units have no Install section, so nothing enables them; one an operator
+        # started by hand would keep running against a directory it can no longer rely on.
+        for unit in "${ON_DEMAND_UNITS[@]}"; do
+            case "$(fct_unit_active "${unit}")" in
+                inactive|failed) ;;
+                *) fct_step systemctl stop "${unit}"; fct_ensure_stopped "${unit}" ;;
+            esac
+        done
+        return 0
+    fi
     for unit in limeos-core.service limeos-containerd.service limeos-storaged.service; do
         fct_snapshot_unit "${snap}" "${unit}"
         if [[ "${SNAP_ACTIVE}" != active ]]; then fct_step systemctl stop "${unit}"; fi
@@ -150,8 +193,161 @@ fct_restore_rust() {
             # deliberate start begins from a clear count. Nothing here reads its failed state.
             if [[ "${unit}" == limeos-core.service ]]; then fct_step systemctl reset-failed "${unit}"; fi
             fct_step systemctl start "${unit}"
+            RUST_RESTARTED+=("${unit}")
         fi
     done
+}
+
+# Which frozen services own /var/lib/limeos now (sets CLAIMED and CLAIMANTS). Asked of systemd; when
+# it does not answer, the snapshot's record decides, and without one the directory counts as owned
+# (the safe side: the Rust units are left stopped).
+fct_find_claimants() { # snap
+    local found rc=0
+    found="$(fct_state_claimants)" || rc=$?
+    if (( rc != 0 )) && [[ -f "${1}/state-claimants.txt" ]]; then
+        fct_warn "could not ask systemd which frozen services declare StateDirectory=limeos (named above); using the snapshot's record"
+        found="$(grep -v '^[[:space:]]*$' "${1}/state-claimants.txt" || true)"
+        rc=0
+    fi
+    if (( rc != 0 )); then CLAIMED=2; return 0; fi
+    found="${found%$'\n'}"
+    CLAIMANTS="${found//$'\n'/ }"
+    if [[ -n "${CLAIMANTS}" ]]; then CLAIMED=1; fi
+}
+
+# A LimeOS unit that a stop did not end (a stop job that failed or timed out) is killed, then
+# stopped again. If it still runs, the return goes on to start the frozen app anyway and fails at
+# the end naming it: the frozen app down past the household's morning is the worst outcome, LimeOS
+# running under a directory the frozen app owns again (it fails, it does not harm the frozen app)
+# the second worst.
+fct_ensure_stopped() { # unit
+    local state
+    (( ! DRY_RUN )) || return 0
+    state="$(fct_unit_active "${1}")"
+    case "${state}" in inactive|failed) return 0 ;; esac
+    fct_warn "${1} is ${state} after its stop; killing it"
+    fct_step systemctl kill --signal=KILL "${1}"
+    fct_step systemctl stop "${1}"
+    state="$(fct_unit_active "${1}")"
+    case "${state}" in
+        inactive|failed) ;;
+        *) fct_fail "${1} is still ${state} after stop and kill; the frozen app is started anyway (it must not stay down), but ${1} now runs under a directory the frozen app owns: stop it by hand (systemctl stop ${1}; systemctl disable ${1})" ;;
+    esac
+}
+
+# The owner and mode /var/lib/limeos gets back ("UID GID MODE"), and why. Normally preflight's record.
+# When preflight recorded it as root's (taken after a package configure had changed it), giving it
+# back as root would make systemd chown it, and LimeOS's trees in it, at the claimant's start; the
+# claimant's own User=, Group= and StateDirectoryMode= are used instead, which is what systemd would
+# set at that start anyway. Fails when neither can be determined.
+fct_state_dir_target() { # snap
+    local path='' uid='' gid='' mode='' first user group dmode line
+    if [[ -f "${1}/shared-dirs.txt" ]]; then
+        read -r path uid gid mode < <(awk -v d="${SHARED_STATE_DIR}" '$1 == d { print; exit }' "${1}/shared-dirs.txt") || true
+    fi
+    if [[ "${path}" == "${SHARED_STATE_DIR}" && "${uid}" =~ ^[0-9]+$ && "${uid}" != 0 && "${gid}" =~ ^[0-9]+$ && "${mode}" =~ ^[0-7]{3,4}$ ]]; then
+        STATE_DIR_TARGET="${uid} ${gid} ${mode}"
+        TARGET_WHY="as preflight recorded it"
+        return 0
+    fi
+    local recorded_mode="${mode}"
+    first="${CLAIMANTS%% *}"
+    user="$(fct_unit_property User "${first}")" || return 1
+    group="$(fct_unit_property Group "${first}")" || return 1
+    dmode="$(fct_unit_property StateDirectoryMode "${first}")" || return 1
+    [[ -n "${user}" ]] || return 1
+    line="$(getent passwd "${user}" 2>/dev/null)" || return 1
+    uid="$(cut -d: -f3 <<<"${line}")"
+    gid="$(cut -d: -f4 <<<"${line}")"
+    if [[ -n "${group}" ]]; then
+        line="$(getent group "${group}" 2>/dev/null)" || return 1
+        gid="$(cut -d: -f3 <<<"${line}")"
+    fi
+    mode="${dmode:-0755}"
+    mode="${mode#0}"
+    [[ "${uid}" =~ ^[0-9]+$ && "${gid}" =~ ^[0-9]+$ && "${mode}" =~ ^[0-7]{3,4}$ ]] || return 1
+    STATE_DIR_TARGET="${uid} ${gid} ${mode}"
+    if [[ "${path}" == "${SHARED_STATE_DIR}" ]]; then
+        TARGET_WHY="as ${first}'s User=${user}, Group=${group:-${user}} and StateDirectoryMode=${dmode:-0755} say: preflight recorded it as root:root ${recorded_mode:-?} (it was taken after a package configure had made it root's), and giving it back as root would make systemd chown it and LimeOS's trees at ${first}'s start"
+    else
+        TARGET_WHY="as ${first}'s User=${user}, Group=${group:-${user}} and StateDirectoryMode=${dmode:-0755} say (the snapshot has no record of it)"
+    fi
+}
+
+# Before the frozen units start, when frozen services own /var/lib/limeos: first give the directory
+# their owner and mode, so that systemd, which changes the owner of a StateDirectory= and everything
+# in it only when the directory's own owner differs, leaves LimeOS's trees alone; then remove
+# activate.sh's guards (a start would fail on them) and reload. In that order a failed chown leaves
+# the guards in place for the moment the failure is reported, and the guards go last. A failed chown
+# does not stop the frozen units from starting: systemd then sets the owner itself, recursively
+# (LimeOS is stopped; the next activate.sh gives its trees back), which is better than leaving the
+# frozen app down. The return then fails, naming it.
+fct_release_state_dir() { # snap
+    local snap="${1}" guard reload=0 now uid gid mode
+    TARGET_WHY=''
+    if (( CLAIMED == 1 )); then
+        if ! fct_state_dir_target "${snap}"; then
+            fct_fail "could not determine which owner and mode ${SHARED_STATE_DIR} should get back (no usable snapshot record, and systemd did not say ${CLAIMANTS%% *}'s User=, Group= and StateDirectoryMode=); systemd sets them when the frozen units start, recursively"
+        else
+            read -r uid gid mode <<<"${STATE_DIR_TARGET}"
+            now="$(fct_dir_record "${SHARED_STATE_DIR}")"
+            if [[ "${now}" != "${SHARED_STATE_DIR} ${uid} ${gid} ${mode}" ]]; then
+                fct_log "return: giving ${SHARED_STATE_DIR} back to ${CLAIMANTS} as ${uid}:${gid} ${mode} (now ${now#"${SHARED_STATE_DIR}" }), ${TARGET_WHY}"
+                fct_step chown "${uid}:${gid}" -- "${CUTOVER_ROOT}${SHARED_STATE_DIR}"
+                fct_step chmod "${mode}" -- "${CUTOVER_ROOT}${SHARED_STATE_DIR}"
+            fi
+        fi
+    fi
+    while IFS= read -r guard; do
+        [[ -n "${guard}" ]] || continue
+        fct_step rm -f -- "${guard}"
+        reload=1
+    done < <(fct_guard_files)
+    if (( reload )); then fct_step systemctl daemon-reload; fi
+}
+
+# The state directory after the return: no guard left; when frozen services own it, the owner and
+# mode this return gave it, and no LimeOS unit running under it.
+fct_verify_state_dir() {
+    local guard now unit state
+    while IFS= read -r guard; do
+        [[ -n "${guard}" ]] && fct_fail "a cutover guard is still in place: ${guard#"${CUTOVER_ROOT}"} (the frozen unit cannot start while it is; remove it and run systemctl daemon-reload)"
+    done < <(fct_guard_files)
+    (( CLAIMED )) || return 0
+    if [[ -n "${STATE_DIR_TARGET}" ]]; then
+        now="$(fct_dir_record "${SHARED_STATE_DIR}")"
+        [[ "${now}" == "${SHARED_STATE_DIR} ${STATE_DIR_TARGET}" ]] \
+            || fct_fail "${SHARED_STATE_DIR} is ${now#"${SHARED_STATE_DIR}" }, not ${STATE_DIR_TARGET} as this return set it"
+    fi
+    for unit in "${RUST_UNITS[@]}" "${ON_DEMAND_UNITS[@]}"; do
+        state="$(fct_unit_active "${unit}")"
+        case "${state}" in
+            inactive|failed) ;;
+            *) fct_fail "${unit} is ${state} although the frozen app owns ${SHARED_STATE_DIR} again (stop and disable it)" ;;
+        esac
+    done
+}
+
+# The Rust units this return started again still work now that the frozen app runs: each is active
+# and core answers limeosctl status (a few tries). A snapshot's "active" must mean working.
+fct_verify_rust() {
+    local unit state attempt rc detail=''
+    (( ${#RUST_RESTARTED[@]} )) || return 0
+    for (( attempt = 0; attempt < 10; attempt++ )); do
+        detail=''
+        for unit in "${RUST_RESTARTED[@]}"; do
+            state="$(fct_unit_active "${unit}")"
+            [[ "${state}" == active ]] || detail+=" ${unit} is ${state};"
+        done
+        if [[ " ${RUST_RESTARTED[*]} " == *' limeos-core.service '* && -z "${detail}" ]]; then
+            rc=0
+            fct_query "${LIMEOSCTL}" --socket "${CORE_SOCKET}" status >/dev/null || rc=$?
+            (( rc == 0 )) || detail+=" limeosctl status exit ${rc};"
+        fi
+        [[ -n "${detail}" ]] || return 0
+        sleep 1
+    done
+    fct_fail "the LimeOS services the snapshot records running were started again but do not work now that the frozen app runs:${detail%;} (journalctl -u limeos-core -u limeos-containerd -u limeos-storaged); stop them (systemctl disable --now ${RUST_RESTARTED[*]}) or fix the cause"
 }
 
 # The paths of the well-formed records in a hash file, one per line.
@@ -501,12 +697,30 @@ fct_capture_hashes() {
     HASHES_CAPTURED=1
 }
 
+# More about a strict file that changed: when it changed (its mtime), and, when the frozen writers
+# were already running again (a return run after the frozen app restarted), that the frozen app or
+# a schedule running as its account may have written it, naming wybie's known nightly writes. The
+# check itself is not relaxed.
+fct_strict_hint() { # path writers
+    local when
+    when="$(date -u -r "${CUTOVER_ROOT}${1}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+    printf '; last modified %s' "${when}"
+    if [[ "${2}" == 1 ]]; then
+        printf '; the frozen units were already running again, so the frozen app (or a schedule running as its account) may have written it'
+        case "${1}" in
+            */backup_config.json) printf ' (wybie rewrites backup_config.json nightly at 02:00 as holly while pi-health runs)' ;;
+            */auto_update.json) printf ' (wybie last rewrote auto_update.json at 04:00, the auto-update schedule)' ;;
+        esac
+        printf ': compare that time with those schedules before treating it as a cutover fault'
+    fi
+}
+
 # Every path is checked against the post-stop baseline whenever activate recorded one (a live
 # file that went A -> B -> A must not pass because it matches preflight again), strict files
 # against the preflight snapshot as well; with no baseline, against the preflight snapshot.
 fct_verify_hashes() {
     local snap="${1}" flag hash path record cur_hash base_hash baseline writers="${WRITERS_RUNNING}"
-    local have_baseline=0 against_baseline=0 against_preflight=0
+    local have_baseline=0 against_baseline=0 against_preflight=0 live=0 live_changed=0
     local -A base=()
     (( HASHES_CAPTURED )) || return 0
     baseline="${snap}/state.poststop.sha256"
@@ -521,15 +735,25 @@ fct_verify_hashes() {
         [[ -n "${record}" ]] || continue
         if ! fct_parse_record "${record}"; then fct_fail "malformed state record in the snapshot: ${record}"; continue; fi
         flag="${REC_FLAG}" hash="${REC_HASH}" path="${REC_PATH}"
-        if [[ -n "${UNHASHABLE["${path}"]:-}" ]]; then fct_fail "cannot verify state file: ${path} (named above)"; continue; fi
         cur_hash="${CURRENT_HASHES["${path}"]:-ABSENT}"
         base_hash="${base["${path}"]:-ABSENT}"
+        if [[ "${flag}" == L ]]; then
+            # Written by a service the cutover leaves running: reported, never a failure.
+            live=$(( live + 1 ))
+            if [[ -n "${UNHASHABLE["${path}"]:-}" || "${cur_hash}" != "${hash}" ]]; then
+                live_changed=$(( live_changed + 1 ))
+                fct_live_match "${path}" || LIVE_REASON='on the live list'
+                fct_warn "live state changed since preflight (not a failure: ${LIVE_REASON}): ${path}"
+            fi
+            continue
+        fi
+        if [[ -n "${UNHASHABLE["${path}"]:-}" ]]; then fct_fail "cannot verify state file: ${path} (named above)"; continue; fi
         if [[ "${flag}" == S ]]; then
             against_preflight=$(( against_preflight + 1 ))
-            [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path} (checked against the preflight snapshot)"
+            [[ "${cur_hash}" == "${hash}" ]] || fct_fail "state file changed: ${path} (checked against the preflight snapshot)$(fct_strict_hint "${path}" "${writers}")"
             if (( have_baseline )); then
                 against_baseline=$(( against_baseline + 1 ))
-                [[ "${cur_hash}" == "${base_hash}" ]] || fct_fail "state file changed: ${path} (checked against the post-stop baseline)"
+                [[ "${cur_hash}" == "${base_hash}" ]] || fct_fail "state file changed: ${path} (checked against the post-stop baseline)$(fct_strict_hint "${path}" "${writers}")"
             fi
         elif (( have_baseline )); then
             against_baseline=$(( against_baseline + 1 ))
@@ -549,7 +773,7 @@ fct_verify_hashes() {
             fi
         fi
     done <"${snap}/state.sha256"
-    fct_log "return: state checks: ${against_baseline} against the post-stop baseline, ${against_preflight} against the preflight snapshot"
+    fct_log "return: state checks: ${against_baseline} against the post-stop baseline, ${against_preflight} against the preflight snapshot; ${live} live path(s) written by services that keep running, ${live_changed} changed (reported only)"
 }
 
 # Only the managed set must match the snapshot; other changes are named, not failures.
@@ -616,6 +840,7 @@ fct_main() {
     if (( ! DRY_RUN )); then fct_lock_snapshot "${snap}"; fi
     # return.sh is the safety path, so it still accepts a snapshot from before state lists
     # and managed sets, with the rules that snapshot was taken under.
+    fct_load_live "${snap}/live-paths.txt"
     if [[ -f "${snap}/state-paths.txt" ]]; then
         STATE_LIST="${snap}/state-paths.txt"
     elif [[ -z "${CUTOVER_STATE_FILES:-}" ]]; then
@@ -642,12 +867,14 @@ fct_main() {
             ;;
         *) fct_step systemctl stop "${STACK_READER}" ;;
     esac
+    fct_find_claimants "${snap}"
     fct_restore_rust "${snap}"
     # Restore first, verify afterwards: nothing in verification may keep the frozen app down.
     if (( ! DRY_RUN )); then
         fct_log 'return: hashing the state files'
         fct_capture_hashes
     fi
+    fct_release_state_dir "${snap}"
     fct_log 'return: restoring the frozen units'
     fct_restore_frozen "${snap}"
 
@@ -658,6 +885,8 @@ fct_main() {
     fct_verify_docker "${snap}"
     fct_verify_untouched "${snap}"
     fct_verify_port "${port}"
+    fct_verify_rust
+    fct_verify_state_dir
     if (( FAILURES > 0 )); then fct_die "return incomplete: ${FAILURES} failure(s), each named above (with the command to run by hand where a step did not finish); do not retry cutover until resolved"; fi
     fct_log 'return verified: frozen app serving, state and containers match the snapshot'
 }
