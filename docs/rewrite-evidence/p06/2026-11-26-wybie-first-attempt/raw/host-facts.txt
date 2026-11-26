@@ -1,0 +1,123 @@
+# /etc/systemd/system/pi-health.service
+[Unit]
+Description=Pi-Health Dashboard
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=holly
+Group=pihealth
+WorkingDirectory=/home/holly/pi-health
+EnvironmentFile=-/etc/limeos/credentials.env
+Environment=DOCKER_COMPOSE_PATH=/home/pi/docker/docker-compose.yml
+Environment=LIMEOS_CONFIG_DIR=/etc/limeos
+Environment=LIMEOS_STATE_DIR=/var/lib/limeos
+Environment=LIMEOS_LOG_DIR=/var/log/limeos
+Environment=LIMEOS_CREDENTIALS_FILE=/etc/limeos/credentials.env
+ExecStart=/home/holly/pi-health/.venv/bin/python /home/holly/pi-health/app.py
+Restart=on-failure
+RestartSec=3
+UMask=0027
+ConfigurationDirectory=limeos
+ConfigurationDirectoryMode=0750
+StateDirectory=limeos
+StateDirectoryMode=0750
+LogsDirectory=limeos
+LogsDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/pihealth-helper.service
+[Unit]
+Description=Pi-Health Privileged Helper Service
+Documentation=https://github.com/Brownster/pi-health
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/pihealth_helper.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/etc/fstab /etc/systemd/system /etc/sshfs /mnt /run/pihealth /var/log/limeos
+ReadWritePaths=/backups
+ReadWritePaths=/home/holly/pi-health /etc/limeos /var/lib/limeos
+PrivateTmp=true
+
+# Socket permissions
+RuntimeDirectory=pihealth
+RuntimeDirectoryMode=0750
+UMask=0007
+
+[Install]
+WantedBy=multi-user.target
+
+# /etc/systemd/system/pihealth-helper.service.d/agent-provisioning.conf
+[Service]
+Environment=PIHEALTH_REPO_DIR=/home/holly/pi-health
+ReadWritePaths=/etc/apt
+ReadWritePaths=/usr /var/lib/apt /var/lib/dpkg /var/cache/apt
+ReadWritePaths=-/var/lib/lime-agent -/var/lib/limeops -/var/lib/limeops-report -/opt/stacks/.locks
+
+# /etc/systemd/system/pihealth-helper.service.d/integration-lifecycle.conf
+[Service]
+ReadWritePaths=-/etc/limeos/integrations/mattermost.env
+ReadWritePaths=-/var/lib/limeos/integration-recovery
+
+# /etc/systemd/system/pihealth-helper.service.d/restart-with-pi-health.conf
+[Unit]
+PartOf=pi-health.service
+
+# /etc/systemd/system/limeos-metrics-collector.service
+[Unit]
+Description=LimeOS system metric collector
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=holly
+Group=pihealth
+WorkingDirectory=/home/holly/pi-health
+EnvironmentFile=-/etc/limeos/credentials.env
+Environment="LIMEOS_STATE_DIR=/var/lib/limeos"
+ExecStart="/home/holly/pi-health/.venv/bin/python" "/home/holly/pi-health/metric_collector.py"
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/var/lib/limeos
+UMask=0027
+StateDirectory=limeos
+StateDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target
+---
+jackett running media
+jellyfin running media
+transmission running media
+requestrr running media
+get_iplayer running media
+sonarr running media
+sabnzbd running media
+audiobookshelf running media
+radarr running media
+rdtclient running media
+vpn running media
+navidrome running media
+airsonic-advanced exited docker
+limeos-mattermost-db exited mattermost
+limeos-alertd exited mattermost
+limeos-mattermost exited mattermost
+yt-to-jellyfin running media
+watchtower running media
+---
+[{"path": "state/agent-supervisor/venv/lib/python3.11/site-packages/apscheduler/triggers/cron/__pycache__", "error": "depth limit exceeded; not listed"}, {"path": "state/agent-supervisor/venv/lib/python3.11/site-packages/pip/_internal/cli/__pycache__", "error": "depth limit exceeded; not listed"}, {"path": "state/agent-supervisor/venv/lib/python3.11/site-packages/pip/_internal/commands/__pycache__", "error": "depth limit exceeded; not listed"}]
+{'files': 1284, 'directories': 164, 'imported': 1, 'deferred': 105, 'unsupported': 1178, 'bytes': 17142137}

@@ -1,0 +1,14 @@
+jellyfin
+radarr
+sonarr
+sabnzbd
+transmission
+jackett
+vpn
+navidrome
+audiobookshelf
+rdtclient
+requestrr
+get_iplayer
+yt-to-jellyfin
+watchtower
