@@ -233,6 +233,16 @@ fn digest_of(fd: OwnedFd, expected: &Fingerprint, cap: u64) -> Result<Option<[u8
     Ok(Some(hasher.finalize().into()))
 }
 
+const VIRTUALENV_REASON: &str =
+    "Python virtual environment (pyvenv.cfg): software, not state; one entry, not descended";
+
+/// A directory holding a regular `pyvenv.cfg` is a Python virtual environment
+/// (PEP 405). Examined relative to the open directory, without following links.
+fn is_virtualenv(dir: &OwnedFd) -> bool {
+    rustix::fs::statat(dir, "pyvenv.cfg", AtFlags::SYMLINK_NOFOLLOW)
+        .is_ok_and(|st| FileType::from_raw_mode(st.st_mode) == FileType::RegularFile)
+}
+
 struct Walk<'a> {
     limits: Limits,
     location: &'a Location,
@@ -294,11 +304,18 @@ impl Walk<'_> {
                 }
             };
             match FileType::from_raw_mode(st.st_mode) {
-                FileType::Directory if depth >= self.limits.max_depth => {
-                    self.problem(&child, "depth limit exceeded; not listed");
-                    self.truncated = true;
-                }
                 FileType::Directory => match open_dir(Some(dir), Path::new(&name)) {
+                    // A Python virtual environment is software the frozen app installed (wybie's
+                    // agent supervisor has ~1,100 files in one, deeper than the depth bound), not
+                    // state: one entry, never descended, whatever its depth.
+                    Ok(fd) if is_virtualenv(&fd) => {
+                        *total += 1;
+                        self.virtualenv(&child, &st);
+                    }
+                    Ok(_) if depth >= self.limits.max_depth => {
+                        self.problem(&child, "depth limit exceeded; not listed");
+                        self.truncated = true;
+                    }
                     Ok(fd) => self.walk(&fd, &child, depth + 1, total),
                     Err(e) => self.problem(&child, format!("unreadable directory: {e}")),
                 },
@@ -308,6 +325,28 @@ impl Walk<'_> {
                 }
             }
         }
+    }
+    fn virtualenv(&mut self, child: &Path, st: &Stat) {
+        let fp = fingerprint(st);
+        let secret = child
+            .file_name()
+            .is_some_and(|n| redacted(&n.to_string_lossy()));
+        self.files.push(FileEntry {
+            location: self.location.label.into(),
+            path: self.display(child),
+            kind: "virtualenv",
+            size: 0,
+            uid: (!secret).then_some(fp.uid),
+            gid: (!secret).then_some(fp.gid),
+            mode: format!("{:04o}", fp.mode & 0o7777),
+            sha256: None,
+            class: Class::Unsupported,
+            reason: VIRTUALENV_REASON,
+            fingerprint: fp,
+            digest: None,
+            root: self.location.root.clone(),
+            relative: child.to_owned(),
+        });
     }
     fn file(&mut self, dir: &OwnedFd, name: &OsStr, child: &Path, st: &Stat, kind: FileType) {
         let fp = fingerprint(st);
@@ -719,6 +758,69 @@ mod tests {
                     .all(|f| f.path != "d/d/d/d/d/d/d/d/d/d/d/d/d/deep.json")
         );
         assert!(r.problems.iter().any(|p| p.error.contains("depth limit")));
+    }
+
+    #[test]
+    fn a_virtualenv_is_one_entry_never_descended_and_keeps_the_report_complete() {
+        // wybie: state/agent-supervisor/venv, ~1,100 files, 74 directories past the depth bound.
+        let t = fixture();
+        let venv = t.path().join("state/agent-supervisor/venv");
+        let mut deep = venv.join("lib/python3.11/site-packages/pip/_internal/cli");
+        for _ in 0..6 {
+            deep = deep.join("__pycache__");
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(deep.join("main.cpython-311.pyc"), b"pyc").unwrap();
+        std::fs::write(venv.join("pyvenv.cfg"), "home = /usr/bin\n").unwrap();
+        std::fs::write(t.path().join("state/agent-supervisor/.profile"), "x").unwrap();
+        // A directory named like one but without pyvenv.cfg is still walked and bounded.
+        let fake = t.path().join("state/lookalike/a/b/c/d/e/f/g/h/i");
+        std::fs::create_dir_all(&fake).unwrap();
+        std::fs::write(fake.join("deep.json"), "{}").unwrap();
+        let r = scan(&[location(t.path(), "state")], Limits::default());
+        let entries: Vec<_> = r
+            .files
+            .iter()
+            .filter(|f| f.path.starts_with("agent-supervisor/venv"))
+            .collect();
+        assert_eq!(entries.len(), 1);
+        let venv_entry = entries[0];
+        assert_eq!(
+            (
+                venv_entry.path.as_str(),
+                venv_entry.kind,
+                venv_entry.class,
+                venv_entry.sha256.is_none()
+            ),
+            (
+                "agent-supervisor/venv",
+                "virtualenv",
+                Class::Unsupported,
+                true
+            )
+        );
+        assert!(venv_entry.reason.contains("not descended"));
+        assert!(
+            r.files
+                .iter()
+                .any(|f| f.path == "agent-supervisor/.profile")
+        );
+        assert!(r.problems.iter().all(|p| !p.path.contains("venv")));
+        // Only the walked look-alike hits the depth bound.
+        assert!(!r.complete);
+        assert!(
+            r.problems
+                .iter()
+                .any(|p| p.path.starts_with("state/lookalike/") && p.error.contains("depth limit"))
+        );
+        assert!(r.verification.changed.is_empty());
+        std::fs::remove_dir_all(t.path().join("state/lookalike")).unwrap();
+        let r = scan(&[location(t.path(), "state")], Limits::default());
+        assert!(r.complete && r.problems.is_empty(), "{:?}", r.render_text());
+        assert!(
+            r.render_text()
+                .contains("state/agent-supervisor/venv virtualenv")
+        );
     }
 
     #[test]
