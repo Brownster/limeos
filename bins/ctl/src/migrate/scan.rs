@@ -114,6 +114,12 @@ pub struct FileEntry {
     pub sha256: Option<String>,
     pub class: Class,
     pub reason: &'static str,
+    /// For a `virtualenv` entry: how many entries under it were counted and not listed, at most
+    /// `VIRTUALENV_COUNT_LIMIT` (then `entries_not_listed_bounded` is true).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entries_not_listed: Option<u64>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub entries_not_listed_bounded: bool,
     #[serde(skip)]
     fingerprint: Fingerprint,
     #[serde(skip)]
@@ -142,6 +148,9 @@ pub struct Summary {
     pub deferred: usize,
     pub unsupported: usize,
     pub bytes: u64,
+    /// Virtual environments listed as one entry each, and the entries under them not listed.
+    pub virtualenvs: usize,
+    pub virtualenv_entries_not_listed: u64,
 }
 #[derive(Serialize)]
 pub struct Verification {
@@ -233,14 +242,101 @@ fn digest_of(fd: OwnedFd, expected: &Fingerprint, cap: u64) -> Result<Option<[u8
     Ok(Some(hasher.finalize().into()))
 }
 
-const VIRTUALENV_REASON: &str =
-    "Python virtual environment (pyvenv.cfg): software, not state; one entry, not descended";
+const VIRTUALENV_REASON: &str = "Python virtual environment (pyvenv.cfg with a home line, and a Python under bin/ or a lib/python*/site-packages): software, not state; one entry, its entries counted, not listed";
+/// A virtual environment's entries are counted up to this many, and at most this deep.
+pub const VIRTUALENV_COUNT_LIMIT: u64 = 200_000;
+const VIRTUALENV_COUNT_DEPTH: usize = 64;
 
-/// A directory holding a regular `pyvenv.cfg` is a Python virtual environment
-/// (PEP 405). Examined relative to the open directory, without following links.
+/// A directory is a Python virtual environment (PEP 405) when it holds a regular `pyvenv.cfg` whose
+/// first 4 KiB have a `home = ...` line, and either a `bin/python*` entry or a
+/// `lib/python*/site-packages` directory. A state directory that merely holds a file of that name is
+/// walked like any other. Everything is examined relative to the open directory, never following a
+/// link.
 fn is_virtualenv(dir: &OwnedFd) -> bool {
-    rustix::fs::statat(dir, "pyvenv.cfg", AtFlags::SYMLINK_NOFOLLOW)
-        .is_ok_and(|st| FileType::from_raw_mode(st.st_mode) == FileType::RegularFile)
+    let Ok(fd) = open_file(dir, OsStr::new("pyvenv.cfg")) else {
+        return false;
+    };
+    let Ok(st) = rustix::fs::fstat(&fd) else {
+        return false;
+    };
+    if FileType::from_raw_mode(st.st_mode) != FileType::RegularFile {
+        return false;
+    }
+    let mut head = Vec::new();
+    if std::fs::File::from(fd)
+        .take(4096)
+        .read_to_end(&mut head)
+        .is_err()
+    {
+        return false;
+    }
+    let has_home = String::from_utf8_lossy(&head).lines().any(|line| {
+        line.split_once('=')
+            .is_some_and(|(key, value)| key.trim() == "home" && !value.trim().is_empty())
+    });
+    has_home && (has_python(dir) || has_site_packages(dir))
+}
+fn names_in(dir: &OwnedFd, sub: &str) -> Vec<std::ffi::OsString> {
+    let Ok(fd) = open_dir(Some(dir), Path::new(sub)) else {
+        return Vec::new();
+    };
+    let Ok(entries) = Dir::read_from(&fd) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .take(4096)
+        .map(|e| OsStr::from_bytes(e.file_name().to_bytes()).to_owned())
+        .collect()
+}
+fn has_python(dir: &OwnedFd) -> bool {
+    names_in(dir, "bin")
+        .iter()
+        .any(|n| n.as_bytes().starts_with(b"python"))
+}
+fn has_site_packages(dir: &OwnedFd) -> bool {
+    let Ok(lib) = open_dir(Some(dir), Path::new("lib")) else {
+        return false;
+    };
+    names_in(dir, "lib")
+        .iter()
+        .filter(|n| n.as_bytes().starts_with(b"python"))
+        .any(|n| {
+            open_dir(Some(&lib), Path::new(n))
+                .and_then(|py| open_dir(Some(&py), Path::new("site-packages")))
+                .is_ok()
+        })
+}
+/// Entries under DIR (files, links and directories), counted without following a link, stopping
+/// at `VIRTUALENV_COUNT_LIMIT` entries or `VIRTUALENV_COUNT_DEPTH` levels; true when bounded.
+fn count_entries(dir: &OwnedFd, depth: usize, total: &mut u64) -> bool {
+    let Ok(entries) = Dir::read_from(dir) else {
+        return false;
+    };
+    let mut bounded = false;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_bytes();
+        if name == b"." || name == b".." {
+            continue;
+        }
+        if *total >= VIRTUALENV_COUNT_LIMIT {
+            return true;
+        }
+        *total += 1;
+        let name = OsStr::from_bytes(name);
+        if let Ok(st) = rustix::fs::statat(dir, name, AtFlags::SYMLINK_NOFOLLOW)
+            && FileType::from_raw_mode(st.st_mode) == FileType::Directory
+        {
+            if depth >= VIRTUALENV_COUNT_DEPTH {
+                bounded = true;
+                continue;
+            }
+            if let Ok(sub) = open_dir(Some(dir), Path::new(name)) {
+                bounded |= count_entries(&sub, depth + 1, total);
+            }
+        }
+    }
+    bounded
 }
 
 struct Walk<'a> {
@@ -310,7 +406,9 @@ impl Walk<'_> {
                     // state: one entry, never descended, whatever its depth.
                     Ok(fd) if is_virtualenv(&fd) => {
                         *total += 1;
-                        self.virtualenv(&child, &st);
+                        let mut counted = 0;
+                        let bounded = count_entries(&fd, 0, &mut counted);
+                        self.virtualenv(&child, &st, counted, bounded);
                     }
                     Ok(_) if depth >= self.limits.max_depth => {
                         self.problem(&child, "depth limit exceeded; not listed");
@@ -326,7 +424,7 @@ impl Walk<'_> {
             }
         }
     }
-    fn virtualenv(&mut self, child: &Path, st: &Stat) {
+    fn virtualenv(&mut self, child: &Path, st: &Stat, counted: u64, bounded: bool) {
         let fp = fingerprint(st);
         let secret = child
             .file_name()
@@ -342,6 +440,8 @@ impl Walk<'_> {
             sha256: None,
             class: Class::Unsupported,
             reason: VIRTUALENV_REASON,
+            entries_not_listed: Some(counted),
+            entries_not_listed_bounded: bounded,
             fingerprint: fp,
             digest: None,
             root: self.location.root.clone(),
@@ -390,6 +490,8 @@ impl Walk<'_> {
             sha256: digest.filter(|_| !secret).map(hex::encode),
             class,
             reason,
+            entries_not_listed: None,
+            entries_not_listed_bounded: false,
             fingerprint: fp,
             digest,
             root: self.location.root.clone(),
@@ -466,6 +568,10 @@ pub fn scan(locations: &[Location], limits: Limits) -> Report {
     }
     for entry in &report.files {
         report.summary.files += 1;
+        if let Some(n) = entry.entries_not_listed {
+            report.summary.virtualenvs += 1;
+            report.summary.virtualenv_entries_not_listed += n;
+        }
         report.summary.bytes += entry.size;
         match entry.class {
             Class::Imported => report.summary.imported += 1,
@@ -506,6 +612,14 @@ impl Report {
                 out += &format!(" owner={u}:{g}");
             }
             out += &format!(" mode={}", f.mode);
+            if let Some(n) = f.entries_not_listed {
+                let at_least = if f.entries_not_listed_bounded {
+                    "at least "
+                } else {
+                    ""
+                };
+                out += &format!(" entries_not_listed={at_least}{n}");
+            }
             if let Some(h) = &f.sha256 {
                 out += &format!(" sha256={h}");
             }
@@ -519,6 +633,12 @@ impl Report {
             "summary: {} files in {} directories, {} bytes; imported={} deferred={} unsupported={}\n",
             s.files, s.directories, s.bytes, s.imported, s.deferred, s.unsupported
         );
+        if s.virtualenvs > 0 {
+            out += &format!(
+                "virtual environments: {} listed as one entry each; {} entries under them counted and not listed\n",
+                s.virtualenvs, s.virtualenv_entries_not_listed
+            );
+        }
         out += &format!(
             "verification: {} checked, {} changed; complete={}\n",
             self.verification.checked,
@@ -799,7 +919,22 @@ mod tests {
                 true
             )
         );
-        assert!(venv_entry.reason.contains("not descended"));
+        assert!(venv_entry.reason.contains("not listed"));
+        // lib, python3.11, site-packages, pip, _internal, cli, six __pycache__, the .pyc, pyvenv.cfg.
+        assert_eq!(
+            (
+                venv_entry.entries_not_listed,
+                venv_entry.entries_not_listed_bounded
+            ),
+            (Some(14), false)
+        );
+        assert_eq!(
+            (
+                r.summary.virtualenvs,
+                r.summary.virtualenv_entries_not_listed
+            ),
+            (1, 14)
+        );
         assert!(
             r.files
                 .iter()
@@ -817,9 +952,55 @@ mod tests {
         std::fs::remove_dir_all(t.path().join("state/lookalike")).unwrap();
         let r = scan(&[location(t.path(), "state")], Limits::default());
         assert!(r.complete && r.problems.is_empty(), "{:?}", r.render_text());
+        let text = r.render_text();
+        assert!(text.contains("state/agent-supervisor/venv virtualenv"));
+        assert!(text.contains("entries_not_listed=14"));
+        assert!(text.contains("virtual environments: 1 listed as one entry each; 14 entries"));
+    }
+
+    #[test]
+    fn a_directory_that_merely_holds_a_file_named_pyvenv_cfg_is_walked() {
+        let t = fixture();
+        let state = t.path().join("state");
+        // No home line; a home line but no Python and no site-packages; a home line and a bin/ with
+        // no python: all are state directories, listed file by file.
+        for (dir, cfg, extra) in [
+            ("plain", "this is a settings file\n", None),
+            ("homeonly", "home = /usr/bin\n", None),
+            ("binnopy", "home = /usr/bin\n", Some("bin/tool")),
+        ] {
+            std::fs::create_dir_all(state.join(dir)).unwrap();
+            std::fs::write(state.join(dir).join("pyvenv.cfg"), cfg).unwrap();
+            std::fs::write(state.join(dir).join("settings.json"), "{}").unwrap();
+            if let Some(extra) = extra {
+                std::fs::create_dir_all(state.join(dir).join(extra).parent().unwrap()).unwrap();
+                std::fs::write(state.join(dir).join(extra), "#!/bin/sh\n").unwrap();
+            }
+        }
+        let r = scan(&[location(t.path(), "state")], Limits::default());
+        for dir in ["plain", "homeonly", "binnopy"] {
+            assert!(
+                r.files
+                    .iter()
+                    .any(|f| f.path == format!("{dir}/settings.json") && f.kind == "file"),
+                "{dir}"
+            );
+            assert!(
+                r.files
+                    .iter()
+                    .any(|f| f.path == format!("{dir}/pyvenv.cfg") && f.kind == "file"),
+                "{dir}"
+            );
+        }
+        assert!(r.files.iter().all(|f| f.kind != "virtualenv"));
+        assert_eq!(r.summary.virtualenvs, 0);
+        // With a Python under bin/ it is one.
+        std::fs::write(state.join("binnopy/bin/python3"), "").unwrap();
+        let r = scan(&[location(t.path(), "state")], Limits::default());
         assert!(
-            r.render_text()
-                .contains("state/agent-supervisor/venv virtualenv")
+            r.files
+                .iter()
+                .any(|f| f.path == "binnopy" && f.kind == "virtualenv")
         );
     }
 
