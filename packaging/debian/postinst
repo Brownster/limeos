@@ -22,6 +22,33 @@ fct_directory() {
     if [[ -L "${directory}" ]]; then printf 'Refusing symlink: %s\n' "${directory}" >&2; return 1; fi
     install -d -o "${owner}" -g "${owner}" -m "${mode}" "${directory}"
 }
+# /var/lib/limeos is root's (0755) when LimeOS owns it. On a host still
+# running the app LimeOS replaces (pi-health), it is that app's
+# StateDirectory=limeos: systemd made it holly:pihealth 0750, and every start
+# of that unit sets the mode again and, whenever the directory's owner is not
+# the unit's, chowns it and everything in it (LimeOS's trees included) to the
+# unit's account. So while the directory belongs to another account, configure
+# leaves its owner and mode alone (the old app keeps writing there), creates
+# LimeOS's own trees inside it, and neither enables nor starts the services,
+# which could not pass through a 0750 directory of another account and would
+# lose their state at that unit's next start. The cutover (activate.sh) stops
+# the old app, makes the directory root's again and reinstalls the package,
+# which then starts everything.
+fct_state_owned_elsewhere() {
+    [[ -d /var/lib/limeos && ! -L /var/lib/limeos ]] && [[ "$(stat -c %u -- /var/lib/limeos)" != 0 ]]
+}
+# Every entry of one of LimeOS's trees belongs to its account: an entry another
+# account owns (systemd's recursive chown above, or an operator's) goes back
+# to the account and its primary group. Nothing is followed (find -P, chown -h)
+# and nothing outside the tree is touched; entries already the account's keep
+# their group and mode.
+fct_reclaim_tree() {
+    local directory="${1}" account="${2}" uid gid
+    [[ -d "${directory}" && ! -L "${directory}" ]] || return 0
+    uid="$(id -u "${account}")"
+    gid="$(id -g "${account}")"
+    find "${directory}" -xdev ! -uid "${uid}" -exec chown -h "${uid}:${gid}" -- '{}' +
+}
 # A ceiling loaded by an unprivileged role: root-owned, readable through the
 # group the role's unit runs with (its primary group, so no membership in
 # /etc/group is needed) and writable only by root. Applied on every configure,
@@ -152,7 +179,14 @@ fct_execute_this() {
         getent group "${group}" >/dev/null || addgroup --system "${group}"
     done
     if [[ -L /var/lib/limeos || -L /etc/limeos/system-policy ]]; then printf '%s\n' 'Refusing symlink in managed state paths.' >&2; return 1; fi
-    fct_directory /var/lib/limeos root 0755
+    local elsewhere=0
+    if fct_state_owned_elsewhere; then
+        elsewhere=1
+        printf 'LimeOS: /var/lib/limeos belongs to %s (%s), the state directory of the app LimeOS replaces; its owner and mode are left as they are, and the LimeOS services are installed but neither enabled nor started. The cutover (scripts/cutover/activate.sh) stops that app, makes the directory root'"'"'s again and starts them.\n' \
+            "$(stat -c '%U:%G' -- /var/lib/limeos)" "$(stat -c '%a' -- /var/lib/limeos)" >&2
+    else
+        fct_directory /var/lib/limeos root 0755
+    fi
     fct_directory /etc/limeos root 0755
     fct_directory /var/lib/limeos/core limeos-core 0700
     fct_directory /var/lib/limeos/assistant limeos-assistant 0700
@@ -160,6 +194,10 @@ fct_execute_this() {
     fct_directory /var/lib/limeos/executors/storage root 0700
     fct_directory /var/lib/limeos/executors/container limeos-containerd 0700
     fct_directory /etc/limeos/system-policy root 0755
+    fct_reclaim_tree /var/lib/limeos/core limeos-core
+    fct_reclaim_tree /var/lib/limeos/assistant limeos-assistant
+    fct_reclaim_tree /var/lib/limeos/executors/container limeos-containerd
+    fct_reclaim_tree /var/lib/limeos/executors/storage root
     core_uid="$(id -u limeos-core)"
     local target temporary role reason unit
     local -a refused=() restart=()
@@ -210,6 +248,13 @@ fct_execute_this() {
     done
     if fct_systemd_running; then
         systemctl daemon-reload
+        if (( elsewhere )); then
+            # Nothing is started: units prerm recorded as running stay stopped too.
+            if (( ${#RECORDED[@]} )); then
+                printf 'LimeOS: not starting %s, stopped for this package change, while /var/lib/limeos belongs to another account.\n' "${RECORDED[*]}" >&2
+            fi
+            return 0
+        fi
         systemctl enable limeos-core.service limeos-containerd.service limeos-storaged.service
         # A package change starts core afresh: a start limit it hit before
         # (a store it could not open or upgrade) must not refuse this restart.
