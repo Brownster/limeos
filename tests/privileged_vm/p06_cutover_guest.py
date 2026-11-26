@@ -11,8 +11,7 @@ scripts/cutover/bundle.sh and copied to /root/limeos-cutover as on the host, and
     /etc/limeos/credentials.env with a real Werkzeug scrypt and PBKDF2 hash, state JSON/SQLite files named as on
     wybie, the agent supervisor's Python virtual environment (deeper than the scan's depth bound);
   * bystander units limeops-*, limeos-agent, flask-shutdown that must never change; limeops-worker keeps writing
-    /var/lib/limeos/agent-actions/supervision.sqlite3 and backup_config.json (as wybie's limeops-* services and
-    nightly backup do) while the cutover runs; docker-compose-start.service is failed since boot, as on wybie;
+    /var/lib/limeos/agent-actions/supervision.sqlite3 (as wybie's limeops-* services do) while the cutover runs; docker-compose-start.service is failed since boot, as on wybie;
   * the packaged Docker Engine (socket-activated, as on a stock host), eleven real containers created by
     `holly` (compose project `media` with four running members and one stopped, project `mattermost` under
     /opt/stacks with three stopped, project `docker` outside /opt/stacks with one stopped, plus two standalone),
@@ -85,7 +84,7 @@ RUNBOOK = SRC / "docs/p06-cutover-runbook.md"
 STATE_LIST = Path("/root/cutover-state-paths.txt")
 LIVE_LIST = Path("/root/cutover-live-paths.txt")
 # What the live list must cover here (as on wybie): the limeops-* homes and the file the "host backup" rewrites.
-LIVE_PATHS = ("/var/lib/limeos/agent-actions/", "/var/lib/limeos/agent-supervisor/", "/var/lib/limeos/auto_update.json", "/var/lib/limeos/backup_config.json")
+LIVE_PATHS = ("/var/lib/limeos/agent-actions/", "/var/lib/limeos/agent-supervisor/")
 KEY_FILE = Path("/root/jellyfin.key")
 JELLYFIN_KEY = "0123456789abcdef0123456789abcdef"
 UPGRADE_VERSION = "0.4.17+cutover.2"
@@ -330,17 +329,15 @@ db.execute("insert into samples values (?, ?)", (int(time.time()), 0.1))
 db.commit()
 '''
 
-# wybie's limeops-* services write their supervision database continuously, and the host's nightly backup
-# rewrites backup_config.json; neither stops for the cutover. Here one bystander does both, every 2 s.
-LIMEOPS_WRITER = '''import json, sqlite3, time
+# wybie's limeops-* services write their supervision database continuously and do not stop for the cutover.
+# Here one bystander does it every 2 s.
+LIMEOPS_WRITER = '''import sqlite3, time
 while True:
     db = sqlite3.connect("/var/lib/limeos/agent-actions/supervision.sqlite3")
     db.execute("create table if not exists beats (t real)")
     db.execute("insert into beats values (?)", (time.time(),))
     db.commit()
     db.close()
-    with open("/var/lib/limeos/backup_config.json", "w") as handle:
-        json.dump({"last_run": int(time.time())}, handle)
     time.sleep(2)
 '''
 
@@ -432,6 +429,11 @@ def write_fixture(version_hashes):
     sessions.write_text("[]\n")  # Jellyfin's /Sessions with nobody playing
     with tarfile.open(rootfs, "w") as archive:
         archive.add("/bin/busybox", arcname="bin/busybox")
+        # Docker runs a health check through /bin/sh (CMD-SHELL); case 24 gives containers one.
+        shell = tarfile.TarInfo("bin/sh")
+        shell.type = tarfile.SYMTYPE
+        shell.linkname = "busybox"
+        archive.addfile(shell)
         archive.add(str(sessions.parent), arcname="www")
     sh(f"docker import {rootfs} {IMAGE}")
     stack = Path("/opt/stacks/media")
@@ -482,7 +484,7 @@ def write_fixture(version_hashes):
         for base, _, names in os.walk(root):
             # SQLite files and their journals, and the live state the bystander writes, are checked otherwise.
             files += [os.path.join(base, n) for n in names
-                      if not n.endswith((".sqlite3", ".pyc", "-journal", "-wal", "-shm")) and n != "backup_config.json" or base.startswith("/home/")]
+                      if not n.endswith((".sqlite3", ".pyc", "-journal", "-wal", "-shm")) or base.startswith("/home/")]
     files += [f"/etc/systemd/system/{n}" for n in ("pi-health.service", "pihealth-helper.service", "limeos-metrics-collector.service", "limeos-metrics-collector.timer", "limeos-package-reconcile.service", "limeos-package-reconcile.timer", "limeops-actuatord.service", "limeops-worker.service", "limeos-agent.service", "flask-shutdown.service")]
     state["frozen_files"] = sorted(set(files))
     state["frozen_hashes"] = hash_tree()
@@ -1617,6 +1619,121 @@ def reader_root_dropin():
         check(f"LimeOS unit drop-in" in findings and str(dropin) in findings, "preflight did not name the reader's drop-in", findings=findings[-1200:])
     finally:
         remove_dropin()
+    return facts
+
+
+# --- needs the merged build (production-readiness with pr-health-cohort) ------------------------------------
+# wybie's container mix (26 Nov host facts): 18 containers, 14 running, health checks on some, 51 mounts in all.
+# The 0.4.4 reader failed core's container-health read on that host (`the read failed: Unavailable`) and
+# activation rolled back; the fix is on branch pr-health-cohort. On binaries without it this case is expected
+# to FAIL at the first activation, and every earlier case is independent of it (it runs last, and only adds).
+COHORT_RUNNING = ["sabnzbd", "jackett", "navidrome", "audiobookshelf", "rdtclient", "requestrr", "get_iplayer", "yt-to-jellyfin"]
+COHORT_HEALTHY = ["sabnzbd", "jackett", "navidrome"]
+COHORT_FAILED_CHECK = ["limeos-mattermost", "limeos-alertd"]
+COHORT_MOUNTS = 51
+
+
+def mount_count():
+    return sum(len(json.loads(sh(f"docker inspect {n}")[1])[0]["Mounts"]) for n in sh("docker ps -a --format '{{.Names}}'")[1].split())
+
+
+def health(name):
+    return json.loads(sh(f"docker inspect {name}")[1])[0]["State"].get("Health", {}).get("Status")
+
+
+def storage_ceiling(grant):
+    """Set allow_container_health_read in the reader's ceiling, keeping root:limeos-host-access 0640."""
+    path = Path("/etc/limeos/system-policy/storage.json")
+    value = json.loads(path.read_text())
+    value["allow_container_health_read"] = grant
+    temporary = path.with_name(".storage.json.new")
+    temporary.write_text(json.dumps(value) + "\n")
+    sh(f"chown root:limeos-host-access {temporary} && chmod 0640 {temporary} && mv -f {temporary} {path}")
+    check(permitted(path) == "root:limeos-host-access 640", "storage.json lost its owner or mode", mode=permitted(path))
+
+
+def reads():
+    """{read: (exit, answer)} for core's three reads through the stack reader."""
+    ctl = "/usr/lib/limeos/limeosctl --socket /run/limeos-core/core.sock"
+    return {r: sh(f"{ctl} reader-status --read {r}", check_rc=False) for r in ("stack", "storage", "container-health")}
+
+
+@case("24 NEEDS THE MERGED BUILD (pr-health-cohort): wybie's mix of 18 containers (14 running, 3 healthy checks, 2 stopped after a failed check, 51 mounts): activation passes with all three reader reads accepted; with allow_container_health_read false the read is not_granted (exit 0) and activation still passes")
+def health_cohort():
+    managed = Path("/root/managed.txt")
+    facts = {}
+    # The fixture grows to wybie's mix: eight more running media members (three with passing health checks),
+    # the refused outside project's container goes (wybie has 4 stopped), and two mattermost members are
+    # re-created with a check that fails, then stopped, as on the host.
+    sh("docker rm -f airsonic-old", check_rc=False)
+    existing = mount_count()
+    new = [*COHORT_RUNNING, *COHORT_FAILED_CHECK]
+    per, extra = divmod(COHORT_MOUNTS - existing, len(new))
+    check(per >= 1, "too many mounts already", existing=existing)
+    for index, name in enumerate(new):
+        if name in COHORT_FAILED_CHECK:
+            sh(f"docker rm -f {name}")
+        binds = ""
+        for k in range(per + (1 if index < extra else 0)):
+            directory = Path(f"/srv/cohort/{name}/{k}")
+            directory.mkdir(parents=True, exist_ok=True)
+            binds += f"-v {directory}:/data/{k} "
+        project = "mattermost" if name in COHORT_FAILED_CHECK else "media"
+        labels = (f"--label com.docker.compose.project={project} --label com.docker.compose.service={name} "
+                  f"--label com.docker.compose.project.working_dir=/opt/stacks/{project} "
+                  f"--label com.docker.compose.project.config_files=/opt/stacks/{project}/compose.yaml --label com.docker.compose.oneoff=False ")
+        if name in COHORT_HEALTHY:
+            check_flags = "--health-cmd '/bin/busybox true' --health-interval 3s --health-retries 2 "
+        elif name in COHORT_FAILED_CHECK:
+            check_flags = "--health-cmd '/bin/busybox false' --health-interval 2s --health-retries 1 "
+        else:
+            check_flags = ""
+        command = f"echo {name} ready; trap 'exit 0' TERM INT; while :; do /bin/busybox sleep 1; done"
+        state["ids"][name] = sh(f"runuser -u holly -- docker run -d --name {name} --restart unless-stopped {labels}{check_flags}{binds}{IMAGE} /bin/busybox sh -c \"{command}\"")[1].strip()
+    # The media Compose file names its new members, and the catalog is proposed and installed again, as the
+    # runbook says to whenever a Compose file under /opt/stacks changes.
+    compose = Path("/opt/stacks/media/compose.yaml")
+    compose.write_text(compose.read_text() + "".join(f"  {n}:\n    image: x\n" for n in COHORT_RUNNING))
+    Path("/root/management-catalog.cohort.json").unlink(missing_ok=True)
+    sh("/usr/lib/limeos/limeosctl migrate propose-catalog --out /root/management-catalog.cohort.json", log="propose-catalog-cohort")
+    shutil_copy("/root/management-catalog.cohort.json", CATALOG)
+    fx.eventually(lambda: all(health(n) == "healthy" for n in COHORT_HEALTHY), timeout=60)
+    fx.eventually(lambda: all(health(n) == "unhealthy" for n in COHORT_FAILED_CHECK), timeout=60)
+    sh("runuser -u holly -- docker stop -t 1 " + " ".join(COHORT_FAILED_CHECK))
+    c = containers()
+    running = sorted(n for n, v in c.items() if v["running"])
+    facts["mix"] = {"containers": len(c), "running": len(running), "stopped": sorted(n for n, v in c.items() if not v["running"]),
+                    "mounts": mount_count(), "health": {n: health(n) for n in [*COHORT_HEALTHY, *COHORT_FAILED_CHECK]}}
+    check(len(c) == 18 and len(running) == 14 and facts["mix"]["mounts"] == COHORT_MOUNTS, "the fixture is not wybie's mix", mix=facts["mix"])
+    try:
+        managed.write_text("\n".join(running) + "\n")
+        out_dir = "/var/lib/limeos-cutover/snapC1"
+        rc, out = run_script("preflight.sh", *preflight_args(), "--out", out_dir, "--managed-file", managed, log="preflight-snapC1")
+        check(rc == 0 and "preflight passed" in out, "preflight did not pass on the 18-container mix", out=out[-2000:])
+        rc, out = run_script("activate.sh", out_dir, "--yes-i-have-operator-approval", *deb_args(), log="activate-snapC1", timeout=600)
+        check(rc == 0 and "activate complete" in out and "ROLLBACK" not in out, "activation rolled back on wybie's container mix", problems=problems(out), out=out[-2500:])
+        granted = reads()
+        facts["granted"] = {r: (rc_, a.strip()[-300:]) for r, (rc_, a) in granted.items()}
+        check(all(rc_ == 0 and '"result":"accepted"' in a for rc_, a in granted.values()), "a reader read was not accepted", reads=facts["granted"])
+        rc, out = run_script("return.sh", out_dir, log="return-snapC1")
+        check(rc == 0 and "return verified" in out, "return.sh after the cohort activation failed", problems=problems(out))
+        # The read the ceiling does not grant: not_granted with exit 0, and activation tolerates it.
+        storage_ceiling(False)
+        out_dir = "/var/lib/limeos-cutover/snapC2"
+        rc, out = run_script("preflight.sh", *preflight_args(), "--out", out_dir, "--managed-file", managed, log="preflight-snapC2")
+        check(rc == 0, "preflight did not pass", out=out[-2000:])
+        rc, out = run_script("activate.sh", out_dir, "--yes-i-have-operator-approval", *deb_args(), log="activate-snapC2", timeout=600)
+        check(rc == 0 and "activate complete" in out and "ROLLBACK" not in out, "activation did not tolerate a container-health read the ceiling does not grant", problems=problems(out), out=out[-2500:])
+        rc_read, answer = reads()["container-health"]
+        facts["not_granted"] = (rc_read, answer.strip()[-300:])
+        check(rc_read == 0 and '"result":"not_granted"' in answer, "the ungranted container-health read is not not_granted with exit 0", answer=answer[-600:], rc=rc_read)
+        rc, out = run_script("return.sh", out_dir, log="return-snapC2")
+        check(rc == 0 and "return verified" in out, "return.sh after the not_granted activation failed", problems=problems(out))
+    finally:
+        storage_ceiling(True)
+        if active("pi-health.service") != "active":
+            run_script("return.sh", "/var/lib/limeos-cutover/snapC2" if Path("/var/lib/limeos-cutover/snapC2/meta.env").exists() else "/var/lib/limeos-cutover/snapC1", log="return-cohort-cleanup")
+    expect_frozen_serving("after the cohort case")
     return facts
 
 
