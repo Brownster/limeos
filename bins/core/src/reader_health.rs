@@ -220,7 +220,11 @@ enum Asked {
 pub(crate) async fn read_once(core: &crate::Core, read: ReaderRead) -> ReaderReadOutcome {
     let result = match read {
         ReaderRead::Stack => stack_once(core).await.map(|()| None),
-        ReaderRead::Storage => core.probe_storage().await.map(|_| None).map_err(failure),
+        ReaderRead::Storage => core
+            .probe_storage()
+            .await
+            .map(|_| None)
+            .map_err(|(error, by_reader)| failure(error, by_reader)),
         ReaderRead::ContainerHealth => {
             return container_health_read(crate::health_collection::HealthReader::new(
                 (*core.storage_socket).clone(),
@@ -262,12 +266,20 @@ pub(crate) async fn container_health_read(
         .await
     {
         Ok(fresh) => Ok(truncation_note(fresh.cohort())),
-        Err(refused) => Err(match (failure(refused.error), refused.reason) {
-            (Failure::Failed(base), Some(reason)) => {
-                Failure::Failed(format!("{base}: {}", reason.message()))
-            }
-            (other, _) => other,
-        }),
+        Err(refused) => Err(
+            match (failure(refused.error, refused.by_reader), refused.reason) {
+                (Failure::Failed(base), Some(reason)) => {
+                    Failure::Failed(format!("{base}: {}", reason.message()))
+                }
+                (Failure::Failed(base), None) if refused.error.0 == ErrorCode::Expired => {
+                    Failure::Failed(format!(
+                        "{base}: the storage reader gave no answer within core's {} s window",
+                        crate::health_collection::WINDOW.as_secs()
+                    ))
+                }
+                (other, _) => other,
+            },
+        ),
     };
     outcome(ReaderRead::ContainerHealth, result)
 }
@@ -280,11 +292,17 @@ fn truncation_note(cohort: &limeos_domain::automation::ContainerHealthCohort) ->
         )
     })
 }
-/// A read's error: `Forbidden` from a reader whose socket core already
-/// accepted is its ceiling saying no.
-fn failure(error: limeos_domain::Error) -> Failure {
+/// A read's error. Only the reader's own `Forbidden` (`by_reader`: the code
+/// came in its answer) is its ceiling saying no, which `limeosctl` and the
+/// cutover accept as not granted. Core's own `Forbidden`, a socket the
+/// executor-owner rule refuses (it changed since the status check, say),
+/// is a failure.
+fn failure(error: limeos_domain::Error, by_reader: bool) -> Failure {
     match error.0 {
-        ErrorCode::Forbidden => Failure::NotGranted,
+        ErrorCode::Forbidden if by_reader => Failure::NotGranted,
+        ErrorCode::Forbidden => Failure::Failed(
+            "the read failed: Forbidden: core refuses the storage reader's socket".into(),
+        ),
         code => Failure::Failed(format!("the read failed: {code:?}")),
     }
 }
@@ -302,9 +320,9 @@ async fn stack_once(core: &crate::Core) -> std::result::Result<(), Failure> {
     })
     .await
     .unwrap_or(Err(limeos_domain::Error(ErrorCode::Unavailable)))
-    .map_err(failure)?;
+    .map_err(|error| failure(error, false))?;
     if let Some(code) = receipt.error {
-        return Err(failure(limeos_domain::Error(code)));
+        return Err(failure(limeos_domain::Error(code), true));
     }
     let cohort = receipt
         .stack_cohort

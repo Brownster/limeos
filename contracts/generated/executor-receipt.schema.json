@@ -917,7 +917,7 @@
           "const": "worker_busy"
         },
         {
-          "description": "The worker did not finish within its 4 s window.",
+          "description": "The worker did not finish within its supervision window\n(`CONTAINER_HEALTH_READER_WINDOW` from the request's arrival).",
           "type": "string",
           "const": "worker_deadline"
         },
@@ -952,7 +952,7 @@
           "const": "engine_forbidden"
         },
         {
-          "description": "The Engine read was refused: the Engine was unreachable or slow, an\nanswer was over its byte bound, or the Engine is past a bound the read\ndoes not truncate (more than 1,024 listed or 256 selected mounts).",
+          "description": "The Engine read was refused: the Engine was unreachable, an answer was\nover its byte bound or not of a shape it models, or the Engine is past\nthe bound the read does not truncate (more than 1,024 listed).",
           "type": "string",
           "const": "engine_unavailable"
         },
@@ -970,6 +970,11 @@
           "description": "The answer was over the cohort's member or byte bound.",
           "type": "string",
           "const": "cohort_bound"
+        },
+        {
+          "description": "The Engine read did not finish within its budget\n(`CONTAINER_HEALTH_ENGINE_BUDGET`): the Engine answered slowly.",
+          "type": "string",
+          "const": "engine_slow"
         }
       ]
     },

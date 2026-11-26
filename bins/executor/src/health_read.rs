@@ -17,8 +17,11 @@ use limeos_domain::{
 use limeos_executor_container::docker::health_evidence::{
     EngineHealthSnapshot, inspect_container_health,
 };
-use limeos_executor_protocol::HealthReadFailure;
-use std::sync::{Mutex, PoisonError};
+use limeos_executor_protocol::{CONTAINER_HEALTH_ENGINE_BUDGET, HealthReadFailure};
+use std::{
+    sync::{Mutex, PoisonError},
+    time::{Duration, Instant},
+};
 
 const MIB: usize = 1024 * 1024;
 /// The reader before it starts a worker, as for the stack read.
@@ -30,6 +33,9 @@ const MANAGER_RSS: usize = 12 * MIB;
 /// 65 containers through this worker with these samples enforced.
 const WORKER_BASELINE_RSS: usize = 16 * MIB;
 const WORKER_RSS: usize = 20 * MIB;
+/// The worker's start-up and its answer back through the guardian, between
+/// the end of its Engine budget and the end of its supervision window.
+pub(crate) const WORKER_MARGIN: Duration = Duration::from_millis(500);
 
 /// A refused read: the code core sees, and why.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,6 +80,7 @@ pub fn failure_byte(failure: HealthReadFailure) -> u8 {
         EngineOverloaded => 11,
         EngineChanged => 12,
         CohortBound => 13,
+        EngineSlow => 14,
     }
 }
 pub(crate) fn failure_from_byte(byte: u8) -> Option<HealthReadFailure> {
@@ -92,6 +99,7 @@ pub(crate) fn failure_from_byte(byte: u8) -> Option<HealthReadFailure> {
         11 => EngineOverloaded,
         12 => EngineChanged,
         13 => CohortBound,
+        14 => EngineSlow,
         _ => return None,
     })
 }
@@ -100,7 +108,10 @@ fn engine(error: Error) -> HealthReadFailure {
     match error.0 {
         ErrorCode::Forbidden => HealthReadFailure::EngineForbidden,
         ErrorCode::Overloaded => HealthReadFailure::EngineOverloaded,
-        ErrorCode::Conflict | ErrorCode::Expired => HealthReadFailure::EngineChanged,
+        ErrorCode::Conflict => HealthReadFailure::EngineChanged,
+        // Only the Engine evidence's own lifetime expires; the worker's
+        // budget, shorter, normally ends a slow read first.
+        ErrorCode::Expired => HealthReadFailure::EngineSlow,
         _ => HealthReadFailure::EngineUnavailable,
     }
 }
@@ -151,12 +162,15 @@ fn note_in(
     true
 }
 
+/// One read for a request that arrived when `deadline` minus
+/// `CONTAINER_HEALTH_READER_WINDOW` was now.
 pub fn refresh(
     nonce: &str,
     manager: &Supervisor,
     gate: tokio::sync::OwnedMutexGuard<()>,
+    deadline: Instant,
 ) -> Result<ContainerHealthCohort, Failed> {
-    let answer = read(nonce, manager, gate);
+    let answer = read(nonce, manager, gate, deadline);
     note(answer.as_ref().map(drop).map_err(|failed| failed.failure));
     answer
 }
@@ -164,10 +178,16 @@ fn read(
     nonce: &str,
     manager: &Supervisor,
     gate: tokio::sync::OwnedMutexGuard<()>,
+    deadline: Instant,
 ) -> Result<ContainerHealthCohort, Failed> {
+    // A request that waited for the read slot past this cannot give its
+    // worker the whole Engine budget before core stops waiting.
+    if Instant::now() + CONTAINER_HEALTH_ENGINE_BUDGET + WORKER_MARGIN > deadline {
+        return Err(Failed::unavailable(HealthReadFailure::WorkerBusy));
+    }
     sample(MANAGER_RSS, 24, 256)
         .map_err(|_| Failed::unavailable(HealthReadFailure::ReaderBudget))?;
-    let launch = ProtectedHealthLaunch::prepare(nonce)
+    let launch = ProtectedHealthLaunch::prepare(nonce, deadline)
         .map_err(|_| Failed::unavailable(HealthReadFailure::WorkerFailed))?;
     let report = launch
         .start_with(manager, gate)
@@ -236,11 +256,18 @@ pub(crate) async fn collect(
     if cancelled() {
         return Err(HealthReadFailure::WorkerFailed);
     }
-    let engine = inspect_container_health().await.map_err(engine)?;
-    sample(WORKER_RSS, 49, 226)?;
-    // Alerting reads tolerate one container changing since collection: it is
-    // reported with an unavailable signal, never as healthy or gone.
-    let changed = engine.revalidate_display().await.map_err(self::engine)?;
+    // The whole Engine read has its own budget, inside the worker's
+    // supervision window, so a slow Engine is reported as slow.
+    let (engine, changed) = tokio::time::timeout(CONTAINER_HEALTH_ENGINE_BUDGET, async {
+        let engine = inspect_container_health().await.map_err(engine)?;
+        sample(WORKER_RSS, 49, 226)?;
+        // Alerting reads tolerate one container changing since collection:
+        // it is reported with an unavailable signal, never healthy or gone.
+        let changed = engine.revalidate_display().await.map_err(self::engine)?;
+        Ok((engine, changed))
+    })
+    .await
+    .map_err(|_| HealthReadFailure::EngineSlow)??;
     let bytes = cohort(nonce, engine.snapshot(), &changed)
         .and_then(|cohort| cohort.encode())
         .map_err(|_| HealthReadFailure::CohortBound)?;

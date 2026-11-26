@@ -212,7 +212,7 @@ async fn reader_status_says_not_granted_why_it_failed_and_how_many_it_left_out()
     assert_eq!(
         failed.reason.as_deref(),
         Some(
-            "the read failed: Unavailable: the Engine read was refused: the Engine was unreachable or slow, an answer was over its byte bound, or the Engine has more than 1,024 containers or 256 selected mounts"
+            "the read failed: Unavailable: the Engine read was refused: the Engine was unreachable, an answer was over its byte bound or not of a shape it models, or the Engine has more than 1,024 containers"
         )
     );
     // An older reader, or a malformed answer: the code alone.
@@ -230,6 +230,32 @@ async fn reader_status_says_not_granted_why_it_failed_and_how_many_it_left_out()
         )
     );
     assert_eq!(outcome(17).await.result, ReadResult::Failed);
+    // Core's own refusal of the socket is also `Forbidden`, but not the
+    // reader's ceiling saying no: it fails, it is never "not granted".
+    let mut f = fixture(14, 120).await;
+    let uid = rustix::process::geteuid().as_raw();
+    f.reader.owner = limeos_contracts::ExecutorOwner::with_anchor_owner(uid, uid);
+    let refused = crate::reader_health::container_health_read(f.reader.clone()).await;
+    assert_eq!(
+        (refused.result, refused.reason.as_deref()),
+        (
+            ReadResult::Failed,
+            Some("the read failed: Forbidden: core refuses the storage reader's socket")
+        )
+    );
+    assert_eq!(f.requests.load(Ordering::SeqCst), 0);
+    // Core gave up before any answer (a reader that never answers, 4 s):
+    // said so, not a bare "Expired".
+    let silent = outcome(13).await;
+    assert_eq!(
+        (silent.result, silent.reason.as_deref()),
+        (
+            ReadResult::Failed,
+            Some(
+                "the read failed: Expired: the storage reader gave no answer within core's 4 s window"
+            )
+        )
+    );
 }
 #[tokio::test]
 async fn a_truncated_cohort_reaches_core_marked_incomplete_with_its_count() {

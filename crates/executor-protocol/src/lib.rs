@@ -232,7 +232,8 @@ pub enum HealthReadFailure {
     ReaderBudget,
     /// Another protected read held the single worker slot.
     WorkerBusy,
-    /// The worker did not finish within its 4 s window.
+    /// The worker did not finish within its supervision window
+    /// (`CONTAINER_HEALTH_READER_WINDOW` from the request's arrival).
     WorkerDeadline,
     /// The worker held a capability and refused to read.
     WorkerCapability,
@@ -248,9 +249,9 @@ pub enum HealthReadFailure {
     WorkerDescriptors,
     /// The Engine's socket or peer is not the root-owned Engine.
     EngineForbidden,
-    /// The Engine read was refused: the Engine was unreachable or slow, an
-    /// answer was over its byte bound, or the Engine is past a bound the read
-    /// does not truncate (more than 1,024 listed or 256 selected mounts).
+    /// The Engine read was refused: the Engine was unreachable, an answer was
+    /// over its byte bound or not of a shape it models, or the Engine is past
+    /// the bound the read does not truncate (more than 1,024 listed).
     EngineUnavailable,
     /// The Engine read ran out of its counted memory allowance.
     EngineOverloaded,
@@ -258,7 +259,26 @@ pub enum HealthReadFailure {
     EngineChanged,
     /// The answer was over the cohort's member or byte bound.
     CohortBound,
+    /// The Engine read did not finish within its budget
+    /// (`CONTAINER_HEALTH_ENGINE_BUDGET`): the Engine answered slowly.
+    EngineSlow,
 }
+/// The container-health read's deadlines, innermost first, so the inner one
+/// fires first and its reason reaches core before core's own 4 s window
+/// (`bins/core` `health_collection::WINDOW`) ends:
+/// - the worker's whole Engine read (two passes and a revalidation, four
+///   GETs per container plus ten: 266 at 64), from the worker's start;
+/// - the worker's supervision window, from the reader's receipt of the
+///   request (a request that waited too long for the reader's read slot is
+///   refused as busy instead of starting a worker it cannot finish).
+pub const CONTAINER_HEALTH_ENGINE_BUDGET: std::time::Duration =
+    std::time::Duration::from_millis(2750);
+pub const CONTAINER_HEALTH_READER_WINDOW: std::time::Duration =
+    std::time::Duration::from_millis(3500);
+// Room for the worker's start-up and its answer through the guardian.
+const _: () = assert!(
+    CONTAINER_HEALTH_ENGINE_BUDGET.as_millis() + 500 <= CONTAINER_HEALTH_READER_WINDOW.as_millis()
+);
 impl HealthReadFailure {
     /// One line for the reader's journal and `limeosctl reader-status`.
     pub fn message(self) -> &'static str {
@@ -267,7 +287,9 @@ impl HealthReadFailure {
                 "the storage reader was over its memory or descriptor budget before starting the health worker"
             }
             Self::WorkerBusy => "another protected read held the health worker's slot",
-            Self::WorkerDeadline => "the health worker did not finish within its 4 s window",
+            Self::WorkerDeadline => {
+                "the health worker did not finish within its 3.5 s window (a slow start or a slow Engine)"
+            }
             Self::WorkerCapability => {
                 "the health worker held a capability and refused to read (its guardian did not clear the ambient set)"
             }
@@ -285,11 +307,14 @@ impl HealthReadFailure {
                 "the Engine socket or its peer is not the root-owned Docker Engine"
             }
             Self::EngineUnavailable => {
-                "the Engine read was refused: the Engine was unreachable or slow, an answer was over its byte bound, or the Engine has more than 1,024 containers or 256 selected mounts"
+                "the Engine read was refused: the Engine was unreachable, an answer was over its byte bound or not of a shape it models, or the Engine has more than 1,024 containers"
             }
             Self::EngineOverloaded => "the Engine read ran out of its counted memory allowance",
             Self::EngineChanged => "the Engine changed while it was read",
             Self::CohortBound => "the health answer was over its member or byte bound",
+            Self::EngineSlow => {
+                "the Engine read did not finish within its 2.75 s budget: the Engine answered slowly"
+            }
         }
     }
 }

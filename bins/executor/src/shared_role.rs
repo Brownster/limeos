@@ -82,23 +82,39 @@ impl SharedRole {
         let docker = self.source == Source::Docker;
         match request {
             Request::ContainerHealth { nonce, .. } if self.storage_reader => {
-                let guard = self
-                    .storage_permit
-                    .request(INTERACTIVE_WAIT)
-                    .await
-                    .ok_or(Error(ErrorCode::Overloaded))?;
+                use limeos_executor_protocol::{
+                    CONTAINER_HEALTH_ENGINE_BUDGET, CONTAINER_HEALTH_READER_WINDOW,
+                    HealthReadFailure,
+                };
+                // The worker's window counts from here, inside core's own.
+                let deadline = std::time::Instant::now() + CONTAINER_HEALTH_READER_WINDOW;
+                // Wait for the read slot only as long as still leaves the
+                // worker its whole Engine budget (200 ms, with 50 ms to reach
+                // the launch).
+                let wait = CONTAINER_HEALTH_READER_WINDOW
+                    .saturating_sub(CONTAINER_HEALTH_ENGINE_BUDGET)
+                    .saturating_sub(crate::health_read::WORKER_MARGIN)
+                    .saturating_sub(std::time::Duration::from_millis(50));
+                let Some(guard) = self.storage_permit.request(wait).await else {
+                    let mut refused = refusal(Error(ErrorCode::Overloaded));
+                    refused.health_failure = Some(HealthReadFailure::WorkerBusy);
+                    return Ok(refused);
+                };
                 let manager = self.read_supervisor.clone();
                 let answer = tokio::task::spawn_blocking(move || {
-                    crate::health_read::refresh(&nonce, &manager, guard)
+                    crate::health_read::refresh(&nonce, &manager, guard, deadline)
                 })
                 .await
                 .unwrap_or(Err(crate::health_read::Failed {
                     error: Error(ErrorCode::Unavailable),
-                    failure: limeos_executor_protocol::HealthReadFailure::WorkerFailed,
+                    failure: HealthReadFailure::WorkerFailed,
                 }));
                 match answer {
                     Ok(cohort) => receipt.container_health = Some(cohort),
-                    // The refusal says why, so core can report it.
+                    // The refusal says why, so core can report it. `serve`
+                    // turns an `Err` into the same refusal and does nothing
+                    // else with it (no log, no count), so answering `Ok`
+                    // here skips nothing.
                     Err(failed) => {
                         let mut refused = refusal(failed.error);
                         refused.health_failure = Some(failed.failure);

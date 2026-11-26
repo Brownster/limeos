@@ -123,6 +123,7 @@ fn every_reason_survives_the_worker_frame_and_supervision_keeps_it() {
         EngineOverloaded,
         EngineChanged,
         CohortBound,
+        EngineSlow,
     ];
     for failure in all {
         let byte = failure_byte(failure);
@@ -130,7 +131,7 @@ fn every_reason_survives_the_worker_frame_and_supervision_keeps_it() {
         assert_eq!(supervision(Refusal::WorkerFailed(byte)), failure);
         assert!(!failure.message().is_empty());
     }
-    for byte in [0, 14, 255] {
+    for byte in [0, 15, 255] {
         assert_eq!(failure_from_byte(byte), None);
         assert_eq!(supervision(Refusal::WorkerFailed(byte)), WorkerFailed);
     }
@@ -143,6 +144,7 @@ fn every_reason_survives_the_worker_frame_and_supervision_keeps_it() {
     assert_eq!(engine(Error(ErrorCode::Unavailable)), EngineUnavailable);
     assert_eq!(engine(Error(ErrorCode::Overloaded)), EngineOverloaded);
     assert_eq!(engine(Error(ErrorCode::Conflict)), EngineChanged);
+    assert_eq!(engine(Error(ErrorCode::Expired)), EngineSlow);
 }
 
 #[test]
@@ -163,4 +165,17 @@ fn the_journal_gets_one_line_per_change_of_reason_and_one_on_recovery() {
     .map(|result| note_in(&state, result))
     .collect();
     assert_eq!(logged, [true, false, true, false, true, false, true]);
+}
+
+#[test]
+fn a_request_left_without_the_whole_engine_budget_is_refused_as_busy_before_a_worker() {
+    // The read slot was held so long that the worker could not finish its
+    // Engine budget inside its window: refused at once, with its reason,
+    // while core is still waiting.
+    let gate = std::sync::Arc::new(tokio::sync::Mutex::new(()));
+    let held = gate.try_lock_owned().unwrap();
+    let deadline = Instant::now() + CONTAINER_HEALTH_ENGINE_BUDGET;
+    let refused = refresh(&nonce(), &Supervisor::default(), held, deadline).unwrap_err();
+    assert_eq!(refused.failure, HealthReadFailure::WorkerBusy);
+    assert_eq!(refused.error, Error(ErrorCode::Unavailable));
 }

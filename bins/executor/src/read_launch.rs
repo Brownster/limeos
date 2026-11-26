@@ -440,8 +440,11 @@ pub struct ProtectedHealthLaunch {
     deadline: Instant,
 }
 impl ProtectedHealthLaunch {
-    pub fn prepare(nonce: &str) -> Result<Self> {
-        let deadline = Instant::now() + WINDOW;
+    /// `deadline` ends the worker's supervision window (never later than the
+    /// usual 4 s), so a slow worker is refused, with its reason, while core
+    /// still waits for the answer.
+    pub fn prepare(nonce: &str, deadline: Instant) -> Result<Self> {
+        let deadline = deadline.min(Instant::now() + WINDOW);
         let nonce = health_nonce(nonce)?;
         let root = File::from(
             rustix::fs::open(

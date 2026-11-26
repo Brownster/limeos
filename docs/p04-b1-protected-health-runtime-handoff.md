@@ -26,10 +26,28 @@ remain unchanged. The nonce-bound plain report caps 64 sorted full-ID members
 (the product's Engine bound; sixteen until 26 November 2026) at 56 KiB, under
 the 64-KiB executor frame, plus a `truncated` count of containers past the
 bound, and contains only sanitized optional container signals. A truncated
-report is never complete, and core never resolves, retires or silences
-anything about a container it left out. A refused read carries a closed
-reason (`HealthReadFailure`), which the reader logs when it changes and
-`limeosctl reader-status --read container-health` prints.
+report is never complete. An alert or silence held for a container it left
+out is kept exactly as it is (not resolved, retired or folded) while the
+members present are processed; a whole report that does not name such a
+container still refuses the pass. A refused read carries a closed reason
+(`HealthReadFailure`), which the reader logs when it changes and
+`limeosctl reader-status --read container-health` prints; only the reader's
+own `Forbidden` (its ceiling) is reported as not granted, core's refusal of
+the reader's socket fails.
+
+Deadlines, innermost first: the worker's whole Engine read (two passes and
+the revalidation, four GETs per container plus ten: 266 at 64 containers) has
+2.75 s from the worker's start (`engine_slow`); its supervision window ends
+3.5 s after the reader received the request (`worker_deadline`), and a
+request that waited more than 200 ms for the reader's read slot is refused
+as busy (`worker_busy`); core waits 4 s. So a slow read reaches `limeosctl`
+with its reason, and a reader that never answers is named as such.
+
+The cohort's `truncated` field and the receipt's `health_failure` are new
+since 0.4.4. Core and the reader ship in one package and are upgraded
+together; a newer core reads an older reader's answers, while an older core
+would refuse a newer reader's cohort (strict fields). That skew is not
+supported and needs no handling.
 
 Core authenticates a retained root-owned socket, unchanged descriptor/name
 identity and kernel root peer before sending the frame. It accepts only the

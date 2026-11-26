@@ -15,6 +15,13 @@ pub(crate) const WINDOW: Duration = Duration::from_secs(4);
 const _: () = assert!(WINDOW.as_secs() < limeos_domain::CONTAINER_STORAGE_MAX_AGE_SECONDS as u64);
 const _: () =
     assert!(WINDOW.as_secs() < limeos_domain::automation::CONTAINER_HEALTH_SECONDS as u64);
+// The reader's worker window, counted from the request's arrival, ends well
+// inside this one, so a slow read reaches core as the reader's reason rather
+// than as core's own expiry.
+const _: () = assert!(
+    limeos_executor_protocol::CONTAINER_HEALTH_READER_WINDOW.as_millis() + 400
+        <= WINDOW.as_millis()
+);
 
 #[derive(Clone)]
 pub struct HealthReader {
@@ -95,14 +102,18 @@ impl HealthReader {
         &self,
         outer_deadline: Instant,
     ) -> std::result::Result<FreshContainerHealth, Refused> {
-        let mut reason = None;
-        let answer = self.exchange(outer_deadline, &mut reason).await;
-        answer.map_err(|error| Refused { error, reason })
+        let mut answered = Answered::default();
+        let answer = self.exchange(outer_deadline, &mut answered).await;
+        answer.map_err(|error| Refused {
+            error,
+            reason: answered.reason,
+            by_reader: answered.error.is_some_and(|code| refusal(code) == error),
+        })
     }
     async fn exchange(
         &self,
         outer_deadline: Instant,
-        reason: &mut Option<HealthReadFailure>,
+        answered: &mut Answered,
     ) -> Result<FreshContainerHealth> {
         let deadline = outer_deadline.min(Instant::now() + WINDOW);
         live(deadline)?;
@@ -137,7 +148,8 @@ impl HealthReader {
             let receipt: Receipt = limeos_contracts::read_frame(&mut stream).await?;
             live(deadline)?;
             socket.revalidate(&self.socket, owner)?;
-            *reason = receipt.health_failure;
+            answered.error = receipt.error;
+            answered.reason = receipt.health_failure;
             let cohort = only_health(receipt)?;
             if cohort.nonce() != nonce {
                 return Err(Error(ErrorCode::Conflict));
@@ -151,11 +163,20 @@ impl HealthReader {
         Ok(FreshContainerHealth { cohort, deadline })
     }
 }
-/// A refused read: the code, and the reader's reason if it gave one.
+/// What the reader's answer said, if one arrived.
+#[derive(Default)]
+struct Answered {
+    error: Option<ErrorCode>,
+    reason: Option<HealthReadFailure>,
+}
+/// A refused read: the code, the reader's reason if it gave one, and whether
+/// the code is the reader's own answer (its ceiling's `Forbidden`, say)
+/// rather than core's refusal to use the reader's socket or its answer.
 #[derive(Debug)]
 pub(crate) struct Refused {
     pub(crate) error: Error,
     pub(crate) reason: Option<HealthReadFailure>,
+    pub(crate) by_reader: bool,
 }
 /// The reader's refusal as core treats it. Its ceiling's "no" (`Forbidden`)
 /// stays `Forbidden`, which `limeosctl reader-status` reports as not granted
