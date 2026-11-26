@@ -8,12 +8,20 @@ projects): the shared inventory is fresh and a stack restart plans, runs and ver
 stays fresh with `truncated_containers == 1`, keeping running containers first, so the running stack is complete
 and still plans; removing one clears the flag. A sampler records the stack reader's cgroup memory, tasks and
 descriptors against its limits (64 MiB, 16 tasks, 256 descriptors) for the whole run.
+
+Each case also has core make a container-health read through the reader (`limeosctl reader-status --read
+container-health`, as the cutover's activation does) on an Engine holding a health mix: running containers
+with a passing and a failing check, and `restart: always` containers stopped after their check failed, plus
+a stopped unchecked one. At 30 and 64 containers the read is accepted whole; at 65 it is accepted with a
+`truncated: 1` reason, never `unavailable`; back at 64 the reason clears. An 18-container Engine (14
+running) once refused this read at its 16-container bound and rolled a migration back.
 """
 
 import json
 import os
 import socket
 import sys
+import tarfile
 import threading
 import time
 from pathlib import Path
@@ -94,6 +102,99 @@ def make_standalone(prefix, count, running=0):
     return ids
 
 
+LIMEOSCTL = "/usr/lib/limeos/limeosctl"
+# The fixture image with `/bin/sh`, which Docker's `--health-cmd` (CMD-SHELL) needs.
+HEALTH_IMAGE = "limeos-sl-health:local"
+
+
+def health_image():
+    if sl.fixture.get("health_image"):
+        return
+    rootfs = Path("/root/sl-health-rootfs.tar")
+    with tarfile.open(rootfs, "w") as archive:
+        archive.add("/bin/busybox", arcname="bin/busybox")
+        shell = tarfile.TarInfo("bin/sh")
+        shell.type = tarfile.SYMTYPE
+        shell.linkname = "busybox"
+        archive.addfile(shell)
+    fx.docker("import", str(rootfs), HEALTH_IMAGE)
+    sl.fixture["health_image"] = True
+
+
+def health_status(identifier):
+    return (fx.inspect(identifier)["State"].get("Health") or {}).get("Status")
+
+
+def make_health_mix(prefix):
+    """Six standalone containers, three running: two with a passing check, one with a failing check; and three
+    stopped: two `restart: always` whose check had failed (alerted as not running) and one without a check."""
+    health_image()
+
+    def create(name, *flags):
+        return fx.docker("create", "--name", f"{prefix}-{name}", "--network=none", *flags, HEALTH_IMAGE, *sl.LOOP)
+
+    passing = ("--health-cmd", "exit 0", "--health-interval", "1s", "--health-retries", "1")
+    failing = ("--health-cmd", "exit 1", "--health-interval", "1s", "--health-retries", "1")
+    mix = {
+        "healthy": [create("ok-0", *passing), create("ok-1", *passing)],
+        "unhealthy": [create("bad-0", *failing)],
+        "stopped_unhealthy": [create("gone-0", "--restart", "always", *failing), create("gone-1", "--restart", "always", *failing)],
+        "stopped": [create("off-0")],
+    }
+    for identifier in mix["healthy"] + mix["unhealthy"] + mix["stopped_unhealthy"]:
+        fx.docker("start", identifier)
+    fx.eventually(
+        lambda: all(health_status(i) == "healthy" for i in mix["healthy"])
+        and all(health_status(i) == "unhealthy" for i in mix["unhealthy"] + mix["stopped_unhealthy"]),
+        timeout=60,
+    )
+    for identifier in mix["stopped_unhealthy"]:
+        fx.docker("stop", "--time", "2", identifier)
+    stopped = mix["stopped_unhealthy"] + mix["stopped"]
+    sl.check(all(not fx.inspect(i)["State"]["Running"] for i in stopped), "health mix did not stop")
+    mix["statuses"] = {i: health_status(i) for group in ("healthy", "unhealthy", "stopped_unhealthy") for i in mix[group]}
+    return mix
+
+
+def mix_ids(mix):
+    return [i for group in ("healthy", "unhealthy", "stopped_unhealthy", "stopped") for i in mix[group]]
+
+
+def reader_journal():
+    return fx.run("journalctl", "-u", READER, "--no-pager", "-n", "30", check=False).stdout[-4000:]
+
+
+def container_health_read(truncated=0):
+    """Core's container-health read through the reader, as `scripts/cutover/activate.sh` makes it: accepted, and
+    with `truncated` > 0 accepted with that many containers reported left out, never failed or unavailable."""
+    attempts = []
+    for _ in range(3):
+        result = fx.run(LIMEOSCTL, "reader-status", "--read", "container-health", check=False, timeout=60)
+        try:
+            answer = json.loads(result.stdout)
+        except ValueError:
+            answer = {"stdout": result.stdout[-2000:], "stderr": result.stderr[-2000:]}
+        attempts.append({"rc": result.returncode, "answer": answer})
+        if result.returncode == 0 and (answer.get("read") or {}).get("result") == "accepted":
+            break
+        time.sleep(2)
+    last = attempts[-1]
+    read = last["answer"].get("read") or {}
+    sl.check(
+        last["rc"] == 0 and read.get("result") == "accepted",
+        "container-health read through the reader was not accepted",
+        attempts=attempts,
+        engine=engine_total(),
+        journal=reader_journal(),
+    )
+    reason = read.get("reason") or ""
+    if truncated:
+        sl.check(f"truncated: {truncated} container(s)" in reason, "truncation not reported", read=read)
+    else:
+        sl.check(read.get("reason") is None, "a whole read gave a reason", read=read)
+    return {"attempts": len(attempts), "read": read, "engine": engine_total(), "cgroup": cgroup_facts()}
+
+
 def fresh_inventory(project, ids, timeout=120):
     sl.refresh_cohort(project, ids, timeout=timeout)
     status, value = inventory()
@@ -122,27 +223,32 @@ def restart_and_verify(project, ids, key):
     return {"job": job["id"], "receipt": value["receipt"]["state"], "events": seen}
 
 
-@sl.case("S1 stack restart among 30 containers (15 running, two multi-member projects, standalone)", retire=("sl2",))
+@sl.case("S1 stack restart among 30 containers (15 running, two multi-member projects, standalone, a health mix); container-health read accepted", retire=("sl2",))
 def scale_30():
     ids = sl.members("sl1")
     other = sl.provision("sl2")
     for identifier in ids + other:
         if not sl.running(identifier):
             fx.docker("start", identifier)
-    standalone = make_standalone("sc", 23, running=9)
+    # 23 standalone, 9 running: 17 plain (6 running) and the six-container health mix (3 running).
+    standalone = make_standalone("sc", 17, running=6)
+    mix = make_health_mix("hm")
+    standalone.extend(mix_ids(mix))
     total = engine_total()
     running = len(fx.docker("ps", "-q").split())
     sl.check(total >= 24 and running > 8, "fixture too small", total=total, running=running)
     value = fresh_inventory("sl1", ids)
     sl.check(value["standalone_containers"] == total - 6, "standalone count", reported=value["standalone_containers"], total=total)
-    detail = restart_and_verify("sl1", ids, "scale-30")
-    detail.update(total=total, running=running, standalone_reported=value["standalone_containers"], other_projects=[p["project"]["name"] for p in value["other_projects"]], cgroup=cgroup_facts())
     fixture_ids = sl.fixture.setdefault("scale", [])
     fixture_ids.extend(standalone)
+    detail = restart_and_verify("sl1", ids, "scale-30")
+    detail.update(total=total, running=running, standalone_reported=value["standalone_containers"], other_projects=[p["project"]["name"] for p in value["other_projects"]], health_mix=mix["statuses"])
+    detail["container_health"] = container_health_read()
+    detail["cgroup"] = cgroup_facts()
     return detail
 
 
-@sl.case("S2 exactly 64 containers: fresh, plans and restarts")
+@sl.case("S2 exactly 64 containers: fresh, plans and restarts; container-health read accepted whole")
 def exactly_64():
     ids = sl.members("sl1")
     have = engine_total()
@@ -152,11 +258,13 @@ def exactly_64():
     sl.check(total == 64, "did not reach 64", total=total)
     value = fresh_inventory("sl1", ids)
     detail = restart_and_verify("sl1", ids, "scale-64")
-    detail.update(total=total, running=len(fx.docker("ps", "-q").split()), standalone_reported=value["standalone_containers"], cgroup=cgroup_facts())
+    detail.update(total=total, running=len(fx.docker("ps", "-q").split()), standalone_reported=value["standalone_containers"])
+    detail["container_health"] = container_health_read()
+    detail["cgroup"] = cgroup_facts()
     return detail
 
 
-@sl.case("S3 65 containers: inventory stays fresh with a truncation flag and the running stack still plans")
+@sl.case("S3 65 containers: inventory stays fresh with a truncation flag, the running stack still plans and the container-health read is accepted truncated")
 def over_65():
     ids = sl.members("sl1")
     extra = make_standalone("over", 1)[0]
@@ -187,12 +295,21 @@ def over_65():
         "plan members are not exactly the stack's members",
         plan=proposal["plan"]["expected"],
     )
+    # Past the bound the read is answered, not refused: one container (a stopped one) left out and said so.
+    truncated_health = container_health_read(truncated=1)
     fx.docker("rm", "-f", extra)
     sl.fixture["scale"].remove(extra)
     sl.check(engine_total() == 64, "not back to 64")
     value = fresh_inventory("sl1", ids)
     sl.check(value.get("truncated_containers") == 0, "truncation flag not cleared at 64", value=value)
-    return {"degraded": final, "plan": plan_status, "recovered_engine": value["engine"]["state"], "cgroup": cgroup_facts()}
+    whole_health = container_health_read()
+    return {
+        "degraded": final,
+        "plan": plan_status,
+        "recovered_engine": value["engine"]["state"],
+        "container_health": {"at_65": truncated_health, "back_at_64": whole_health},
+        "cgroup": cgroup_facts(),
+    }
 
 
 def main():
