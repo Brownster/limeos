@@ -300,6 +300,20 @@ def over_65():
     fx.docker("rm", "-f", extra)
     sl.fixture["scale"].remove(extra)
     sl.check(engine_total() == 64, "not back to 64")
+    # The reader rescans every 30 s, so the first inventory after the removal can still be the 65-container
+    # scan (the stack members are unchanged, so `fresh_inventory` alone does not wait): wait for a scan that
+    # no longer counts the removed container, as the 65-container half waits for one that does.
+    cleared = {}
+
+    def unflagged():
+        status, value = inventory()
+        cleared.update(status=status, value=value)
+        return status == 200 and value["engine"]["state"] == "fresh" and value.get("truncated_containers") == 0
+
+    try:
+        fx.eventually(unflagged, timeout=120)
+    except AssertionError:
+        sl.check(False, "truncation flag not cleared at 64", **cleared)
     value = fresh_inventory("sl1", ids)
     sl.check(value.get("truncated_containers") == 0, "truncation flag not cleared at 64", value=value)
     whole_health = container_health_read()
