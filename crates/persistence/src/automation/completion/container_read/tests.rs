@@ -344,13 +344,40 @@ fn queued_partial_collection_cannot_silently_retire_a_retained_container() {
     );
 }
 
+fn other() -> String {
+    format!("container:{:064x}", 1)
+}
+fn alert_body(store: &Store, key: &str) -> Option<String> {
+    store
+        .conn
+        .query_row(
+            "SELECT body FROM automation_alerts WHERE key=?",
+            [key],
+            |r| r.get(0),
+        )
+        .ok()
+}
 #[test]
-fn a_truncated_cohort_never_retires_or_clears_a_container_it_left_out() {
-    // An Engine past 64 containers: the alerted container is one of those
-    // the read left out. It is unknown, not healthy and not gone, so the pass
-    // may not settle as if it were (both completion paths share
-    // `polling::container_bindings`).
+fn a_truncated_cohort_keeps_the_alert_of_a_container_it_left_out_and_reads_the_others() {
+    // An Engine past 64 containers: container 0 holds an alert and is the one
+    // the read left out; container 1 is read. Container 0 is unknown, not
+    // healthy and not gone: its alert stays exactly as it was, and the pass
+    // still settles for the container present. The same cohort without its
+    // truncation count claims container 0 is gone, which still refuses.
     let (_dir, mut store, actor) = setup();
+    let scopes = ["host:system".to_owned(), resource(), other()].map(|resource| Scope {
+        operation: Operation::HealthRead,
+        resource,
+    });
+    let mut grants = scopes.to_vec();
+    grants.push(Scope {
+        operation: Operation::AutomationManage,
+        resource: "automation:observe-health".into(),
+    });
+    store
+        .revise_grants(&actor.id, Role::Operator, &grants, 116)
+        .unwrap();
+    let actor = store.login_record("alice").unwrap().unwrap().principal;
     let job = queue(&mut store, &actor, 120);
     let read = permit(
         store
@@ -360,15 +387,27 @@ fn a_truncated_cohort_never_retires_or_clears_a_container_it_left_out() {
     store
         .automation_container_read_complete(&read, &cohort(121), || 121, deadline())
         .unwrap();
-    let left_out = ContainerHealthCohort::with_truncated(
-        "a".repeat(64),
-        "fixture-engine".into(),
-        123,
-        vec![],
-        1,
-    )
-    .unwrap();
-    assert!(!left_out.complete());
+    let held = alert_body(&store, &resource()).expect("container 0 holds an alert");
+    let read_other = |truncated| {
+        ContainerHealthCohort::with_truncated(
+            "a".repeat(64),
+            "fixture-engine".into(),
+            123,
+            vec![ContainerHealthMember {
+                resource: other(),
+                signal: Some(AlertSignal {
+                    key: other(),
+                    kind: AlertKind::Container,
+                    status: SignalStatus::Failing,
+                    severity: Severity::Warning,
+                    summary: "Other stopped".into(),
+                }),
+            }],
+            truncated,
+        )
+        .unwrap()
+    };
+    // Whole: container 0 would be gone, so the pass refuses and writes nothing.
     let job = queue(&mut store, &actor, 122);
     let read = permit(
         store
@@ -377,15 +416,32 @@ fn a_truncated_cohort_never_retires_or_clears_a_container_it_left_out() {
     );
     let before = counts(&store);
     assert!(matches!(
-        store.automation_container_read_complete(&read, &left_out, || 123, deadline()),
+        store.automation_container_read_complete(&read, &read_other(0), || 123, deadline()),
         Err(Error(ErrorCode::Conflict))
     ));
     assert_eq!(counts(&store), before);
+    // Truncated: container 1 is read and alerted on; container 0's alert is
+    // left exactly as it was.
+    let read = permit(
+        store
+            .automation_container_job_begin(&job, || 123, deadline())
+            .unwrap(),
+    );
+    let truncated = read_other(1);
+    assert!(!truncated.complete());
+    store
+        .automation_container_read_complete(&read, &truncated, || 123, deadline())
+        .unwrap();
     assert_eq!(
+        alert_body(&store, &resource()).as_deref(),
+        Some(held.as_str())
+    );
+    assert!(alert_body(&store, &other()).is_some());
+    assert!(
         store
             .automation_queued_observation_page(None, 32)
             .unwrap()
-            .items,
-        [job]
+            .items
+            .is_empty()
     );
 }
