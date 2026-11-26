@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep, stat and
-# limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
+# One stub for systemctl, systemd-run, docker, ss, free, curl, dpkg, dpkg-deb, dpkg-query, caddy, sleep, stat,
+# chown, chmod, getent and limeosctl. sleep runs $STUB_DIR/hook-sleep when present (measure.sh's idle window). Copied under each tool's name into a PATH directory by the tests.
 # State lives in $STUB_DIR; every call is appended to $STUB_DIR/calls.log. systemd-run --scope --unit and
 # systemctl is-active/show/kill on a *.scope model a transient scope (see scope_members).
 set -Eeuo pipefail
@@ -112,7 +112,7 @@ scope_refresh() { # unit -> members on stdout
             rm -f "${dir}/cgroup.kill"
         else
             [[ -e "${dir}/cgroup.kill" ]] || : >"${dir}/cgroup.kill"
-            if [[ -e "${STUB_DIR}/cgroup-kill-readonly" ]]; then chmod 0444 "${dir}/cgroup.kill"; fi
+            if [[ -e "${STUB_DIR}/cgroup-kill-readonly" ]]; then command -p chmod 0444 "${dir}/cgroup.kill"; fi
         fi
         printf '%s\n' "${members}"
     else
@@ -236,6 +236,7 @@ case "${tool}" in
                     ControlGroup) printf '%s\n' "$(get_unit "${args[-1]}" cgroup '')" ;;
                     LoadState) printf '%s\n' "$(get_unit "${args[-1]}" loadstate loaded)" ;;
                     DropInPaths) printf '%s\n' "$(get_unit "${args[-1]}" dropins '')" ;;
+                    StateDirectory) printf '%s\n' "$(get_unit "${args[-1]}" statedir '')" ;;
                     *) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
                 esac ;;
             daemon-reload|reload|reset-failed) ;;
@@ -273,6 +274,13 @@ case "${tool}" in
         [[ -f "${STUB_DIR}/pkg_version" ]] || exit 1
         cat "${STUB_DIR}/pkg_version" ;;
     caddy) ;;
+    # chown and chmod change nothing under the fake root (the tests run unprivileged); the call log
+    # is what the tests read.
+    chown|chmod) ;;
+    getent)
+        # getent passwd NAME: the line for NAME in $STUB_DIR/passwd, exit 2 when there is none.
+        [[ "${1:-}" == passwd && -f "${STUB_DIR}/passwd" ]] || exit 2
+        grep -m1 "^${2:-}:" "${STUB_DIR}/passwd" || exit 2 ;;
     limeosctl)
         # reader-status --read READ: $STUB_DIR/reader-read-READ (output) and .rc (exit status)
         # model core's read through the stack reader; by default it succeeds.

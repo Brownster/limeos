@@ -24,7 +24,7 @@ SCRIPTS = REPO / "scripts/cutover"
 STUB = Path(__file__).resolve().parent / "stubs/stub.sh"
 TOOLS = [
     "systemctl", "systemd-run", "docker", "ss", "free", "curl", "dpkg", "dpkg-deb", "dpkg-query",
-    "caddy", "sleep", "limeosctl", "stat",
+    "caddy", "sleep", "limeosctl", "stat", "chown", "chmod", "getent",
 ]
 NOW = 1_800_000_000
 JELLYFIN_KEY = "0123456789abcdef0123456789abcdef"
@@ -884,8 +884,9 @@ class ActivateTests(Harness):
         self.assertEqual(self.mutating_calls(), [])
 
     def test_rejects_missing_caddy_import_before_changing_anything(self):
-        self._write("/etc/caddy/Caddyfile", ":80 {\n}\n")
+        # Preflight refuses this too now (26 Nov); the Caddyfile changing after it must still be caught.
         self.passing_snapshot()
+        self._write("/etc/caddy/Caddyfile", ":80 {\n}\n")
         result = self.approved()
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.mutating_calls(), [])
@@ -2801,23 +2802,29 @@ class RunbookStateListTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="cutover-runbook-") as tmp:
             scan = Path(tmp) / "migrate-scan.json"
             scan.write_text(json.dumps(report))
-            command = self.block()[1].replace("/root/migrate-scan.json", str(scan))
-            command, _, target = command.rpartition(" >")
-            self.assertEqual(target, "/root/cutover-state-paths.txt")
+            # The helper's command as pasted (continuation lines joined), pointed at this checkout and TMP.
+            command = "\n".join(self.block()[1:])
+            for name in ("/root/cutover-state-paths.txt", "/root/cutover-live-paths.txt"):
+                self.assertIn(name, command)
+                command = command.replace(name, f"{tmp}/{Path(name).name}")
+            command = command.replace("/root/migrate-scan.json", str(scan)).replace("/root/limeos-cutover/state_lists.py", str(SCRIPTS / "state_lists.py"))
             result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=30)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines(), [
+            self.assertEqual(result.returncode, 0, result.stderr)
+            state = Path(f"{tmp}/cutover-state-paths.txt").read_text().splitlines()
+            live = Path(f"{tmp}/cutover-live-paths.txt").read_text()
+        # The limeops homes and the files outside schedules rewrite are live, not frozen state.
+        self.assertEqual(state, [
             "/etc/limeos/agent-policy.json",
             "/etc/limeos/credentials.env",
             "/etc/limeos/policy-backups/agent-policy-20261000T010203Z.json",
-            "/var/lib/limeos/agent-actions/actions.sqlite",
-            "/var/lib/limeos/auto_update.json",
-            "/var/lib/limeos/integrations/jellyfin.json",
-            "/var/lib/limeos/metrics/metrics.sqlite",
             "/home/holly/pi-health/config/backup_config.json",
             "/home/holly/pi-health/config/media_paths.json",
             "/home/holly/pi-health/config/storage_plugins/example.json",
+            "/var/lib/limeos/integrations/jellyfin.json",
+            "/var/lib/limeos/metrics/metrics.sqlite",
         ])
+        self.assertIn("/var/lib/limeos/agent-actions/\n", live)
+        self.assertIn("# home of the limeops-* services, which the cutover leaves running\n", live)
 
 
 def script_line(name, number):
