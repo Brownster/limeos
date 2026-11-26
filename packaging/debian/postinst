@@ -35,7 +35,8 @@ fct_directory() {
 # the old app, makes the directory root's again and reinstalls the package,
 # which then starts everything.
 fct_state_owned_elsewhere() {
-    [[ -d /var/lib/limeos && ! -L /var/lib/limeos ]] && [[ "$(stat -c %u -- /var/lib/limeos)" != 0 ]]
+    # Root's under dpkg: the user running this script, as fct_safe_path below.
+    [[ -d /var/lib/limeos && ! -L /var/lib/limeos ]] && [[ "$(stat -c %u -- /var/lib/limeos)" != "${EUID}" ]]
 }
 # Every entry of one of LimeOS's trees belongs to its account: an entry another
 # account owns (systemd's recursive chown above, or an operator's) goes back

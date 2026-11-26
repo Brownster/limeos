@@ -50,7 +50,7 @@ DATA = [
     "etc/limeos/storage-contract.json",
     "etc/systemd/system/limeos-core.service.d/override.conf",
 ]
-TOOLS = ["mkdir", "mktemp", "mv", "rm", "stat", "cut", "chmod"]
+TOOLS = ["mkdir", "mktemp", "mv", "rm", "stat", "cut", "chmod", "find"]
 
 SYSTEMCTL = r"""#!/bin/bash
 # A model of systemctl over $STUB_STATE/units/UNIT.{load,active,cgroup,unitfile,survive}.
