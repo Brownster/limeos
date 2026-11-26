@@ -14,7 +14,13 @@ backups, `auto_update.json`, `backup_config.json`, `package-approvals.json`,
 `pending-actions.json` and `storage_plugins/` are deferred; the rest is
 unsupported. Names containing `secret` or `env` show size and mode only.
 Symlinks, FIFOs and other non-regular files are listed and never opened or
-followed. The scan is bounded (20000 files, depth 8, 5000 entries per directory,
+followed. A directory holding a regular `pyvenv.cfg` is a Python virtual
+environment: it is listed as one `virtualenv` entry (unsupported, no hash) and
+never descended, whatever its depth, since it is software and not state
+(wybie's `/var/lib/limeos/agent-supervisor/venv` has 1,096 files, 74 of its
+directories past the depth bound, and made the scan incomplete on 26 Nov).
+`scripts/cutover/state_lists.py` builds the cutover's state and live lists from
+the JSON report (runbook step 1h). The scan is bounded (20000 files, depth 8, 5000 entries per directory,
 256 MiB per hashed file); hitting a bound or an unreadable directory marks the
 report incomplete and exits non-zero. Every original is re-checked at the end
 and any change fails the run. `--json` emits report schema 1.
