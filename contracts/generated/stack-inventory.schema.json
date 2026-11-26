@@ -48,7 +48,7 @@
       "minimum": 0
     },
     "truncated_containers": {
-      "description": "Engine containers left out because the Engine holds more than\n`MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are\nof the containers shown. `None` while the Engine source is not fresh.",
+      "description": "Engine containers left out because the Engine holds more than\n`MAX_ENGINE_CONTAINERS`; live ones (running, restarting, paused) are\nkept first. Counts above are of the containers shown. `None` while the Engine source is not fresh.",
       "type": [
         "integer",
         "null"

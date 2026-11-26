@@ -258,8 +258,8 @@ pub struct StackInventory {
     pub other_projects: Vec<OtherProjectView>,
     pub standalone_containers: Option<u16>,
     /// Engine containers left out because the Engine holds more than
-    /// `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
-    /// of the containers shown. `None` while the Engine source is not fresh.
+    /// `MAX_ENGINE_CONTAINERS`; live ones (running, restarting, paused) are
+    /// kept first. Counts above are of the containers shown. `None` while the Engine source is not fresh.
     pub truncated_containers: Option<u16>,
     /// Inspected containers left out, each with its reason; a registered
     /// stack with one of them carries `omitted_members`. Empty unless fresh.

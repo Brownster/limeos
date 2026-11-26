@@ -1298,6 +1298,21 @@ struct Admitted {
     member: Option<ComposeContainerMembership>,
     health: Option<ContainerHealth>,
 }
+/// A container's storage facts. The health projection reads no mounts: it
+/// never uses them, so no mount shape or Engine mount total refuses it.
+fn consumer(
+    value: &Value,
+    id: &str,
+    projection: Projection,
+    mounts_left: usize,
+    scope: Option<&mut Scope>,
+) -> std::result::Result<ContainerStorageConsumer, Refusal> {
+    if projection == Projection::Health {
+        super::storage::parse_container_without_mounts(value, id, scope)
+    } else {
+        super::storage::parse_storage_container_with_admission(value, id, mounts_left, scope)
+    }
+}
 fn admit(
     value: &Value,
     id: &str,
@@ -1305,12 +1320,7 @@ fn admit(
     mounts_left: usize,
     mut scope: Option<&mut Scope>,
 ) -> std::result::Result<Admitted, Refusal> {
-    let consumer = super::storage::parse_storage_container_with_admission(
-        value,
-        id,
-        mounts_left,
-        scope.as_deref_mut(),
-    )?;
+    let consumer = consumer(value, id, projection, mounts_left, scope.as_deref_mut())?;
     let pid = container_pid(value, &consumer).map_err(|_| Refusal::Unsupported)?;
     let member = if projection == Projection::Compose {
         Some(compose_evidence::parse(
@@ -1372,9 +1382,10 @@ fn unchanged(
     mounts_each: usize,
     mut comparison: Option<&mut Scope>,
 ) -> std::result::Result<bool, Refusal> {
-    let after = super::storage::parse_storage_container_with_admission(
+    let after = consumer(
         value,
         id,
+        projection,
         mounts_each,
         comparison.as_deref_mut(),
     )?;

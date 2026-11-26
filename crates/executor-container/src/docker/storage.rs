@@ -389,6 +389,14 @@ impl Selected {
 /// Keep `keep` listed containers, running first, then by name and ID, and
 /// return their IDs in ID order with the number left out. A malformed or
 /// repeated ID is an Engine fault and refuses the listing.
+/// Whether a listed container is left out before others past the bound.
+/// Kept first, in name order: every container with a live process or restart
+/// loop (`running`, `restarting`, `paused`, `removing`) and any state the
+/// Engine adds later, so a crash-looping container is never the first live
+/// thing to go unwatched. Then the stopped ones: `created`, `exited`, `dead`.
+fn stopped(state: &str) -> bool {
+    matches!(state, "created" | "exited" | "dead")
+}
 pub(super) fn select_listed(
     rows: Vec<Listed>,
     keep: usize,
@@ -402,8 +410,8 @@ pub(super) fn select_listed(
     }
     let mut order: Vec<&Listed> = rows.iter().collect();
     order.sort_by(|a, b| {
-        (a.state != "running")
-            .cmp(&(b.state != "running"))
+        stopped(&a.state)
+            .cmp(&stopped(&b.state))
             .then_with(|| a.names.first().cmp(&b.names.first()))
             .then_with(|| a.id.cmp(&b.id))
     });
@@ -467,26 +475,35 @@ fn owned(admission: &mut Option<&mut super::read_admission::Scope>, text: &str) 
         None => Ok(text.to_owned()),
     }
 }
-pub(super) fn parse_storage_container_with_admission(
+/// A container's identity and state with no mounts read or counted: for a
+/// projection that never uses them (container health), so neither a mount's
+/// shape nor the Engine's mount total can refuse it.
+pub(super) fn parse_container_without_mounts(
     value: &Value,
     id: &str,
-    selected_limit: usize,
     mut admission: Option<&mut super::read_admission::Scope>,
 ) -> std::result::Result<ContainerStorageConsumer, Refusal> {
+    Ok(ContainerStorageConsumer {
+        container: container_facts(value, id, &mut admission)?,
+        mounts: Vec::new(),
+    })
+}
+fn container_facts(
+    value: &Value,
+    id: &str,
+    admission: &mut Option<&mut super::read_admission::Scope>,
+) -> std::result::Result<ContainerSnapshot, Refusal> {
     if value["Id"].as_str() != Some(id) {
         return Err(unavailable().into());
     }
-    if let Some(scope) = &mut admission {
+    if let Some(scope) = admission.as_mut() {
         scope.charge(id.len() + 10)?;
     }
-    let container = ContainerSnapshot {
+    Ok(ContainerSnapshot {
         resource: format!("container:{id}"),
-        image: owned(
-            &mut admission,
-            value["Image"].as_str().ok_or_else(unsupported)?,
-        )?,
+        image: owned(admission, value["Image"].as_str().ok_or_else(unsupported)?)?,
         started_at: owned(
-            &mut admission,
+            admission,
             value["State"]["StartedAt"]
                 .as_str()
                 .ok_or_else(unsupported)?,
@@ -494,7 +511,15 @@ pub(super) fn parse_storage_container_with_admission(
         running: value["State"]["Running"]
             .as_bool()
             .ok_or_else(unsupported)?,
-    };
+    })
+}
+pub(super) fn parse_storage_container_with_admission(
+    value: &Value,
+    id: &str,
+    selected_limit: usize,
+    mut admission: Option<&mut super::read_admission::Scope>,
+) -> std::result::Result<ContainerStorageConsumer, Refusal> {
+    let container = container_facts(value, id, &mut admission)?;
     let raw_mounts = value["Mounts"].as_array().ok_or_else(unsupported)?;
     if raw_mounts.len() > CONTAINER_STORAGE_MAX_MOUNTS {
         return Err(unsupported());

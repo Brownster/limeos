@@ -402,18 +402,64 @@ async fn sixteen_seventeen_and_sixty_four_containers_of_any_state_are_read_whole
         );
         owner.revalidate().await.unwrap();
     }
-    // The Engine-wide selected-mount ceiling (256) still refuses whole, as
-    // it does for the stack inventory.
+    // The health read uses no mounts, so the Engine-wide selected-mount
+    // ceiling (256), which still bounds the stack inventory, does not refuse
+    // it: 64 containers with 8 mounts each (512) answer.
     let f = fixture(Config {
         count: 64,
-        mounts: 5,
+        running_count: Some(40),
+        mounts: 8,
         ..config()
     })
     .await;
+    let started = Instant::now();
+    let owner = inspect(&f).await.unwrap();
+    assert_eq!(owner.snapshot().containers.len(), 64);
+    assert!(owner.snapshot().complete);
+    assert!(
+        owner
+            .storage()
+            .declarations()
+            .containers
+            .iter()
+            .all(|c| c.mounts.is_empty())
+    );
+    owner.revalidate().await.unwrap();
+    // What the reader's worker does: a read and its revalidation, four GETs
+    // per container plus ten (`CONTAINER_HEALTH_ENGINE_BUDGET`'s cost).
+    assert_eq!(f.requests().len(), 4 * 64 + 10);
+    eprintln!(
+        "64-container health read and revalidation against the fixture Engine: {:?}",
+        started.elapsed()
+    );
+    // The storage evidence of the same Engine still refuses past the bound.
     assert!(matches!(
-        inspect(&f).await,
+        f.docker
+            .inspect_storage_processes_with_profile(f.policy, EngineReadProfile::EngineWideV1)
+            .await,
         Err(Error(ErrorCode::Unavailable))
     ));
+}
+
+#[tokio::test]
+async fn a_container_with_a_mount_shape_the_storage_reads_refuse_is_still_read() {
+    // An image mount is unsupported storage evidence; health does not read it.
+    let f = fixture(Config {
+        count: 2,
+        all_running: true,
+        mount_type: Some((1, "image")),
+        ..config()
+    })
+    .await;
+    let owner = inspect(&f).await.unwrap();
+    let snap = owner.snapshot();
+    assert_eq!(snap.containers.len(), 2);
+    assert!(snap.complete);
+    assert!(
+        snap.containers
+            .iter()
+            .all(|c| c.health == HealthStatus::Healthy)
+    );
 }
 
 #[tokio::test]
@@ -474,7 +520,10 @@ async fn sixty_four_longest_named_checked_members_fit_the_joint_report() {
 }
 
 #[tokio::test]
-async fn joint_report_limit_refuses_amplification_without_clipping_the_inventory() {
+async fn long_mount_paths_cannot_amplify_the_health_report() {
+    // Mount paths once filled the joint storage-and-health report (48 KiB
+    // under CombinedV1) and refused the read; the health read carries no
+    // mounts, so even the smaller profile answers with every name at 255.
     let mut selected = fields("always", check(), status("healthy"));
     selected["Name"] = json!(format!("/{}", "n".repeat(255)));
     let f = fixture(Config {
@@ -486,13 +535,11 @@ async fn joint_report_limit_refuses_amplification_without_clipping_the_inventory
         ..config()
     })
     .await;
-    // The mechanism under the smaller profile: storage alone fits its report
-    // bound, storage and health together do not.
     assert!(f.inspect_combined().await.is_ok());
-    assert!(matches!(
-        inspect_with(&f, EngineReadProfile::CombinedV1).await,
-        Err(Error(ErrorCode::Unavailable))
-    ));
+    let owner = inspect_with(&f, EngineReadProfile::CombinedV1)
+        .await
+        .unwrap();
+    assert_eq!(owner.snapshot().containers.len(), 16);
 }
 
 #[tokio::test]
@@ -562,7 +609,7 @@ async fn original_wall_and_monotonic_lifetimes_survive_fresh_comparison() {
 
 /// The Pi shape that rolled the 26 November migration back: 18 containers,
 /// 14 running and 4 exited; three running with a passing check, two exited
-/// whose check had failed, the rest unchecked; 36 selected mounts.
+/// whose check had failed, the rest unchecked; 54 mounts (the host has 51).
 fn wybie() -> Config {
     let named = |index: usize, policy: &str| {
         json!({"Name": format!("/svc{index:02}"),
@@ -584,7 +631,7 @@ fn wybie() -> Config {
     Config {
         count: 18,
         running_count: Some(14),
-        mounts: 2,
+        mounts: 3,
         health_inspect: Some(fields("unless-stopped", Value::Null, Value::Null)),
         health_by_index: health,
         ..config()

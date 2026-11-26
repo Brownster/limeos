@@ -500,8 +500,8 @@ disputed: boolean, };
 export type StackInventory = { version: number, generated_at: number, catalog: StackSourceStatus, engine: StackSourceStatus, engine_matches_catalog: boolean | null, stacks: Array<StackView>, other_projects: Array<StackOtherProjectView>, standalone_containers: number | null,
 /**
  * Engine containers left out because the Engine holds more than
- * `MAX_ENGINE_CONTAINERS`; running ones are kept first. Counts above are
- * of the containers shown. `None` while the Engine source is not fresh.
+ * `MAX_ENGINE_CONTAINERS`; live ones (running, restarting, paused) are
+ * kept first. Counts above are of the containers shown. `None` while the Engine source is not fresh.
  */
 truncated_containers: number | null,
 /**

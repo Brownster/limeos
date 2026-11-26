@@ -138,9 +138,11 @@ impl EngineHealthEvidence {
 /// Fixed trusted reader. Runtime registration and independent supervision remain required.
 /// On `EngineWideV1`, as the stack inventory: a whole Engine of up to 64
 /// containers of any state is read; past that the selective listing keeps
-/// running containers first and counts the rest in `truncated` instead of
-/// refusing (an Engine of 18 containers, 14 running, refused under the
-/// earlier `CombinedV1` bound of 16 and 8, and rolled a cutover back).
+/// live containers (running, restarting, paused) before stopped ones and
+/// counts the rest in `truncated` instead of refusing. No mount is read, so no
+/// mount bound applies (an Engine of 18 containers, 14 running, 51 mounts,
+/// refused under the earlier `CombinedV1` bounds of 16, 8 and 32, and rolled
+/// a cutover back).
 /// Authenticated by the Engine's root-owned socket and root peer, like
 /// `inspect_compose_membership`; GET requests only; runs in the reader's
 /// health worker with the `docker` group and no capability (PR-32).

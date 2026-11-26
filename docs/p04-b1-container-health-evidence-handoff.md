@@ -17,20 +17,25 @@ consumer. Revalidation repeats those authenticated GETs and compares every
 selected health and original identity fact without renewing the clocks.
 
 The health path uses EngineWideV1, the stack inventory's profile: up to 64
-containers of any state (stopped ones count), all of which may run, and 256
-selected mounts; 64-KiB inspect bodies and a selective listing of up to 1,024
-rows; 8-MiB lifetime body and 4-MiB live payload allowances; and the existing
+containers of any state (stopped ones count), all of which may run; 64-KiB
+inspect bodies and a selective listing of up to 1,024 rows; 8-MiB lifetime
+body and 4-MiB live payload allowances; and the existing
 four-second collection/two-second request/original five-second lease. The
-complete original and health report must fit 256 KiB. Past 64 containers the
-listing keeps running containers first, then by name, and counts the rest in
-`truncated`; a truncated read is never complete. More than 1,024 listed rows,
-256 selected mounts or an oversized answer still refuse the whole read. No
-service limit, allocator/RSS guarantee or installed capacity acceptance is
-added.
+complete original and health report must fit 256 KiB. It reads no mounts: a
+container's storage facts carry its identity and state only, so neither a
+mount's shape nor the Engine's mount total (the 256 that bounds the stack
+inventory) can refuse it. Past 64 containers the listing keeps every
+container with a live process or restart loop (`running`, `restarting`,
+`paused`, `removing`, or a state the Engine adds later) before the stopped
+ones (`created`, `exited`, `dead`), each group by name, and counts the rest in
+`truncated`; a truncated read is never complete. More than 1,024 listed rows
+or an oversized answer still refuse the whole read. No service limit,
+allocator/RSS guarantee or installed capacity acceptance is added.
 
 Until 26 November 2026 the path used CombinedV1 (16 consumers, eight running,
 32 mounts, a 48-KiB report) and refused anything larger. An Engine of 18
-containers, 14 running, refused at its listing before any inspection, so the
+containers, 14 running, with 51 mounts, refused at its listing before any
+inspection, so the
 cutover's container-health read failed and the 26 November migration rolled
 back.
 
