@@ -83,6 +83,39 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
             });
             match mode {
                 3 => receipt.error = Some(ErrorCode::Unavailable),
+                // The reader's ceiling refuses the read before any collection.
+                14 => {
+                    receipt = Receipt::empty();
+                    receipt.ready = false;
+                    receipt.error = Some(ErrorCode::Forbidden);
+                }
+                // A granted read the reader could not answer, with its reason.
+                15 => {
+                    receipt = Receipt::empty();
+                    receipt.ready = false;
+                    receipt.error = Some(ErrorCode::Unavailable);
+                    receipt.health_failure =
+                        Some(limeos_executor_protocol::HealthReadFailure::EngineUnavailable);
+                }
+                // An Engine past the bound: read, with the rest counted.
+                16 => {
+                    let one = receipt.container_health.take().unwrap();
+                    receipt.container_health = Some(
+                        ContainerHealthCohort::with_truncated(
+                            one.nonce().into(),
+                            one.engine_id().into(),
+                            one.sampled_at(),
+                            one.members().to_vec(),
+                            3,
+                        )
+                        .unwrap(),
+                    );
+                }
+                // A reason on an answer that is not a refusal is malformed.
+                17 => {
+                    receipt.health_failure =
+                        Some(limeos_executor_protocol::HealthReadFailure::EngineChanged);
+                }
                 4 => {
                     receipt.stack_cohort = Some(
                         limeos_domain::deployment::discovery::DiscoveryCohort::new(None, None)
@@ -144,6 +177,92 @@ async fn replay_wrong_payload_clock_version_and_socket_replacement_refuse() {
         assert!(f.reader.read(deadline()).await.is_err(), "mode {mode}");
         assert_eq!(f.requests.load(Ordering::SeqCst), 1);
     }
+}
+#[tokio::test]
+async fn a_read_the_readers_ceiling_refuses_is_forbidden_not_unavailable() {
+    // `limeosctl reader-status --read container-health` reports `Forbidden`
+    // as not granted; a ceiling's "no" must reach it as that.
+    let f = fixture(14, 120).await;
+    assert_eq!(
+        f.reader.read(deadline()).await.err(),
+        Some(Error(ErrorCode::Forbidden))
+    );
+    assert_eq!(f.requests.load(Ordering::SeqCst), 1);
+}
+#[tokio::test]
+async fn reader_status_says_not_granted_why_it_failed_and_how_many_it_left_out() {
+    use limeos_contracts::{ReadResult, ReaderRead};
+    let outcome = |mode| async move {
+        let f = fixture(mode, 120).await;
+        crate::reader_health::container_health_read(f.reader.clone()).await
+    };
+    let accepted = outcome(0).await;
+    assert_eq!(accepted.read, ReaderRead::ContainerHealth);
+    assert_eq!(
+        (accepted.result, accepted.reason),
+        (ReadResult::Accepted, None)
+    );
+    let denied = outcome(14).await;
+    assert_eq!(
+        (denied.result, denied.reason),
+        (ReadResult::NotGranted, None)
+    );
+    let failed = outcome(15).await;
+    assert_eq!(failed.result, ReadResult::Failed);
+    assert_eq!(
+        failed.reason.as_deref(),
+        Some(
+            "the read failed: Unavailable: the Engine read was refused: the Engine was unreachable, an answer was over its byte bound or not of a shape it models, or the Engine has more than 1,024 containers"
+        )
+    );
+    // An older reader, or a malformed answer: the code alone.
+    let bare = outcome(3).await;
+    assert_eq!(
+        (bare.result, bare.reason.as_deref()),
+        (ReadResult::Failed, Some("the read failed: Unavailable"))
+    );
+    let truncated = outcome(16).await;
+    assert_eq!(truncated.result, ReadResult::Accepted);
+    assert_eq!(
+        truncated.reason.as_deref(),
+        Some(
+            "truncated: 3 container(s) beyond the 64-container bound (stopped ones first) were not read and are not watched"
+        )
+    );
+    assert_eq!(outcome(17).await.result, ReadResult::Failed);
+    // Core's own refusal of the socket is also `Forbidden`, but not the
+    // reader's ceiling saying no: it fails, it is never "not granted".
+    let mut f = fixture(14, 120).await;
+    let uid = rustix::process::geteuid().as_raw();
+    f.reader.owner = limeos_contracts::ExecutorOwner::with_anchor_owner(uid, uid);
+    let refused = crate::reader_health::container_health_read(f.reader.clone()).await;
+    assert_eq!(
+        (refused.result, refused.reason.as_deref()),
+        (
+            ReadResult::Failed,
+            Some("the read failed: Forbidden: core refuses the storage reader's socket")
+        )
+    );
+    assert_eq!(f.requests.load(Ordering::SeqCst), 0);
+    // Core gave up before any answer (a reader that never answers, 4 s):
+    // said so, not a bare "Expired".
+    let silent = outcome(13).await;
+    assert_eq!(
+        (silent.result, silent.reason.as_deref()),
+        (
+            ReadResult::Failed,
+            Some(
+                "the read failed: Expired: the storage reader gave no answer within core's 4 s window"
+            )
+        )
+    );
+}
+#[tokio::test]
+async fn a_truncated_cohort_reaches_core_marked_incomplete_with_its_count() {
+    let f = fixture(16, 120).await;
+    let fresh = f.reader.read(deadline()).await.unwrap();
+    assert_eq!(fresh.cohort().truncated(), 3);
+    assert!(!fresh.cohort().complete());
 }
 #[tokio::test]
 async fn a_socket_core_owns_and_a_symlink_refuse_before_request_bytes() {

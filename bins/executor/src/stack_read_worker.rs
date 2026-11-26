@@ -38,7 +38,9 @@ fn run() -> Result<(), ()> {
             .map_err(|_| ())?;
         return match runtime.block_on(boot.collect_health(loaded.nonce())) {
             Ok(report) => read_supervision::write_worker_report(&report),
-            Err(_) => read_supervision::write_worker_refusal(),
+            Err(failure) => read_supervision::write_worker_failure(
+                limeos_executor::health_read::failure_byte(failure),
+            ),
         }
         .map_err(|_| ());
     }

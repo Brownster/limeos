@@ -1,7 +1,7 @@
 //! Fresh storage-reader responses. Only this private owner carries local freshness.
 use limeos_contracts::ExecutorOwner;
 use limeos_domain::{Error, ErrorCode, Result, automation::ContainerHealthCohort};
-use limeos_executor_protocol::{Receipt, Request};
+use limeos_executor_protocol::{HealthReadFailure, Receipt, Request};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -15,6 +15,13 @@ pub(crate) const WINDOW: Duration = Duration::from_secs(4);
 const _: () = assert!(WINDOW.as_secs() < limeos_domain::CONTAINER_STORAGE_MAX_AGE_SECONDS as u64);
 const _: () =
     assert!(WINDOW.as_secs() < limeos_domain::automation::CONTAINER_HEALTH_SECONDS as u64);
+// The reader's worker window, counted from the request's arrival, ends well
+// inside this one, so a slow read reaches core as the reader's reason rather
+// than as core's own expiry.
+const _: () = assert!(
+    limeos_executor_protocol::CONTAINER_HEALTH_READER_WINDOW.as_millis() + 400
+        <= WINDOW.as_millis()
+);
 
 #[derive(Clone)]
 pub struct HealthReader {
@@ -86,6 +93,28 @@ impl HealthReader {
         }
     }
     pub async fn read(&self, outer_deadline: Instant) -> Result<FreshContainerHealth> {
+        self.read_explained(outer_deadline)
+            .await
+            .map_err(|refused| refused.error)
+    }
+    /// As `read`, with the reader's reason when it refused a granted read.
+    pub(crate) async fn read_explained(
+        &self,
+        outer_deadline: Instant,
+    ) -> std::result::Result<FreshContainerHealth, Refused> {
+        let mut answered = Answered::default();
+        let answer = self.exchange(outer_deadline, &mut answered).await;
+        answer.map_err(|error| Refused {
+            error,
+            reason: answered.reason,
+            by_reader: answered.error.is_some_and(|code| refusal(code) == error),
+        })
+    }
+    async fn exchange(
+        &self,
+        outer_deadline: Instant,
+        answered: &mut Answered,
+    ) -> Result<FreshContainerHealth> {
         let deadline = outer_deadline.min(Instant::now() + WINDOW);
         live(deadline)?;
         // Background: only a free gate. A request queued for it goes first.
@@ -119,6 +148,8 @@ impl HealthReader {
             let receipt: Receipt = limeos_contracts::read_frame(&mut stream).await?;
             live(deadline)?;
             socket.revalidate(&self.socket, owner)?;
+            answered.error = receipt.error;
+            answered.reason = receipt.health_failure;
             let cohort = only_health(receipt)?;
             if cohort.nonce() != nonce {
                 return Err(Error(ErrorCode::Conflict));
@@ -131,6 +162,31 @@ impl HealthReader {
         live(deadline)?;
         Ok(FreshContainerHealth { cohort, deadline })
     }
+}
+/// What the reader's answer said, if one arrived.
+#[derive(Default)]
+struct Answered {
+    error: Option<ErrorCode>,
+    reason: Option<HealthReadFailure>,
+}
+/// A refused read: the code, the reader's reason if it gave one, and whether
+/// the code is the reader's own answer (its ceiling's `Forbidden`, say)
+/// rather than core's refusal to use the reader's socket or its answer.
+#[derive(Debug)]
+pub(crate) struct Refused {
+    pub(crate) error: Error,
+    pub(crate) reason: Option<HealthReadFailure>,
+    pub(crate) by_reader: bool,
+}
+/// The reader's refusal as core treats it. Its ceiling's "no" (`Forbidden`)
+/// stays `Forbidden`, which `limeosctl reader-status` reports as not granted
+/// and the automation runtime retries like any unavailable read; a busy
+/// reader stays `Overloaded`. Any other refusal is `Unavailable`.
+fn refusal(code: ErrorCode) -> Error {
+    Error(match code {
+        ErrorCode::Forbidden | ErrorCode::Overloaded => code,
+        _ => ErrorCode::Unavailable,
+    })
 }
 fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
     let Receipt {
@@ -160,10 +216,11 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         target_preparation,
         container_storage,
         stranded_reads,
+        health_failure,
     } = receipt;
+    // Only the cohort, or a refusal (`ready: false`, the error and at most
+    // the reader's reason); anything else is a malformed answer.
     if version != limeos_contracts::VERSION
-        || !ready
-        || error.is_some()
         || budget_frees_at.is_some()
         || stack_cohort.is_some()
         || storage_mount_catalog.is_some()
@@ -189,7 +246,11 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
     {
         return Err(Error(ErrorCode::Unavailable));
     }
-    container_health.ok_or(Error(ErrorCode::Unavailable))
+    match (ready, error, container_health) {
+        (false, Some(code), None) => Err(refusal(code)),
+        (true, None, Some(cohort)) if health_failure.is_none() => Ok(cohort),
+        _ => Err(Error(ErrorCode::Unavailable)),
+    }
 }
 
 /// Core as tests model it: running under a UID other than the test

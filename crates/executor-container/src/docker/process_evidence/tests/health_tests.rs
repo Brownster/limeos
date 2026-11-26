@@ -21,16 +21,21 @@ fn config() -> Config {
         ..Default::default()
     }
 }
-async fn inspect(f: &Fixture) -> Result<EngineHealthEvidence> {
+async fn inspect_with(f: &Fixture, profile: EngineReadProfile) -> Result<EngineHealthEvidence> {
     let inner = inspect_projection(
         &f.docker,
         f.policy,
         TimeSource::default(),
-        Some(Admission::new(EngineReadProfile::CombinedV1)),
+        Some(Admission::new(profile)),
         Projection::Health,
     )
     .await?;
     EngineHealthEvidence::from_storage(inner)
+}
+/// The production health read (`inspect_container_health`) against this
+/// fixture's socket, under its own profile.
+async fn inspect(f: &Fixture) -> Result<EngineHealthEvidence> {
+    EngineHealthEvidence::from_storage(inspect_health(&f.docker, f.policy).await?)
 }
 
 #[tokio::test]
@@ -375,45 +380,150 @@ async fn dropped_or_concurrent_validation_poison_cannot_be_bypassed_through_stor
 }
 
 #[tokio::test]
-async fn closed_membership_running_and_mount_limits_are_not_raised() {
+async fn sixteen_seventeen_and_sixty_four_containers_of_any_state_are_read_whole() {
+    // Stopped containers count toward the bound like running ones.
+    for (count, running, mounts) in [(16, 9, 2), (17, 1, 0), (17, 17, 2), (64, 40, 4)] {
+        let f = fixture(Config {
+            count,
+            running_count: Some(running),
+            mounts,
+            ..config()
+        })
+        .await;
+        let owner = inspect(&f).await.unwrap();
+        let snap = owner.snapshot();
+        assert_eq!(snap.containers.len(), count, "{count}");
+        assert_eq!(snap.truncated, 0, "{count}");
+        assert!(snap.complete, "{count}");
+        assert_eq!(owner.storage().running().len(), running, "{count}");
+        assert_eq!(
+            snap.containers.iter().filter(|c| !c.running).count(),
+            count - running
+        );
+        owner.revalidate().await.unwrap();
+    }
+    // The health read uses no mounts, so the Engine-wide selected-mount
+    // ceiling (256), which still bounds the stack inventory, does not refuse
+    // it: 64 containers with 8 mounts each (512) answer.
     let f = fixture(Config {
-        count: 16,
-        running_count: Some(8),
-        mounts: 2,
+        count: 64,
+        running_count: Some(40),
+        mounts: 8,
+        ..config()
+    })
+    .await;
+    let started = Instant::now();
+    let owner = inspect(&f).await.unwrap();
+    assert_eq!(owner.snapshot().containers.len(), 64);
+    assert!(owner.snapshot().complete);
+    assert!(
+        owner
+            .storage()
+            .declarations()
+            .containers
+            .iter()
+            .all(|c| c.mounts.is_empty())
+    );
+    owner.revalidate().await.unwrap();
+    // What the reader's worker does: a read and its revalidation, four GETs
+    // per container plus ten (`CONTAINER_HEALTH_ENGINE_BUDGET`'s cost).
+    assert_eq!(f.requests().len(), 4 * 64 + 10);
+    eprintln!(
+        "64-container health read and revalidation against the fixture Engine: {:?}",
+        started.elapsed()
+    );
+    // The storage evidence of the same Engine still refuses past the bound.
+    assert!(matches!(
+        f.docker
+            .inspect_storage_processes_with_profile(f.policy, EngineReadProfile::EngineWideV1)
+            .await,
+        Err(Error(ErrorCode::Unavailable))
+    ));
+}
+
+#[tokio::test]
+async fn a_container_with_a_mount_shape_the_storage_reads_refuse_is_still_read() {
+    // An image mount is unsupported storage evidence; health does not read it.
+    let f = fixture(Config {
+        count: 2,
+        all_running: true,
+        mount_type: Some((1, "image")),
         ..config()
     })
     .await;
     let owner = inspect(&f).await.unwrap();
-    assert_eq!(owner.snapshot().containers.len(), 16);
-    assert_eq!(owner.storage().running().len(), 8);
-    assert!(owner.snapshot().containers[8..].iter().all(|c| !c.running));
-    for config in [
-        Config {
-            count: 17,
+    let snap = owner.snapshot();
+    assert_eq!(snap.containers.len(), 2);
+    assert!(snap.complete);
+    assert!(
+        snap.containers
+            .iter()
+            .all(|c| c.health == HealthStatus::Healthy)
+    );
+}
+
+#[tokio::test]
+async fn past_sixty_four_the_read_keeps_running_containers_and_counts_the_rest() {
+    for (count, running) in [(65, 40), (65, 64), (200, 67)] {
+        let f = fixture(Config {
+            count,
+            running_count: Some(running),
             ..config()
-        },
-        Config {
-            count: 16,
-            running_count: Some(9),
-            ..config()
-        },
-        Config {
-            count: 16,
-            mounts: 3,
-            running_count: Some(8),
-            ..config()
-        },
-    ] {
-        let f = fixture(config).await;
-        assert!(matches!(
-            inspect(&f).await,
-            Err(Error(ErrorCode::Unavailable))
-        ));
+        })
+        .await;
+        let owner = inspect(&f).await.unwrap();
+        let snap = owner.snapshot();
+        assert_eq!(snap.containers.len(), 64, "{count}");
+        assert_eq!(usize::from(snap.truncated), count - 64, "{count}");
+        // Truncated containers are unknown, so the read is not complete,
+        // though every member read has its signal.
+        assert!(!snap.complete, "{count}");
+        assert!(snap.containers.iter().all(|c| c.signal.is_some()));
+        // Running containers first, then stopped ones by name (c000, ...).
+        let mut expected: Vec<_> = (0..count)
+            .filter(|i| *i < running)
+            .chain((0..count).filter(|i| *i >= running))
+            .take(64)
+            .map(|i| format!("container:{i:064x}"))
+            .collect();
+        expected.sort();
+        let read: Vec<_> = snap.containers.iter().map(|c| c.resource.clone()).collect();
+        assert_eq!(read, expected, "{count}");
+        assert_eq!(
+            snap.containers.iter().filter(|c| c.running).count(),
+            running.min(64)
+        );
+        owner.revalidate().await.unwrap();
     }
 }
 
 #[tokio::test]
-async fn joint_report_limit_refuses_amplification_without_clipping_the_inventory() {
+async fn sixty_four_longest_named_checked_members_fit_the_joint_report() {
+    // Every name at the Engine's 255-byte limit, every container checked, and
+    // the Engine-wide mount share: the largest health read the profile admits.
+    let mut selected = fields("always", check(), status("unhealthy"));
+    selected["Name"] = json!(format!("/{}", "n".repeat(255)));
+    let f = fixture(Config {
+        count: 64,
+        running_count: Some(64),
+        mounts: 4,
+        health_inspect: Some(selected),
+        ..config()
+    })
+    .await;
+    let owner = inspect(&f).await.unwrap();
+    let snap = owner.snapshot();
+    assert_eq!(snap.containers.len(), 64);
+    assert!(snap.containers.iter().all(|c| {
+        c.signal.as_ref().unwrap().status == SignalStatus::Failing && c.name.len() == 255
+    }));
+}
+
+#[tokio::test]
+async fn long_mount_paths_cannot_amplify_the_health_report() {
+    // Mount paths once filled the joint storage-and-health report (48 KiB
+    // under CombinedV1) and refused the read; the health read carries no
+    // mounts, so even the smaller profile answers with every name at 255.
     let mut selected = fields("always", check(), status("healthy"));
     selected["Name"] = json!(format!("/{}", "n".repeat(255)));
     let f = fixture(Config {
@@ -426,10 +536,10 @@ async fn joint_report_limit_refuses_amplification_without_clipping_the_inventory
     })
     .await;
     assert!(f.inspect_combined().await.is_ok());
-    assert!(matches!(
-        inspect(&f).await,
-        Err(Error(ErrorCode::Unavailable))
-    ));
+    let owner = inspect_with(&f, EngineReadProfile::CombinedV1)
+        .await
+        .unwrap();
+    assert_eq!(owner.snapshot().containers.len(), 16);
 }
 
 #[tokio::test]
@@ -497,23 +607,77 @@ async fn original_wall_and_monotonic_lifetimes_survive_fresh_comparison() {
     tokio::time::resume();
 }
 
-#[tokio::test]
-async fn health_read_keeps_the_combined_profile_so_eighteen_containers_refuse() {
-    // Deliberate: only the alert/health-policy automation reads this projection,
-    // behind `allow_container_health_read` (off by default, outside the basic
-    // cutover). An Engine past 16 containers or 8 running fails closed here;
-    // stack and container reads use EngineWideV1 or Engine-direct calls instead.
-    let f = fixture(Config {
+/// The Pi shape that rolled the 26 November migration back: 18 containers,
+/// 14 running and 4 exited; three running with a passing check, two exited
+/// whose check had failed, the rest unchecked; 54 mounts (the host has 51).
+fn wybie() -> Config {
+    let named = |index: usize, policy: &str| {
+        json!({"Name": format!("/svc{index:02}"),
+            "HostConfig": {"RestartPolicy": {"Name": policy}}})
+    };
+    let mut health = Vec::new();
+    for index in 0..18 {
+        let mut value = named(index, if index >= 16 { "no" } else { "unless-stopped" });
+        if index < 3 {
+            value["Config"] = json!({"Healthcheck": check()});
+            value["State"] = json!({"Health": status("healthy")});
+        } else if index == 14 || index == 15 {
+            value["HostConfig"]["RestartPolicy"]["Name"] = json!("always");
+            value["Config"] = json!({"Healthcheck": check()});
+            value["State"] = json!({"Health": status("unhealthy")});
+        }
+        health.push((index, value));
+    }
+    Config {
         count: 18,
         running_count: Some(14),
-        mounts: 0,
+        mounts: 3,
+        health_inspect: Some(fields("unless-stopped", Value::Null, Value::Null)),
+        health_by_index: health,
         ..config()
-    })
-    .await;
-    assert!(matches!(
-        inspect(&f).await,
-        Err(Error(ErrorCode::Unavailable))
-    ));
+    }
+}
+
+#[tokio::test]
+async fn a_wybie_shaped_engine_of_eighteen_answers_every_container() {
+    let f = fixture(wybie()).await;
+    let owner = inspect(&f).await.unwrap();
+    let snap = owner.snapshot();
+    assert_eq!(snap.containers.len(), 18);
+    assert_eq!(snap.truncated, 0);
+    assert!(snap.complete);
+    assert_eq!(owner.storage().running().len(), 14);
+    let by_index = |index: usize| {
+        let resource = format!("container:{index:064x}");
+        snap.containers
+            .iter()
+            .find(|c| c.resource == resource)
+            .unwrap()
+    };
+    for index in 0..14 {
+        let row = by_index(index);
+        assert!(row.running, "{index}");
+        assert_eq!(
+            row.signal.as_ref().map(|s| s.status),
+            Some(SignalStatus::Healthy),
+            "{index}"
+        );
+    }
+    assert_eq!(by_index(0).health, HealthStatus::Healthy);
+    assert_eq!(by_index(3).health, HealthStatus::NotConfigured);
+    for index in [14, 15] {
+        let row = by_index(index);
+        assert!(!row.running);
+        assert_eq!(row.health, HealthStatus::Unhealthy);
+        let signal = row.signal.as_ref().unwrap();
+        assert_eq!(signal.status, SignalStatus::Failing);
+        assert_eq!(signal.summary, format!("svc{index} is not running"));
+    }
+    for index in [16, 17] {
+        // Stopped with restart `no`: listed, counted, and not alerted on.
+        assert!(by_index(index).signal.is_none());
+    }
+    owner.revalidate().await.unwrap();
 }
 #[tokio::test]
 async fn a_container_removed_during_the_read_is_reported_gone_not_unavailable() {

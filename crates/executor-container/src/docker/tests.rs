@@ -604,3 +604,42 @@ async fn logs_for_a_removed_container_are_not_found() {
     assert!(calls.lock().unwrap().iter().all(|c| !c.contains("/logs")));
     task.abort();
 }
+
+#[test]
+fn past_the_bound_live_containers_of_any_state_are_kept_before_stopped_ones() {
+    // 60 running, four live but not running (named to sort last), three
+    // stopped (named to sort first): exactly the three stopped ones are left
+    // out of 64, never a restarting (crash-looping) or paused container.
+    let mut rows = Vec::new();
+    let mut add = |index: usize, name: &str, state: &str| {
+        rows.push(
+            serde_json::json!({"Id": format!("{index:064x}"), "State": state,
+            "Names": [format!("/{name}")], "Labels": {}}),
+        );
+    };
+    for index in 0..60 {
+        add(index, &format!("a{index:02}"), "running");
+    }
+    let live = [
+        (60, "zz-restarting", "restarting"),
+        (61, "zz-paused", "paused"),
+        (62, "zz-removing", "removing"),
+        (63, "zz-future", "a-state-not-yet-known"),
+    ];
+    let stopped = [
+        (64, "b-exited", "exited"),
+        (65, "b-created", "created"),
+        (66, "b-dead", "dead"),
+    ];
+    for (index, name, state) in live.iter().chain(&stopped) {
+        add(*index, name, state);
+    }
+    let bytes = serde_json::to_vec(&rows).unwrap();
+    let listed = storage::parse_listing(&bytes, 1024).unwrap();
+    let admission = read_admission::Admission::new(read_admission::EngineReadProfile::EngineWideV1);
+    let mut scope = admission.scope();
+    let selected = storage::select_listed(listed, 64, &mut scope).unwrap();
+    assert_eq!(selected.truncated, 3);
+    let kept: Vec<_> = (0..64).map(|i| format!("{i:064x}")).collect();
+    assert_eq!(selected.ids, kept);
+}

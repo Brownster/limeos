@@ -164,14 +164,25 @@ pub(super) fn container_bindings(
     if scopes != resources {
         return Err(Error(ErrorCode::Forbidden));
     }
-    let present = |resource: &str| {
+    // A whole cohort must name every container an alert or silence is held
+    // for: one it does not name would otherwise be silently retired. A
+    // truncated cohort (past the Engine bound) leaves some containers out
+    // without saying which: an alert or silence held for a full container ID
+    // it does not name is unknown this pass. It is kept exactly as it is,
+    // never resolved, retired or folded, while the members present are still
+    // processed; a legacy name still refuses.
+    let bound = |resource: &str| {
         resource
             .strip_prefix("container:")
             .is_some_and(limeos_domain::opaque_id)
-            && cohort
-                .members()
-                .binary_search_by(|m| m.resource.as_str().cmp(resource))
-                .is_ok()
+    };
+    let present = |resource: &str| {
+        bound(resource)
+            && (cohort.truncated() > 0
+                || cohort
+                    .members()
+                    .binary_search_by(|m| m.resource.as_str().cmp(resource))
+                    .is_ok())
     };
     if policy
         .definition

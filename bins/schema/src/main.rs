@@ -445,6 +445,7 @@ fn main() {
     ts!(limeos_domain::deployment::discovery::DiscoveryCohort);
     ts!(limeos_executor_protocol::Ceiling);
     ts!(limeos_executor_protocol::StrandedReads);
+    ts!(limeos_executor_protocol::HealthReadFailure);
     ts!(limeos_executor_protocol::Receipt);
     types.push_str("export type RestartPlan = ContainerPlan;\nexport type PlannedRestart = PlannedContainerAction;\nexport type RestartJob = ContainerJob;\nexport type RestartRequest = ContainerRequest;\nexport type RestartReceipt = ContainerReceipt;\n");
     std::fs::write(dir.join("types.ts"), types).unwrap();

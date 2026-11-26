@@ -7,8 +7,15 @@ use serde::{
 };
 use std::{fmt, io::Write, marker::PhantomData};
 
-pub const CONTAINER_HEALTH_MEMBERS: usize = 16;
-pub const CONTAINER_HEALTH_BYTES: usize = 32 * 1024;
+/// The product's Engine bound (`MAX_ENGINE_CONTAINERS`), stopped containers
+/// included. An Engine with more is read up to this many, running ones
+/// first, and the rest are counted in `truncated`, never dropped silently.
+pub const CONTAINER_HEALTH_MEMBERS: usize = crate::deployment::discovery::MAX_ENGINE_CONTAINERS;
+/// The encoded cohort. It travels whole in one executor answer, so it stays
+/// under the 64 KiB frame (`limeos_contracts::FRAME_LIMIT`) with room for the
+/// receipt around it. Engine names are at most 255 bytes of `[A-Za-z0-9_.-]`,
+/// so a member is at most about 540 bytes and 64 of them about 34 KiB.
+pub const CONTAINER_HEALTH_BYTES: usize = 56 * 1024;
 pub const CONTAINER_HEALTH_SECONDS: i64 = 5;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, schemars::JsonSchema, ts_rs::TS)]
@@ -29,9 +36,17 @@ pub struct ContainerHealthCohort {
     engine_id: String,
     #[ts(type = "number")]
     sampled_at: i64,
+    /// False when any member's signal is unavailable or any container was
+    /// left out (`truncated`): an absent container is unknown, never healthy
+    /// or gone.
     complete: bool,
-    #[schemars(length(max = 16))]
+    #[schemars(length(max = 64))]
     members: Vec<ContainerHealthMember>,
+    /// Engine containers beyond `CONTAINER_HEALTH_MEMBERS` that this cohort
+    /// does not read (stopped ones are left out before running ones). Absent
+    /// from an older reader's answer, which never truncated.
+    #[serde(default)]
+    truncated: u16,
 }
 fn invalid() -> Error {
     Error(ErrorCode::InvalidInput)
@@ -42,6 +57,17 @@ impl ContainerHealthCohort {
         engine_id: String,
         sampled_at: i64,
         members: Vec<ContainerHealthMember>,
+    ) -> Result<Self> {
+        Self::with_truncated(nonce, engine_id, sampled_at, members, 0)
+    }
+    /// As `new`, for an Engine of more containers than the bound: `truncated`
+    /// of them were not read, so the cohort is never complete.
+    pub fn with_truncated(
+        nonce: String,
+        engine_id: String,
+        sampled_at: i64,
+        members: Vec<ContainerHealthMember>,
+        truncated: u16,
     ) -> Result<Self> {
         if !crate::opaque_id(&nonce)
             || !super::text(&engine_id, 128)
@@ -69,11 +95,12 @@ impl ContainerHealthCohort {
                 }
             }
         }
-        let complete = members.iter().all(|m| {
-            m.signal
-                .as_ref()
-                .is_none_or(|s| s.status != SignalStatus::Unavailable)
-        });
+        let complete = truncated == 0
+            && members.iter().all(|m| {
+                m.signal
+                    .as_ref()
+                    .is_none_or(|s| s.status != SignalStatus::Unavailable)
+            });
         let value = Self {
             version: 1,
             nonce,
@@ -81,6 +108,7 @@ impl ContainerHealthCohort {
             sampled_at,
             complete,
             members,
+            truncated,
         };
         value.check_size()?;
         Ok(value)
@@ -99,6 +127,11 @@ impl ContainerHealthCohort {
     }
     pub fn members(&self) -> &[ContainerHealthMember] {
         &self.members
+    }
+    /// Engine containers this cohort does not read. Their health is unknown:
+    /// a consumer must not resolve, retire or silence anything about them.
+    pub fn truncated(&self) -> u16 {
+        self.truncated
     }
     pub fn check_time(&self, requested: i64, received: i64) -> Result<()> {
         if !valid_time(requested)
@@ -188,7 +221,7 @@ fn members<'de, D: de::Deserializer<'de>>(
     impl<'de> Visitor<'de> for Rows {
         type Value = Vec<MemberWire>;
         fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.write_str("at most sixteen health members")
+            f.write_str("at most sixty-four health members")
         }
         fn visit_seq<A: SeqAccess<'de>>(
             self,
@@ -217,6 +250,8 @@ struct Wire {
     complete: bool,
     #[serde(deserialize_with = "members")]
     members: Vec<MemberWire>,
+    #[serde(default)]
+    truncated: u16,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -254,8 +289,14 @@ impl<'de> Deserialize<'de> for ContainerHealthCohort {
                 }),
             })
             .collect();
-        let value = Self::new(wire.nonce.0, wire.engine_id.0, wire.sampled_at, members)
-            .map_err(|_| de::Error::custom("invalid health cohort"))?;
+        let value = Self::with_truncated(
+            wire.nonce.0,
+            wire.engine_id.0,
+            wire.sampled_at,
+            members,
+            wire.truncated,
+        )
+        .map_err(|_| de::Error::custom("invalid health cohort"))?;
         if value.complete != wire.complete {
             return Err(de::Error::custom("health completeness mismatch"));
         }

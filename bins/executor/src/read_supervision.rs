@@ -3,8 +3,8 @@
 mod guardian;
 use crate::read_budget::{FlightGuard, SingleFlight};
 pub use guardian::{
-    WorkerBootstrap, guardian, write_worker_capability_refusal, write_worker_refusal,
-    write_worker_report,
+    WorkerBootstrap, guardian, write_worker_capability_refusal, write_worker_failure,
+    write_worker_refusal, write_worker_report,
 };
 use rustix::{fd::AsFd, fs::OFlags};
 use serde::Deserialize;
@@ -58,6 +58,8 @@ const WINDOW: Duration = Duration::from_secs(4);
 const TICK: Duration = Duration::from_millis(10);
 const REPORT: usize = 256 * 1024;
 const HEADER: usize = 5;
+/// The frame status of `Refusal::WorkerFailed`, whose body is its one byte.
+const FAILED: u8 = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
@@ -72,6 +74,10 @@ pub enum Refusal {
     /// The worker refused to collect because it held a capability
     /// (`worker_holds_no_capability`): its guardian did not clear it.
     WorkerCapability,
+    /// The worker refused with a closed one-byte reason its role defines
+    /// (the health worker's `health_read::failure_byte`), relayed by its
+    /// guardian.
+    WorkerFailed(u8),
 }
 pub type Result<T> = std::result::Result<T, Refusal>;
 
@@ -406,6 +412,13 @@ impl Capture {
             self.bytes.copy_within(HEADER.., 0);
             self.bytes.truncate(length);
             Ok(Frame::Report(SupervisedReport(self.bytes)))
+        } else if status == FAILED {
+            // A worker's reason, from the worker or relayed by its guardian:
+            // exactly one byte, which the role interprets.
+            if length != 1 {
+                return Err(Refusal::InvalidOutput);
+            }
+            Ok(Frame::Refused(Refusal::WorkerFailed(self.bytes[HEADER])))
         } else if length != 0 || (worker && !matches!(status, 1 | 7)) || !(1..=7).contains(&status)
         {
             Err(Refusal::InvalidOutput)

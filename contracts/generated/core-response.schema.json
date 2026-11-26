@@ -1377,6 +1377,7 @@
           "$ref": "#/$defs/ReaderRead"
         },
         "reason": {
+          "description": "How a failed read failed (for a container-health read, with the\nreader's own reason when it gave one). On an accepted container-health\nread of an Engine past its 64-container bound, how many containers it\nleft out.",
           "type": [
             "string",
             "null"

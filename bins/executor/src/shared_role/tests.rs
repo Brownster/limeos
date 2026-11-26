@@ -249,3 +249,36 @@ async fn a_capability_granted_after_start_without_its_resource_is_unavailable() 
     assert_eq!(stacks.error, Some(ErrorCode::Unavailable));
     assert!(stacks.stack_cohort.is_none());
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_container_health_read_the_ceiling_denies_is_forbidden_and_a_failed_one_says_why() {
+    if me() == 0 {
+        return eprintln!("skipped: a root test user cannot be core");
+    }
+    let root = Root::new();
+    let ceiling = |granted: bool| {
+        format!(
+            r#"{{"version":1,"core_uid":{},"allow_health":true,"allow_storage_read":true,"allow_stack_read":true,"allow_container_health_read":{granted}}}"#,
+            me()
+        )
+    };
+    let read = Request::ContainerHealth {
+        version: VERSION,
+        nonce: "a".repeat(64),
+    };
+    // Denied: the ceiling's "no", before any collection or worker.
+    root.write(&FILE[1..], &ceiling(false));
+    let reader = Arc::new(self::role(&root, CeilingRole::StorageReader));
+    let denied = exchange(&reader, &read).await;
+    assert_eq!(denied.error, Some(ErrorCode::Forbidden));
+    assert!(denied.health_failure.is_none());
+    assert!(denied.container_health.is_none());
+    // Granted, but this test process has no protected worker to run: the
+    // refusal carries its reason.
+    root.write(&FILE[1..], &ceiling(true));
+    let failed = exchange(&reader, &read).await;
+    assert_eq!(failed.error, Some(ErrorCode::Unavailable));
+    assert!(failed.health_failure.is_some(), "no reason given");
+    assert!(failed.container_health.is_none());
+    assert!(!failed.ready);
+}

@@ -63,6 +63,17 @@
         }
       ]
     },
+    "health_failure": {
+      "description": "Set with `error` on the storage reader's refusal of a granted\ncontainer-health read: why it could not answer.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HealthReadFailure"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "inspection": {
       "anyOf": [
         {
@@ -354,6 +365,7 @@
       "type": "object",
       "properties": {
         "complete": {
+          "description": "False when any member's signal is unavailable or any container was\nleft out (`truncated`): an absent container is unknown, never healthy\nor gone.",
           "type": "boolean"
         },
         "engine_id": {
@@ -366,7 +378,7 @@
           "items": {
             "$ref": "#/$defs/ContainerHealthMember"
           },
-          "maxItems": 16
+          "maxItems": 64
         },
         "nonce": {
           "type": "string",
@@ -376,6 +388,14 @@
         "sampled_at": {
           "type": "integer",
           "format": "int64"
+        },
+        "truncated": {
+          "description": "Engine containers beyond `CONTAINER_HEALTH_MEMBERS` that this cohort\ndoes not read (stopped ones are left out before running ones). Absent\nfrom an older reader's answer, which never truncated.",
+          "type": "integer",
+          "format": "uint16",
+          "default": 0,
+          "maximum": 65535,
+          "minimum": 0
         },
         "version": {
           "type": "integer",
@@ -881,6 +901,81 @@
         "state",
         "max_age_seconds",
         "warnings"
+      ]
+    },
+    "HealthReadFailure": {
+      "description": "Why the storage reader could not answer a container-health read it was\ngranted: a closed, non-secret code (no Engine text, name or path) sent\nwith `error` so an operator can act on \"unavailable\". The reader logs the\nsame reason in its journal.",
+      "oneOf": [
+        {
+          "description": "The reader itself was over its memory or descriptor budget before\nstarting the health worker.",
+          "type": "string",
+          "const": "reader_budget"
+        },
+        {
+          "description": "Another protected read held the single worker slot.",
+          "type": "string",
+          "const": "worker_busy"
+        },
+        {
+          "description": "The worker did not finish within its supervision window\n(`CONTAINER_HEALTH_READER_WINDOW` from the request's arrival).",
+          "type": "string",
+          "const": "worker_deadline"
+        },
+        {
+          "description": "The worker held a capability and refused to read.",
+          "type": "string",
+          "const": "worker_capability"
+        },
+        {
+          "description": "The worker or its guardian could not start, exited abnormally or\nwrote a malformed report.",
+          "type": "string",
+          "const": "worker_failed"
+        },
+        {
+          "description": "A worker's cleanup was not confirmed earlier; protected reads stay\nrefused until the reader restarts.",
+          "type": "string",
+          "const": "worker_cleanup"
+        },
+        {
+          "description": "The worker was over its memory budget.",
+          "type": "string",
+          "const": "worker_memory"
+        },
+        {
+          "description": "The worker was over its descriptor, file-limit or thread budget.",
+          "type": "string",
+          "const": "worker_descriptors"
+        },
+        {
+          "description": "The Engine's socket or peer is not the root-owned Engine.",
+          "type": "string",
+          "const": "engine_forbidden"
+        },
+        {
+          "description": "The Engine read was refused: the Engine was unreachable, an answer was\nover its byte bound or not of a shape it models, or the Engine is past\nthe bound the read does not truncate (more than 1,024 listed).",
+          "type": "string",
+          "const": "engine_unavailable"
+        },
+        {
+          "description": "The Engine read ran out of its counted memory allowance.",
+          "type": "string",
+          "const": "engine_overloaded"
+        },
+        {
+          "description": "The Engine changed while it was read; the next read may succeed.",
+          "type": "string",
+          "const": "engine_changed"
+        },
+        {
+          "description": "The answer was over the cohort's member or byte bound.",
+          "type": "string",
+          "const": "cohort_bound"
+        },
+        {
+          "description": "The Engine read did not finish within its budget\n(`CONTAINER_HEALTH_ENGINE_BUDGET`): the Engine answered slowly.",
+          "type": "string",
+          "const": "engine_slow"
+        }
       ]
     },
     "HostMetrics": {

@@ -127,22 +127,29 @@ impl Core {
     /// the same exchange as `fresh_storage`, but it takes the read gate only
     /// if it is free (a busy gate is `Overloaded`; the caller retries), and
     /// keeps the reader's own refusal (`Forbidden` for a ceiling that does
-    /// not grant the read).
-    pub(super) async fn probe_storage(&self) -> Result<StorageInventory> {
+    /// not grant the read). The flag says whether the error is the reader's
+    /// own answer rather than core's (a socket it refuses, a busy gate).
+    pub(super) async fn probe_storage(
+        &self,
+    ) -> std::result::Result<StorageInventory, (Error, bool)> {
+        let core = |error| (error, false);
         let _permit = self
             .storage_readers
             .clone()
             .try_acquire_owned()
-            .map_err(|_| Error(ErrorCode::Overloaded))?;
-        let receipt = self.storage_exchange().await?;
+            .map_err(|_| core(Error(ErrorCode::Overloaded)))?;
+        let receipt = self.storage_exchange().await.map_err(core)?;
         if let Some(error) = receipt.error {
-            return Err(Error(error));
+            return Err((Error(error), true));
         }
         if receipt.version != VERSION || !receipt.ready {
-            return Err(Error(ErrorCode::Unavailable));
+            return Err(core(Error(ErrorCode::Unavailable)));
         }
-        let inventory = receipt.storage.ok_or(Error(ErrorCode::Unavailable))?;
-        inventory.validate()?;
+        let inventory = receipt
+            .storage
+            .ok_or(Error(ErrorCode::Unavailable))
+            .map_err(core)?;
+        inventory.validate().map_err(core)?;
         Ok(inventory)
     }
     async fn storage_exchange(&self) -> Result<limeos_executor_protocol::Receipt> {
