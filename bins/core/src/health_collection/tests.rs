@@ -83,6 +83,12 @@ async fn fixture(mode: u8, at: i64) -> Fixture {
             });
             match mode {
                 3 => receipt.error = Some(ErrorCode::Unavailable),
+                // The reader's ceiling refuses the read before any collection.
+                14 => {
+                    receipt = Receipt::empty();
+                    receipt.ready = false;
+                    receipt.error = Some(ErrorCode::Forbidden);
+                }
                 4 => {
                     receipt.stack_cohort = Some(
                         limeos_domain::deployment::discovery::DiscoveryCohort::new(None, None)
@@ -144,6 +150,17 @@ async fn replay_wrong_payload_clock_version_and_socket_replacement_refuse() {
         assert!(f.reader.read(deadline()).await.is_err(), "mode {mode}");
         assert_eq!(f.requests.load(Ordering::SeqCst), 1);
     }
+}
+#[tokio::test]
+async fn a_read_the_readers_ceiling_refuses_is_forbidden_not_unavailable() {
+    // `limeosctl reader-status --read container-health` reports `Forbidden`
+    // as not granted; a ceiling's "no" must reach it as that.
+    let f = fixture(14, 120).await;
+    assert_eq!(
+        f.reader.read(deadline()).await.err(),
+        Some(Error(ErrorCode::Forbidden))
+    );
+    assert_eq!(f.requests.load(Ordering::SeqCst), 1);
 }
 #[tokio::test]
 async fn a_socket_core_owns_and_a_symlink_refuse_before_request_bytes() {

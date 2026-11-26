@@ -132,6 +132,16 @@ impl HealthReader {
         Ok(FreshContainerHealth { cohort, deadline })
     }
 }
+/// The reader's refusal as core treats it. Its ceiling's "no" (`Forbidden`)
+/// stays `Forbidden`, which `limeosctl reader-status` reports as not granted
+/// and the automation runtime retries like any unavailable read; a busy
+/// reader stays `Overloaded`. Any other refusal is `Unavailable`.
+fn refusal(code: ErrorCode) -> Error {
+    Error(match code {
+        ErrorCode::Forbidden | ErrorCode::Overloaded => code,
+        _ => ErrorCode::Unavailable,
+    })
+}
 fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
     let Receipt {
         container_health,
@@ -161,9 +171,9 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
         container_storage,
         stranded_reads,
     } = receipt;
+    // Only the cohort, or a refusal (`ready: false` and the error); anything
+    // else is a malformed answer.
     if version != limeos_contracts::VERSION
-        || !ready
-        || error.is_some()
         || budget_frees_at.is_some()
         || stack_cohort.is_some()
         || storage_mount_catalog.is_some()
@@ -189,7 +199,11 @@ fn only_health(receipt: Receipt) -> Result<ContainerHealthCohort> {
     {
         return Err(Error(ErrorCode::Unavailable));
     }
-    container_health.ok_or(Error(ErrorCode::Unavailable))
+    match (ready, error, container_health) {
+        (false, Some(code), None) => Err(refusal(code)),
+        (true, None, Some(cohort)) => Ok(cohort),
+        _ => Err(Error(ErrorCode::Unavailable)),
+    }
 }
 
 /// Core as tests model it: running under a UID other than the test
