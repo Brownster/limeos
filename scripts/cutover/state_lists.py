@@ -59,7 +59,12 @@ def build(report, live):
             skipped["Compose files under the stacks directory"] += 1
             continue
         if f["kind"] == "virtualenv":
-            skipped[f"virtual environment {locations[location]}/{relative} (one entry, not descended)"] += 1
+            counted = f.get("entries_not_listed")
+            if counted is None:
+                detail = "entries not counted by this scan"
+            else:
+                detail = f"{'at least ' if f.get('entries_not_listed_bounded') else ''}{counted} entries under it counted, not listed"
+            skipped[f"virtual environment {locations[location]}/{relative} (one entry; {detail})"] += 1
             continue
         if f["kind"] != "file":
             skipped[f"{f['kind']} (not a regular file)"] += 1

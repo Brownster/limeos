@@ -240,22 +240,58 @@ fct_lock_holder_text() { # lock
     fi
 }
 
+# Succeeds when one unit declares StateDirectory=limeos (or limeos:ALIAS, systemd 250 and newer);
+# fails with 1 when it does not, 2 when systemd did not answer. A unit that is not loaded is read
+# from its unit file (systemctl show loads it), so a oneshot that last ran an hour ago still counts.
+fct_unit_claims_state() { # unit
+    local value rc=0 word
+    local -a words=()
+    value="$(fct_unit_property StateDirectory "${1}")" || rc=$?
+    (( rc == 0 )) || return 2
+    read -r -a words <<<"${value}"
+    for word in "${words[@]}"; do
+        if [[ "${word}" == limeos || "${word}" == limeos:* ]]; then return 0; fi
+    done
+    return 1
+}
+
 # The frozen services that declare StateDirectory=limeos, one per line; fails with 2 (printing
-# nothing) when systemd did not answer for one of them. A unit file that does not exist declares
-# nothing.
+# nothing) when systemd did not answer for one of them.
 fct_state_claimants() {
-    local unit value rc word
-    local -a words=() found=()
+    local unit rc
+    local -a found=()
     for unit in "${FROZEN_SERVICES[@]}"; do
         rc=0
-        value="$(fct_unit_property StateDirectory "${unit}")" || rc=$?
-        (( rc == 0 )) || return 2
-        read -r -a words <<<"${value}"
-        for word in "${words[@]}"; do
-            # StateDirectory=limeos, or limeos:ALIAS (systemd 250 and newer).
-            if [[ "${word}" == limeos || "${word}" == limeos:* ]]; then found+=("${unit}"); break; fi
-        done
+        fct_unit_claims_state "${unit}" || rc=$?
+        case "${rc}" in 0) found+=("${unit}") ;; 1) ;; *) return 2 ;; esac
     done
+    if (( ${#found[@]} )); then printf '%s\n' "${found[@]}"; fi
+}
+
+# Every service unit on the host that declares StateDirectory=limeos, frozen or not, one per line:
+# the unit files systemd knows (enabled or not, loaded or not) and the units it has loaded (a
+# transient or generated unit has no file). Template files (NAME@.service) are skipped: only their
+# instances can run, and a loaded instance is listed. Fails with 2 when systemd did not answer.
+fct_all_state_claimants() {
+    local listing loaded name rest rc
+    local -A seen=()
+    local -a found=()
+    if ! listing="$(fct_query systemctl list-unit-files --type=service --no-legend)" || [[ -z "${listing}" ]]; then
+        fct_warn 'no answer from: systemctl list-unit-files --type=service --no-legend'
+        return 2
+    fi
+    if ! loaded="$(fct_query systemctl list-units --type=service --all --plain --no-legend)"; then
+        fct_warn 'no answer from: systemctl list-units --type=service --all --plain --no-legend'
+        return 2
+    fi
+    while read -r name rest; do
+        [[ "${name}" == *.service && "${name}" != *@.service && -z "${seen["${name}"]:-}" ]] || continue
+        seen["${name}"]=1
+        rc=0
+        fct_unit_claims_state "${name}" || rc=$?
+        case "${rc}" in 0) found+=("${name}") ;; 1) ;; *) return 2 ;; esac
+    done < <(printf '%s\n%s\n' "${listing}" "${loaded}")
+    : "${rest:-}"
     if (( ${#found[@]} )); then printf '%s\n' "${found[@]}"; fi
 }
 
@@ -270,6 +306,32 @@ fct_dir_record() { # path
 
 # The guard drop-in of one frozen service, as a host path.
 fct_guard_file() { printf '%s/etc/systemd/system/%s.d/%s\n' "${CUTOVER_ROOT}" "${1}" "${GUARD_NAME}"; }
+# Every guard drop-in on the host, whatever unit it is on, a dangling symlink included (host paths).
+fct_guard_files() {
+    local file
+    for file in "${CUTOVER_ROOT}"/etc/systemd/system/*.d/"${GUARD_NAME}"; do
+        if [[ -e "${file}" || -L "${file}" ]]; then printf '%s\n' "${file}"; fi
+    done
+}
+
+# Give every entry of TREE owned by another account to UID:GID, without following a symlink and
+# without a path being resolved again after the walk: GNU chown -R walks with fts (FTS_PHYSICAL,
+# FTS_CWDFD: each directory is opened relative to its parent's descriptor with O_NOFOLLOW and its
+# device and inode checked against the walk's own lstat), and -h with --from changes each entry with
+# fchownat(AT_SYMLINK_NOFOLLOW) relative to that descriptor, only when it is still owned by the
+# account named in --from. So an account that owns entries inside TREE cannot redirect the change
+# outside it by swapping a directory for a symlink, and an entry it gives away meanwhile is left as
+# it is. The foreign owners are listed first (read-only); prints the chown commands it runs through
+# RUNNER (fct_do in activate.sh). Fails when a listing or a chown fails.
+fct_reclaim_tree() { # runner tree uid gid
+    local runner="${1}" tree="${2}" uid="${3}" gid="${4}" owners owner
+    [[ -d "${tree}" && ! -L "${tree}" ]] || return 0
+    owners="$(find "${tree}" -xdev ! -uid "${uid}" -printf '%U\n' | sort -u)" || return 1
+    while IFS= read -r owner; do
+        [[ "${owner}" =~ ^[0-9]+$ ]] || continue
+        "${runner}" chown -R -P -h --from="${owner}" -- "${uid}:${gid}" "${tree}" || return 1
+    done <<<"${owners}"
+}
 
 # "UID GID" of an account from the passwd database; fails when there is no such account.
 fct_account_ids() { # account

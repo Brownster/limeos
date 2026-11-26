@@ -8,6 +8,7 @@ Run: python3 -m unittest discover -s tests/cutover
 """
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -25,6 +26,11 @@ class SharedStateHarness(Harness):
         """wybie's units: the app and the metrics collector own /var/lib/limeos; LimeOS's accounts exist."""
         for unit in CLAIMANTS:
             (self.stub / "units" / f"{unit}.statedir").write_text("limeos\n")
+        # The collector is a oneshot its timer starts: a unit file systemd lists, not a loaded unit
+        # (as on wybie on 26 Nov, when `systemctl show '*.service'` did not show it).
+        (self.stub / "units/limeos-metrics-collector.service.enabled").write_text("static\n")
+        # The file pi-health rewrites nightly at 02:00 (as holly, while it runs).
+        self._write("/var/lib/limeos/backup_config.json", '{"last_run":1}')
         (self.stub / "passwd").write_text(
             "root:x:0:0:root:/root:/bin/bash\n"
             + "".join(f"{name}:x:{uid}:{uid}::/nonexistent:/usr/sbin/nologin\n" for name, uid in ACCOUNTS.items()))
@@ -58,7 +64,7 @@ class PreflightSharedStateTests(SharedStateHarness):
         self.silent("systemctl show -p StateDirectory --value pi-health.service")
         result = self.preflight()
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("could not determine which frozen services declare StateDirectory=limeos", result.stderr)
+        self.assertIn("could not determine which units declare StateDirectory=limeos", result.stderr)
 
     def test_warns_when_limeos_runs_while_the_old_app_owns_the_directory(self):
         # wybie at 01:06: the package's configure had started the Rust services.
@@ -69,6 +75,34 @@ class PreflightSharedStateTests(SharedStateHarness):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("LimeOS services are running while pi-health.service limeos-metrics-collector.service own /var/lib/limeos", result.stderr)
         self.assertIn("systemctl disable --now limeos-storaged.service limeos-containerd.service limeos-core.service", result.stderr)
+
+    def test_a_claimant_the_cutover_does_not_manage_is_refused(self):
+        # Any unit, from its unit file (enabled or not, loaded or not) or loaded without one.
+        self.claimed()
+        self._unit("limeops-worker.service")
+        (self.stub / "units/limeops-worker.service.statedir").write_text("limeos limeops\n")
+        (self.stub / "loaded-only").write_text("run-transient.service loaded active running x\n")
+        (self.stub / "units/run-transient.service.statedir").write_text("limeos:alias\n")
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        for unit in ("limeops-worker.service", "run-transient.service"):
+            self.assertIn(f"REFUSED: {unit} declares StateDirectory=limeos but is not one of the frozen units", result.stderr)
+        self.assertEqual((self.snap / "state-claimants.txt").read_text().split(), CLAIMANTS)
+
+    def test_a_unit_with_only_a_subdirectory_of_it_is_not_a_claimant(self):
+        self._unit("limeos-containerd.service", "inactive", "disabled")
+        (self.stub / "units/limeos-containerd.service.statedir").write_text("limeos/executors/container\n")
+        result = self.preflight()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_guard_left_on_any_unit_is_refused_even_a_dangling_symlink(self):
+        guard = self.root / "etc/systemd/system/other.service.d/zz-limeos-cutover-guard.conf"
+        guard.parent.mkdir(parents=True)
+        guard.symlink_to("/nonexistent/guard")
+        result = self.preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("a cutover guard from an earlier activation is still in place: "
+                      "/etc/systemd/system/other.service.d/zz-limeos-cutover-guard.conf", result.stderr)
 
     def test_a_guard_left_by_an_earlier_activation_is_refused(self):
         self._write("/etc/systemd/system/pi-health.service.d/zz-limeos-cutover-guard.conf", "[Unit]\n")
@@ -131,6 +165,16 @@ class LiveStateTests(SharedStateHarness):
                       result.stderr)
         self.assertIn("4 changed (reported only)", result.stdout)
 
+    def test_every_relaxed_file_is_named_in_the_snapshot_and_the_output(self):
+        result = self.live_preflight()
+        covered = (self.snap / "live-covered.txt").read_text().splitlines()
+        self.assertEqual(sorted(covered), sorted([
+            "/var/lib/limeos/agent-actions/supervision.sqlite3", "/var/lib/limeos/agent-actions/supervision.sqlite3-journal",
+            "/var/lib/limeos/agent-supervisor/venv/pyvenv.cfg", "/var/lib/limeos/auto_update.json",
+            "/var/lib/limeos/backup_config.json"]))
+        self.assertIn("note: the live list relaxes 5 file(s) found under the shared directories or listed", result.stdout)
+        self.assertIn("NOTE: the live list relaxes 5 file(s)", (self.snap / "findings.txt").read_text())
+
     def test_the_frozen_apps_own_state_still_fails(self):
         self.live_preflight()
         self.assertEqual(self.approved().returncode, 0)
@@ -186,7 +230,8 @@ class ActivateSharedStateTests(SharedStateHarness):
         # Every entry of LimeOS's trees goes back to its account and primary group.
         for tree, account in (("core", "limeos-core"), ("executors/container", "limeos-containerd"), ("assistant", "limeos-assistant")):
             uid = ACCOUNTS[account]
-            self.assertTrue(any(c.startswith(f"chown -h {uid}:{uid} -- ") and f"{root}/var/lib/limeos/{tree}" in c for c in takeover), (tree, takeover))
+            # One recursive chown per foreign owner, limited to that owner, never following a link.
+            self.assertIn(f"chown -R -P -h --from={os.getuid()} -- {uid}:{uid} {root}/var/lib/limeos/{tree}", takeover)
         # Nothing of the frozen app's is changed.
         self.assertFalse([c for c in calls if c.startswith("chown") and ("credentials" in c or "metrics.db" in c or "pi-health" in c)])
         for unit in CLAIMANTS:
@@ -263,20 +308,91 @@ class ReturnSharedStateTests(SharedStateHarness):
         self.assertFalse([c for c in calls if c.startswith("chown")], calls)
         self.assertEqual(self.unit_state("pi-health.service"), ("active", "enabled"))
 
-    def test_restores_the_recorded_owner_when_it_differs(self):
-        self.activated_claimed()
-        # Recorded as holly:pihealth 0750 (uid 1000, gid 1001); the fake root's directory is the test user's.
-        lines = [("/var/lib/limeos 1000 1001 750" if line.startswith("/var/lib/limeos ") else line)
+    def record_state_dir(self, uid, gid, mode):
+        lines = [(f"/var/lib/limeos {uid} {gid} {mode}" if line.startswith("/var/lib/limeos ") else line)
                  for line in (self.snap / "shared-dirs.txt").read_text().splitlines()]
         (self.snap / "shared-dirs.txt").write_text("\n".join(lines) + "\n")
+
+    def test_restores_the_recorded_owner_first_then_removes_the_guards_then_verifies(self):
+        self.activated_claimed()
+        st = (self.root / "var/lib/limeos").stat()
+        # Recorded as the app's 0750 (here the test user's ids; the stub chown changes no owner).
+        self.record_state_dir(st.st_uid, st.st_gid, 750)
         result = self.do_return()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.calls()
-        start = calls.index("systemctl start pi-health.service")
-        chown = calls.index(f"chown 1000:1001 -- {self.root}/var/lib/limeos")
+        chown = calls.index(f"chown {st.st_uid}:{st.st_gid} -- {self.root}/var/lib/limeos")
         chmod = calls.index(f"chmod 750 -- {self.root}/var/lib/limeos")
-        self.assertLess(max(chown, chmod), start)
-        self.assertIn("giving /var/lib/limeos back to pi-health.service limeos-metrics-collector.service as preflight recorded it (1000:1001 750", result.stdout)
+        guard = calls.index("systemctl daemon-reload")
+        start = calls.index("systemctl start pi-health.service")
+        self.assertLess(chown, chmod)
+        self.assertLess(chmod, guard)
+        self.assertLess(guard, start)
+        self.assertEqual((self.root / "var/lib/limeos").stat().st_mode & 0o777, 0o750)
+        self.assertIn(f"as {st.st_uid}:{st.st_gid} 750 (now ", result.stdout)
+        self.assertIn("as preflight recorded it", result.stdout)
+
+    def test_an_owner_that_does_not_end_up_as_set_fails_the_return_after_the_frozen_app_starts(self):
+        self.activated_claimed()
+        self.record_state_dir(4321, 4321, 750)  # the stub chown cannot give it this owner
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("FAIL: /var/lib/limeos is ", result.stderr)
+        self.assertIn("not 4321 4321 750 as this return set it", result.stderr)
+        self.assertEqual(self.unit_state("pi-health.service"), ("active", "enabled"))
+        for unit in CLAIMANTS:
+            self.assertFalse(self.guard(unit).exists())
+
+    def test_a_record_of_root_gives_the_directory_to_the_claimants_account_and_says_why(self):
+        # Preflight taken after a package configure had made /var/lib/limeos root's: giving it back as
+        # root would make systemd chown it and LimeOS's trees at pi-health's start.
+        self.activated_claimed()
+        st = (self.root / "var/lib/limeos").stat()
+        self.record_state_dir(0, 0, 755)
+        (self.stub / "units/pi-health.service.user").write_text("holly\n")
+        (self.stub / "units/pi-health.service.group").write_text("pihealth\n")
+        (self.stub / "units/pi-health.service.statedirmode").write_text("0750\n")
+        with open(self.stub / "passwd", "a") as handle:
+            handle.write(f"holly:x:{st.st_uid}:{st.st_gid}::/home/holly:/bin/bash\n")
+        (self.stub / "group").write_text(f"pihealth:x:{st.st_gid}:\n")
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("preflight recorded it as root:root 755 (it was taken after a package configure had made it root's)", result.stdout)
+        self.assertIn(f"chown {st.st_uid}:{st.st_gid} -- {self.root}/var/lib/limeos", self.calls())
+        self.assertEqual((self.root / "var/lib/limeos").stat().st_mode & 0o777, 0o750)
+
+    def test_a_rust_unit_that_will_not_stop_is_killed_and_the_frozen_app_still_starts(self):
+        self.activated_claimed()
+        hook = self.stub / "hook-stop-limeos-core.service"
+        hook.write_text(f"#!/usr/bin/env bash\nprintf 'active\\n' >'{self.stub}/units/limeos-core.service.active'\n")
+        hook.chmod(0o755)
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("systemctl kill --signal=KILL limeos-core.service", self.calls())
+        self.assertIn("limeos-core.service is still active after stop and kill; the frozen app is started anyway", result.stderr)
+        self.assertIn("FAIL: limeos-core.service is active although the frozen app owns /var/lib/limeos again", result.stderr)
+        self.assertEqual(self.unit_state("pi-health.service"), ("active", "enabled"))
+
+    def test_on_demand_units_left_running_are_stopped(self):
+        self.activated_claimed()
+        self._unit("limeos-storage-targets.service", "active", "disabled")
+        result = self.do_return()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("systemctl stop limeos-storage-targets.service", self.calls())
+        self.assertEqual(self.unit_state("limeos-storage-targets.service"), ("inactive", "disabled"))
+
+    def test_a_strict_file_changed_while_the_frozen_app_runs_again_names_when_and_who(self):
+        self.activated_claimed()
+        self.assertEqual(self.do_return().returncode, 0)
+        # A second return, after 02:00, with pi-health running: the nightly rewrite is still a failure,
+        # explained.
+        self._write("/var/lib/limeos/backup_config.json", '{"nightly":"02:00"}')
+        result = self.do_return()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertRegex(result.stderr, r"FAIL: state file changed: /var/lib/limeos/backup_config.json \(checked against the "
+                         r"preflight snapshot\); last modified \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ; the frozen units were already "
+                         r"running again, so the frozen app \(or a schedule running as its account\) may have written it "
+                         r"\(wybie rewrites backup_config.json nightly at 02:00 as holly while pi-health runs\)")
 
     def test_the_automatic_rollback_does_the_same(self):
         self.claimed()
@@ -416,7 +532,7 @@ class StateListsTests(unittest.TestCase):
             {"location": "checkout", "path": "schemas/storage-contract.schema.json", "kind": "file"},
         ]
         if venv_as_entry:
-            files.append({"location": "state", "path": "agent-supervisor/venv", "kind": "virtualenv"})
+            files.append({"location": "state", "path": "agent-supervisor/venv", "kind": "virtualenv", "entries_not_listed": 1096})
         else:
             files += [{"location": "state", "path": "agent-supervisor/venv/pyvenv.cfg", "kind": "file"},
                       {"location": "state", "path": "agent-supervisor/venv/lib/python3.11/site-packages/pip/__init__.py", "kind": "file"}]
@@ -454,6 +570,8 @@ class StateListsTests(unittest.TestCase):
                                        "# rewritten daily at 04:00 outside the frozen app\n/var/lib/limeos/auto_update.json\n")
                 self.assertIn("left out: 5 files of the LimeOS package", out)
                 self.assertIn("left out: 1 Compose files under the stacks directory", out)
+                if venv_as_entry:
+                    self.assertIn("virtual environment /var/lib/limeos/agent-supervisor/venv (one entry; 1096 entries under it counted, not listed)", out)
 
     def test_a_live_entry_needs_a_reason(self):
         with tempfile.TemporaryDirectory() as tmp:

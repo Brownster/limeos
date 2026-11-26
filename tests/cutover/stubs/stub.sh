@@ -201,6 +201,14 @@ case "${tool}" in
                     [[ -e "${f}" ]] || continue
                     b="$(basename -- "${f}" .enabled)"; printf '%s %s enabled\n' "${b}" "$(get_unit "${b}" enabled x)"
                 done ;;
+            list-units)
+                # Loaded units: those with a state, and any listed in $STUB_DIR/loaded-only (no unit file).
+                for f in "${unit_dir}"/*.active; do
+                    [[ -e "${f}" ]] || continue
+                    b="$(basename -- "${f}" .active)"; printf '%s loaded %s running x\n' "${b}" "$(get_unit "${b}" active inactive)"
+                done
+                if [[ -f "${STUB_DIR}/loaded-only" ]]; then cat "${STUB_DIR}/loaded-only"; fi ;;
+            kill) ;;
             stop)
                 for u in "${args[@]}"; do
                     set_unit "${u}" active inactive
@@ -237,6 +245,9 @@ case "${tool}" in
                     LoadState) printf '%s\n' "$(get_unit "${args[-1]}" loadstate loaded)" ;;
                     DropInPaths) printf '%s\n' "$(get_unit "${args[-1]}" dropins '')" ;;
                     StateDirectory) printf '%s\n' "$(get_unit "${args[-1]}" statedir '')" ;;
+                    User) printf '%s\n' "$(get_unit "${args[-1]}" user '')" ;;
+                    Group) printf '%s\n' "$(get_unit "${args[-1]}" group '')" ;;
+                    StateDirectoryMode) printf '%s\n' "$(get_unit "${args[-1]}" statedirmode 0755)" ;;
                     *) printf '%s\n' "$(get_unit "${args[-1]}" restarts 0)" ;;
                 esac ;;
             daemon-reload|reload|reset-failed) ;;
@@ -274,13 +285,14 @@ case "${tool}" in
         [[ -f "${STUB_DIR}/pkg_version" ]] || exit 1
         cat "${STUB_DIR}/pkg_version" ;;
     caddy) ;;
-    # chown and chmod change nothing under the fake root (the tests run unprivileged); the call log
-    # is what the tests read.
-    chown|chmod) ;;
+    # chown changes nothing under the fake root (the tests run unprivileged; the call log is what the
+    # tests read); chmod is the real one.
+    chown) ;;
+    chmod) command -p chmod "$@" ;;
     getent)
         # getent passwd NAME: the line for NAME in $STUB_DIR/passwd, exit 2 when there is none.
-        [[ "${1:-}" == passwd && -f "${STUB_DIR}/passwd" ]] || exit 2
-        grep -m1 "^${2:-}:" "${STUB_DIR}/passwd" || exit 2 ;;
+        [[ "${1:-}" == passwd || "${1:-}" == group ]] && [[ -f "${STUB_DIR}/${1}" ]] || exit 2
+        grep -m1 "^${2:-}:" "${STUB_DIR}/${1}" || exit 2 ;;
     limeosctl)
         # reader-status --read READ: $STUB_DIR/reader-read-READ (output) and .rc (exit status)
         # model core's read through the stack reader; by default it succeeds.

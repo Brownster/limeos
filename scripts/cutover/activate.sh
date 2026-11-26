@@ -468,7 +468,8 @@ fct_take_state_dir() { # unit...
         # Before the first install the accounts do not exist yet, and neither do the trees.
         ids="$(fct_account_ids "${account}")" || continue
         read -r uid gid <<<"${ids}"
-        fct_do find "${CUTOVER_ROOT}${dir}" -xdev ! -uid "${uid}" -exec chown -h "${uid}:${gid}" -- '{}' +
+        fct_reclaim_tree fct_do "${CUTOVER_ROOT}${dir}" "${uid}" "${gid}" \
+            || fct_abort "could not list or give back the entries of ${dir} that another account owns"
     done
 }
 

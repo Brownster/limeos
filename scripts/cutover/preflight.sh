@@ -159,7 +159,7 @@ fct_main() {
     STATE_LIST="${out}/state-paths.txt"
     if [[ -n "${live_list}" ]]; then cp -- "${live_list}" "${out}/live-paths.txt"; fi
 
-    local -a managed=() refusals=() warnings=()
+    local -a managed=() refusals=() warnings=() notes=()
     if [[ -n "${managed_file}" ]]; then
         local line
         while IFS= read -r line || [[ -n "${line}" ]]; do [[ -n "${line}" && "${line}" != \#* ]] && managed+=("${line}"); done <"${managed_file}"
@@ -209,20 +209,44 @@ fct_main() {
 
     # Who owns /var/lib/limeos as far as systemd is concerned, and what the shared directories
     # look like now: activate.sh takes the state directory over and return.sh gives it back.
-    local claimants='' dir guard
-    if claimants="$(fct_state_claimants)"; then
-        fct_lines "${claimants}" >"${out}/state-claimants.txt"
+    # Every unit on the host is asked, from its unit file or as loaded: one the cutover does not stop
+    # would chown LimeOS's state away at its next start, and activate.sh guards only the frozen units.
+    local claimants='' dir guard claimant
+    if claimants="$(fct_all_state_claimants)"; then
+        # The frozen ones in their own order (activate.sh guards them), the others refused.
+        for claimant in "${FROZEN_SERVICES[@]}"; do
+            if grep -qxF -- "${claimant}" <<<"${claimants}"; then printf '%s\n' "${claimant}"; fi
+        done >"${out}/state-claimants.txt"
+        while IFS= read -r claimant; do
+            [[ -n "${claimant}" ]] || continue
+            if [[ " ${FROZEN_SERVICES[*]} " != *" ${claimant} "* ]]; then
+                refusals+=("${claimant} declares StateDirectory=limeos but is not one of the frozen units the cutover stops and guards (${FROZEN_SERVICES[*]}): its next start would chown /var/lib/limeos and LimeOS's state in it to its own account; stop and disable it, or remove that line from its unit (systemctl cat ${claimant}), before the cutover")
+            fi
+        done <<<"${claimants}"
     else
         : >"${out}/state-claimants.txt"
-        refusals+=('could not determine which frozen services declare StateDirectory=limeos (systemctl show -p StateDirectory, named above); activate.sh must know which units own /var/lib/limeos')
+        refusals+=('could not determine which units declare StateDirectory=limeos (systemctl list-unit-files, list-units or show, named above); activate.sh must know which units own /var/lib/limeos')
     fi
     for dir in "${SHARED_DIRS[@]}"; do fct_dir_record "${dir}"; done >"${out}/shared-dirs.txt"
-    for unit in "${FROZEN_SERVICES[@]}"; do
-        guard="$(fct_guard_file "${unit}")"
-        if [[ -e "${guard}" ]]; then
-            refusals+=("a cutover guard from an earlier activation is still in place: ${guard#"${CUTOVER_ROOT}"} (run return.sh on that snapshot, which removes it, or remove it and run systemctl daemon-reload)")
-        fi
-    done
+    while IFS= read -r guard; do
+        [[ -n "${guard}" ]] || continue
+        refusals+=("a cutover guard from an earlier activation is still in place: ${guard#"${CUTOVER_ROOT}"} (run return.sh on that snapshot, which removes it, or remove it and run systemctl daemon-reload)")
+    done < <(fct_guard_files)
+    # What the live list relaxes, named, never silent: every path of the snapshot recorded as live
+    # (found under the shared directories or listed), in live-covered.txt.
+    local record live_count=0 live_names=''
+    : >"${out}/live-covered.txt"
+    while IFS= read -r record || [[ -n "${record}" ]]; do
+        fct_parse_record "${record}" || continue
+        [[ "${REC_FLAG}" == L ]] || continue
+        printf '%s\n' "${REC_PATH}" >>"${out}/live-covered.txt"
+        live_count=$(( live_count + 1 ))
+        (( live_count > 5 )) || live_names+="${live_names:+, }${REC_PATH}"
+    done <"${out}/state.sha256"
+    if (( live_count > 5 )); then live_names+=', ...'; fi
+    if (( live_count )); then
+        notes+=("the live list relaxes ${live_count} file(s) found under the shared directories or listed (only reported by return.sh, never failed on): ${live_names}; all in ${out#"${CUTOVER_ROOT}"}/live-covered.txt: read it, none may be the frozen app's own")
+    fi
 
     local mem_line swap_line available swap_total swap_used
     # A free that fails leaves no Mem: line, which is refused below by name.
@@ -386,9 +410,11 @@ fct_main() {
     {
         for msg in "${refusals[@]}"; do printf 'REFUSED: %s\n' "${msg}"; done
         for msg in "${warnings[@]}"; do printf 'WARN: %s\n' "${msg}"; done
+        for msg in "${notes[@]}"; do printf 'NOTE: %s\n' "${msg}"; done
     } >"${out}/findings.txt"
 
     fct_log "snapshot: ${out#"${CUTOVER_ROOT}"}"
+    for msg in "${notes[@]}"; do fct_log "note: ${msg}"; done
     for msg in "${warnings[@]}"; do fct_warn "${msg}"; done
     if [[ "${verdict}" == refused ]]; then
         for msg in "${refusals[@]}"; do printf 'REFUSED: %s\n' "${msg}" >&2; done
