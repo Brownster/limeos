@@ -11,6 +11,31 @@ list, the scan's problems), bundled under `raw/`.
 
 Proven: from the files here. Reported: by the operator, not in these files.
 
+## Commands as run (reported, in order)
+
+1. `apt-get install -y --no-install-recommends caddy` (pulled in `libnss3-tools`), then
+   `systemctl stop caddy; systemctl disable caddy`; `/etc/caddy/Caddyfile` copied to
+   `Caddyfile.dist` and replaced with the single import line; `install -d -m 0755 /etc/caddy/conf.d`.
+2. `DEBIAN_FRONTEND=noninteractive dpkg -i limeos_0.4.4_arm64.deb` (it enabled and started core,
+   containerd and storaged).
+3. The origin set in `/etc/limeos/core.json` with a small Python edit; `systemctl restart limeos-core`.
+4. `limeosctl migrate scan --checkout /home/holly/pi-health/config` (exit 1, incomplete), then the
+   `--json` form to `/root/migrate-scan.json` and the runbook's one-liner to
+   `/root/cutover-state-paths.txt` (1,237 lines).
+5. `limeosctl migrate import-users --env-file /etc/limeos/credentials.env` (imported 1).
+6. `docker ps --no-trunc --format '{{json .}}'` to a file; `propose-ceiling ... --core-uid 106 --out
+   /root/container-ceiling.proposed.json`; `check-ceiling`; the seven rehearsed flags set true in
+   `/root/container-enabled.json`; `check-ceiling` again; installed as
+   `/etc/limeos/system-policy/container.json` `root:root 0644` (the package's default kept as
+   `/root/container.json.package-default`); `systemctl restart limeos-containerd`.
+7. `propose-catalog --out /root/management-catalog.proposed.json`, then `install -o root -g root -m
+   0644` to `/etc/limeos/management-catalog.json`.
+8. `preflight.sh --state-list ... --no-playback-check`.
+9. The dry run: it first failed on the template path (`site template not readable`; the scripts had
+   been copied loose), and passed once the scripts were laid out as `scripts/cutover` and
+   `packaging` under `/root/limeos-migration`.
+10. `activate.sh` (below).
+
 ## Timeline (UTC, from the journal and activate.log)
 
 | Time | What |
@@ -30,11 +55,17 @@ Proven: from the files here. Reported: by the operator, not in these files.
 | 01:09:55 | After the operator's `chown -R` of `core/`, `assistant/`, `executors/*` back to their accounts and `chmod o+x /var/lib/limeos`: core ready (generation 4), for diagnosis. |
 | 01:12:38 | Rust services stopped. |
 
+Reported, after the rollback: the operator stopped and disabled the three Rust services by hand,
+restored `/var/lib/limeos` to mode 0750 after the diagnosis, and stopped everything again. The
+reader's `storage.json` was edited during the diagnosis and then restored from a copy.
+
 ## After the night
 
-Reported: the host was verified identical to before the window: the fourteen managed containers with
-the same IDs, StartedAt and restart counts, pi-health answering 200 on 8002, Jellyfin 200. Proven for
-IDs, StartedAt and port 8002 by `return.sh`'s own verification above.
+Reported, checked by the operator on the host after the rollback: `docker inspect` of Id, StartedAt
+and RestartCount for the fourteen running containers diffed identical against a capture taken before
+the package install; pi-health answering 200 on 8002; `curl http://127.0.0.1:8096/health` 200
+(Jellyfin). Proven independently for IDs, StartedAt and port 8002 by `return.sh`'s own
+verification above.
 
 Reported state left on the host:
 
@@ -50,15 +81,18 @@ Reported state left on the host:
 
 1. **The old app's units own the shared state directory.** `pi-health.service` and
    `limeos-metrics-collector.service` run as `holly:pihealth` with `StateDirectory=limeos`,
-   `StateDirectoryMode=0750` ([host facts](EVIDENCE-BUNDLE.json "bundled: raw/host-facts.txt")).
+   `StateDirectoryMode=0750` ([host facts](raw/host-facts.txt)).
    Each start sets the mode and, when the owner differs, chowns the directory and everything in it,
    LimeOS's trees included. Now: the package's configure leaves a directory another account owns as
    it is and does not start LimeOS; activation guards those units, makes the directory root's and
    repairs LimeOS's trees; `return.sh` gives it back as recorded before the old app starts and leaves
    LimeOS stopped and disabled, and otherwise verifies restarted Rust services still work.
 2. **False `ROLLBACK INCOMPLETE`.** `supervision.sqlite3` is written by the `limeops-*` services, which
-   keep running; `auto_update.json` and `backup_config.json` are rewritten by schedules outside the
-   frozen app. Now: a live list classifies such state; changes are reported, never failed on.
+   keep running. Now: a live list classifies such state; changes are reported, never failed on.
+   `auto_update.json` and `backup_config.json` had mtimes of 25 Nov 04:00 and 02:00, and a host
+   backup job is known to start at 02:00; that something other than pi-health writes them is the
+   operator's inference, not established. Since pi-health is stopped while LimeOS runs, both stay
+   strict, and the runbook says how to judge a failure on them in a return that spans those times.
 3. **`migrate scan` incomplete.** The agent supervisor's virtualenv (1,096 files, 74 directories past
    depth 8) hit the bound; the state list had 1,093 venv files of 1,237 lines. Now: a virtualenv is one
    entry, not descended; `state_lists.py` builds reviewable lists.

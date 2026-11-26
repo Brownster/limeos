@@ -113,7 +113,8 @@ class LiveStateTests(SharedStateHarness):
 
     def test_a_return_spanning_their_writes_is_verified_with_warnings(self):
         # 26 Nov: supervision.sqlite3 changed after the post-stop baseline and the rollback said
-        # ROLLBACK INCOMPLETE. The schedules at 02:00 and 04:00 would have done the same.
+        # ROLLBACK INCOMPLETE. The two JSON files stand for files an operator has established an outside
+        # writer for (on wybie that is not established for auto_update.json or backup_config.json: they stay strict).
         self.live_preflight()
         result = self.approved()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

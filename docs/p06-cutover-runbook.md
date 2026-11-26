@@ -46,17 +46,25 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
       creates LimeOS's own trees inside it, and neither enables nor starts the LimeOS services; it
       says so in one line. That is intended: they cannot pass a 0750 directory of another account,
       and the frozen app's next start would take their state. `activate.sh` starts them. A package
-      older than this behaviour (0.4.4, as on wybie on 26 Nov) did set `/var/lib/limeos` to
-      `root:root 0755` and start the services; if so, stop them before preflight:
+      older than this behaviour (0.4.4, as on wybie on 26 Nov: `DEBIAN_FRONTEND=noninteractive
+      dpkg -i limeos_0.4.4_arm64.deb` enabled and started core, containerd and storaged) set
+      `/var/lib/limeos` to `root:root 0755`; if so, stop them before preflight:
       `systemctl disable --now limeos-core limeos-containerd limeos-storaged`.
-   c. **The origin.** Edit `/etc/limeos/core.json` so `"origin"` is `https://HOST:8002` (decision 3).
+   c. **The origin.** Edit `/etc/limeos/core.json` so `"origin"` is `https://HOST:8002` (decision 3;
+      26 Nov: a small Python edit of the JSON, then `systemctl restart limeos-core`, which a
+      package that leaves LimeOS stopped does not need).
    d. **The ceilings** (each `/usr/lib/limeos/limeosctl check-ceiling FILE CORE_UID ROLE` must
       accept it; `CORE_UID` is `id -u limeos-core`):
       - `/etc/limeos/system-policy/container.json`, `root:root 0644`: generate with
         `docker ps --no-trunc --format '{{json .}}' >/root/docker-ps.jsonl` and
-        `/usr/lib/limeos/limeosctl migrate propose-ceiling --docker-ps /root/docker-ps.jsonl --stacks /opt/stacks --core-uid CORE_UID --out /root/container.proposed.json`,
-        set the intended `allow_*` flags ([migrate tools](p06-migrate-tools.md)), then
-        `install -o root -g root -m 0644 /root/container.json /etc/limeos/system-policy/container.json`.
+        `/usr/lib/limeos/limeosctl migrate propose-ceiling --docker-ps /root/docker-ps.jsonl --stacks /opt/stacks --core-uid CORE_UID --out /root/container-ceiling.proposed.json`
+        (wybie: `--core-uid 106`), `check-ceiling` it, set the seven rehearsed flags
+        (`allow_health`, `allow_container_read`, `allow_container_logs`, `allow_restart`,
+        `allow_start`, `allow_stop`, `allow_stack`; [migrate tools](p06-migrate-tools.md)) in
+        `/root/container-enabled.json`, `check-ceiling` it again, keep the package's default as
+        `/root/container.json.package-default`, then
+        `install -o root -g root -m 0644 /root/container-enabled.json /etc/limeos/system-policy/container.json`
+        (26 Nov, with LimeOS running: `systemctl restart limeos-containerd`).
         On wybie it lists the fourteen running containers and the stacks `mattermost` and `media`.
       - `/etc/limeos/system-policy/storage.json` (the stack reader's) and `host.json`
         (`limeos-storaged`'s), each `root:limeos-host-access 0640`; configure creates both with
@@ -66,12 +74,13 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
       Compose project outside `/opt/stacks`, such as wybie's one-container `docker`, is refused by
       design), then `install -o root -g root -m 0644 /root/management-catalog.proposed.json
       /etc/limeos/management-catalog.json` (or rerun with `--install`).
-   f. **Caddy** (decision 4). `apt-get install caddy`: Debian's package **starts and enables
-      Caddy at once** with its default site on port 80. Then:
-      `systemctl disable --now caddy.service`, `install -d -m 0755 /etc/caddy/conf.d`, and replace
-      `/etc/caddy/Caddyfile` with the single line `import /etc/caddy/conf.d/*.caddy` (keep the
-      Debian file as `/etc/caddy/Caddyfile.dpkg-default` if you like). Preflight warns while Caddy
-      runs and refuses without the import line.
+   f. **Caddy** (decision 4). `apt-get install -y --no-install-recommends caddy` (it pulls in
+      `libnss3-tools`): Debian's package **starts and enables Caddy at once** with its default site
+      on port 80. Then `systemctl stop caddy; systemctl disable caddy`, copy `/etc/caddy/Caddyfile`
+      to `/etc/caddy/Caddyfile.dist`, replace `/etc/caddy/Caddyfile` with the single line
+      `import /etc/caddy/conf.d/*.caddy`, and `install -d -m 0755 /etc/caddy/conf.d`. Preflight
+      warns while Caddy runs and refuses without the import line. (26 Nov this came first, before
+      the package.)
    g. **Users.** `/usr/lib/limeos/limeosctl migrate import-users --env-file /etc/limeos/credentials.env`
       sends the hashes to the core over its socket, so it needs core running: on a host where
       configure did not start it (b), run it right after `activate.sh` has passed (step 4), before
@@ -85,18 +94,19 @@ go on a fresh window; the scripts were tested against stubs and then rehearsed e
       `assistant/` under `/var/lib/limeos`), the Compose files, and any Python virtual environment
       (the scan reports one as a single `virtualenv` entry; wybie's agent supervisor has 1,096
       files in one). The `--live` entries are wybie's: the homes of the `limeops-*` services, which
-      keep running and write `agent-actions/supervision.sqlite3` continuously, and two files that
-      schedules outside the frozen app rewrite (`auto_update.json` daily at 04:00,
-      `backup_config.json` at 02:00 by the host's backup). Their changes are reported by
-      `return.sh`, never failed on; the frozen app's own state stays strict.
+      keep running and write `agent-actions/supervision.sqlite3` continuously. Their changes are
+      reported by `return.sh`, never failed on; the frozen app's own state stays strict.
+      `auto_update.json` and `backup_config.json` stay **strict** on purpose: on 25 Nov their mtimes
+      were 04:00 and 02:00, and a host backup job is known to start at 02:00, but that anything
+      other than pi-health writes them is an inference, not established, and pi-health is stopped
+      while LimeOS runs. If a return that spans 02:00 or 04:00 fails on one of them, compare its
+      mtime with the backup job's log before deciding whether the change was the frozen app's.
 
    ```sh
    /usr/lib/limeos/limeosctl migrate scan --json --checkout /home/holly/pi-health/config >/root/migrate-scan.json
    python3 /root/limeos-cutover/state_lists.py --scan /root/migrate-scan.json --state-out /root/cutover-state-paths.txt --live-out /root/cutover-live-paths.txt \
      --live '/var/lib/limeos/agent-actions/=home of the limeops-* services, which the cutover leaves running' \
-     --live '/var/lib/limeos/agent-supervisor/=home of the limeops-* services, which the cutover leaves running' \
-     --live '/var/lib/limeos/auto_update.json=rewritten daily at 04:00 by a schedule outside the frozen app' \
-     --live '/var/lib/limeos/backup_config.json=rewritten at 02:00 by the host backup'
+     --live '/var/lib/limeos/agent-supervisor/=home of the limeops-* services, which the cutover leaves running'
    ```
 
    It prints what went where. Read both lists before preflight: every line of the state list must

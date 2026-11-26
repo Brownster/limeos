@@ -2812,7 +2812,7 @@ class RunbookStateListTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             state = Path(f"{tmp}/cutover-state-paths.txt").read_text().splitlines()
             live = Path(f"{tmp}/cutover-live-paths.txt").read_text()
-        # The limeops homes and the files outside schedules rewrite are live, not frozen state.
+        # The limeops homes are live, not frozen state.
         self.assertEqual(state, [
             "/etc/limeos/agent-policy.json",
             "/etc/limeos/credentials.env",
@@ -2820,6 +2820,8 @@ class RunbookStateListTests(unittest.TestCase):
             "/home/holly/pi-health/config/backup_config.json",
             "/home/holly/pi-health/config/media_paths.json",
             "/home/holly/pi-health/config/storage_plugins/example.json",
+            # Strict: pi-health is stopped while LimeOS runs, and an outside writer is not established.
+            "/var/lib/limeos/auto_update.json",
             "/var/lib/limeos/integrations/jellyfin.json",
             "/var/lib/limeos/metrics/metrics.sqlite",
         ])
