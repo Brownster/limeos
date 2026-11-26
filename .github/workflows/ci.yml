@@ -402,12 +402,11 @@ jobs:
             docs/rewrite-evidence/p*/*vm-result.json
             docs/rewrite-evidence/p*/*vm-result-failed.json
             docs/rewrite-evidence/p*/*vm-failure.txt
-  # Stack inventory and container-health reads at 30, 64 and 65 containers. Not
-  # gating until it has passed on CI; an 18-container Engine refusing the
+  # Stack inventory and container-health reads at 30, 64 and 65 containers
+  # (about four minutes). Gating: an 18-container Engine refusing the
   # container-health read rolled a migration back.
   stack-scale-vm:
     needs: publish
-    continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -418,7 +417,7 @@ jobs:
         with:
           name: debian-ubuntu-24.04
           path: dist
-      - name: Disposable Debian stack scale and container-health reads (not gating)
+      - name: Disposable Debian stack scale and container-health reads
         run: |
           sudo apt-get update -qq
           sudo apt-get install --no-install-recommends -y qemu-system-x86 qemu-utils genisoimage apt-utils gnupg acl
