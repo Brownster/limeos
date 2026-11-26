@@ -419,7 +419,9 @@ Compose file under `/opt/stacks` changes, since its hash is registered.
 ## The shared state directory
 
 `pi-health.service` and `limeos-metrics-collector.service` run as `holly:pihealth` with
-`StateDirectory=limeos` and `StateDirectoryMode=0750`. systemd therefore treats `/var/lib/limeos`
+`StateDirectory=limeos` and `StateDirectoryMode=0750` (the collector is a oneshot: `systemctl show
+'*.service'` lists it only while loaded, so preflight reads every unit file as well as the loaded
+units, and refuses any other unit that declares it). systemd therefore treats `/var/lib/limeos`
 as theirs: at every start of either it sets the directory's mode to 0750 and, when the directory's
 owner is not `holly:pihealth`, chowns it **and everything in it** (LimeOS's `core/`, `assistant/`,
 `executors/*` included) to `holly:pihealth`. LimeOS's own units name only their subdirectories
@@ -435,8 +437,45 @@ claim the parent. The model while both are installed:
   the guard makes a start fail with `Assertion failed`. Removing the guard and starting them by
   hand would chown LimeOS's state to `holly` (core then fails with `StateNotDurable`, containerd
   with `unsafe or unavailable receipt store`); go back with `return.sh` only.
-- `return.sh` removes the guards, gives the directory back as recorded, starts the frozen app and
-  leaves LimeOS stopped and disabled.
+- `return.sh` first gives the directory back (as preflight recorded it; when preflight recorded
+  `root:root` because it ran after a package configure, as the claimant's `User=`, `Group=` and
+  `StateDirectoryMode=` say, which is what systemd would set anyway), then removes the guards,
+  starts the frozen app, and leaves LimeOS and its on-demand units (the stack reader,
+  `limeos-storage-ready`, `-targets`, `-mounts`; none has an Install section) stopped. It then
+  verifies the owner and mode, that no guard is left and that no LimeOS unit runs, and fails the
+  return if not. A LimeOS unit that will not stop, or a chown that fails, does not keep the frozen
+  app down: the return starts it anyway and fails, naming what to do. The frozen app down past
+  09:00 is the worst outcome; LimeOS running under a directory the frozen app owns again (it fails;
+  it cannot harm the frozen app) is the second worst.
+- Removing the package (`apt-get remove limeos` or `purge`) deletes any guard drop-in, so LimeOS
+  removed by hand cannot leave the frozen app unstartable.
+
+What the takeover changes for others: `/var/lib/limeos` goes from `holly:pihealth 0750` to
+`root:root 0755` while LimeOS runs. The `limeops-*` services (accounts in group `pihealth`, each
+with `ReadWritePaths=/var/lib/limeos/agent-actions`) keep their access: they pass the top directory
+through its "other" execute bit and write `agent-actions` (`holly:pihealth 2770`) through their
+group, as the rehearsal's writer, a separate account in group `pihealth`, shows. Two things change:
+anything that creates entries directly in `/var/lib/limeos` as `holly` or through group `pihealth`
+cannot do so until the return (pi-health and its collector, which are stopped; on wybie nothing
+else is known to), and every local account can list the directory's top-level names (not read
+the files: their own modes still apply). 0755 is kept because LimeOS's accounts must pass the
+directory; a tighter mode for both would need LimeOS's accounts in group `pihealth`, which would
+also let them read the frozen app's group-readable state, or 0711, which nothing has qualified.
+
+Giving LimeOS's trees back (activation, and the package's configure on the transition only: while
+the directory belongs to another account, or when a tree's top shows a recursive chown went
+through it) lists the foreign owners first, then runs `chown -R -P -h --from=OWNER UID:GID TREE`
+per owner. GNU chown walks with fts: each directory is opened relative to its parent's
+descriptor without following a symlink and checked against the walk's own `lstat`, and each entry
+is changed with `fchownat(AT_SYMLINK_NOFOLLOW)` only while that owner still owns it, so a path is
+never resolved again after the walk and an account that owns entries inside cannot redirect the
+change outside the tree by swapping a directory for a symlink (the rehearsal plants a symlink in
+a `holly`-owned subtree and checks its target is untouched). Who could own entries inside them:
+before the first night, the LimeOS accounts themselves; after a recursive chown, `holly`, which
+on wybie means the operator's sessions and the containers that run as `holly`'s uid (Sonarr,
+Transmission and others). Those containers reach `/var/lib/limeos` only if a Compose file mounts
+it: the rehearsal's containers do not; that wybie's do not is unverified (to check). A failure of
+the repair warns and never fails configure.
 
 If LimeOS's trees were chowned anyway (26 Nov), the next activation repairs them; by hand, with
 the frozen app stopped: `chown -R limeos-core: /var/lib/limeos/core`, `chown -R limeos-assistant:

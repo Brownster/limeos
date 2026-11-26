@@ -10,8 +10,9 @@ scripts/cutover/bundle.sh and copied to /root/limeos-cutover as on the host, and
     so systemd owns /var/lib/limeos for them (holly:pihealth 0750) and chowns it at their starts;
     /etc/limeos/credentials.env with a real Werkzeug scrypt and PBKDF2 hash, state JSON/SQLite files named as on
     wybie, the agent supervisor's Python virtual environment (deeper than the scan's depth bound);
-  * bystander units limeops-*, limeos-agent, flask-shutdown that must never change; limeops-worker keeps writing
-    /var/lib/limeos/agent-actions/supervision.sqlite3 (as wybie's limeops-* services do) while the cutover runs; docker-compose-start.service is failed since boot, as on wybie;
+  * bystander units limeops-*, limeos-agent, flask-shutdown that must never change; limeops-worker, as its own
+    account limeops-action-worker in group pihealth (as wybie's limeops-* accounts), keeps writing
+    /var/lib/limeos/agent-actions/supervision.sqlite3 (agent-actions holly:pihealth 2770) while the cutover runs; docker-compose-start.service is failed since boot, as on wybie;
   * the packaged Docker Engine (socket-activated, as on a stock host), eleven real containers created by
     `holly` (compose project `media` with four running members and one stopped, project `mattermost` under
     /opt/stacks with three stopped, project `docker` outside /opt/stacks with one stopped, plus two standalone),
@@ -352,6 +353,8 @@ def write_fixture(version_hashes):
     sh("DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io busybox-static caddy sqlite3 iproute2 curl strace", timeout=900, log="apt-fixture")
     sh("usermod -aG docker holly")
     sh("groupadd --system pihealth")
+    # wybie's limeops-* services run as their own accounts and reach agent-actions through group pihealth.
+    sh("useradd --system --no-create-home --shell /usr/sbin/nologin limeops-action-worker && usermod -aG pihealth limeops-action-worker")
     sh("systemctl stop caddy; systemctl disable caddy", check_rc=False)
     Path("/etc/caddy/Caddyfile").write_text("import /etc/caddy/conf.d/*.caddy\n")
     with open("/etc/hosts", "a") as hosts:
@@ -383,6 +386,9 @@ def write_fixture(version_hashes):
         with sqlite3.connect(f"/var/lib/limeos/agent-actions/{name}.sqlite3") as db:
             db.execute("create table t (a)")
             db.execute("insert into t values (1)")
+    # Group pihealth may write there (setgid, as wybie's drwxrws---); systemd's chown keeps the modes.
+    os.chmod("/var/lib/limeos/agent-actions", 0o2770)
+    os.chmod(SUPERVISION_DB, 0o660)
     # The limeops accounts' homes hold skeleton files; the agent supervisor's virtualenv is 9 levels deep.
     for home in ("agent-actions", "agent-supervisor"):
         for skel in (".bashrc", ".profile", ".bash_logout"):
@@ -412,7 +418,7 @@ def write_fixture(version_hashes):
     unit_file("limeos-package-reconcile.service", "[Unit]\nDescription=package reconcile\n[Service]\nType=oneshot\nExecStart=/bin/true\n")
     unit_file("limeos-package-reconcile.timer", "[Unit]\nDescription=package reconcile timer\n[Timer]\nOnCalendar=hourly\nPersistent=false\n[Install]\nWantedBy=timers.target\n")
     unit_file("limeops-actuatord.service", "[Unit]\nDescription=limeops actuatord\nAfter=pihealth-helper.service\n[Service]\nExecStart=/bin/sleep infinity\n[Install]\nWantedBy=multi-user.target\n")
-    unit_file("limeops-worker.service", "[Unit]\nDescription=limeops worker (writes its supervision database)\n[Service]\nExecStart=/usr/bin/python3 /usr/local/lib/limeops-writer.py\n[Install]\nWantedBy=multi-user.target\n")
+    unit_file("limeops-worker.service", "[Unit]\nDescription=limeops worker (writes its supervision database)\n[Service]\nUser=limeops-action-worker\nGroup=limeops-action-worker\nUMask=0007\nRestart=on-failure\nReadWritePaths=/var/lib/limeos/agent-actions\nExecStart=/usr/bin/python3 /usr/local/lib/limeops-writer.py\n[Install]\nWantedBy=multi-user.target\n")
     for name in ("limeos-agent", "flask-shutdown"):
         unit_file(f"{name}.service", f"[Unit]\nDescription={name}\n[Service]\nExecStart=/bin/sleep infinity\n[Install]\nWantedBy=multi-user.target\n")
     # wybie's docker-compose-start.service has been failed since boot; nothing in the cutover may trip on it.
@@ -889,6 +895,15 @@ def cycle1_activate():
     check({u: (active(u), enabled(u)) for u in [*FROZEN_UNITS, *RUST_UNITS, "caddy"]} == unit_before, "dry-run changed unit state")
     expect_world_equal("after dry-run", before_c, before_b)
     check(plain_get(8002)[0] == 200, "frozen app stopped by dry-run")
+    # A holly-owned subtree inside one of LimeOS's trees (what a recursive chown leaves) holding a symlink to
+    # a root-owned file outside: the takeover must give the subtree back without following the link.
+    outside = Path("/root/outside-the-tree")
+    outside.write_text("must stay root's\n")
+    planted = Path("/var/lib/limeos/assistant/planted")
+    planted.mkdir()
+    (planted / "escape").symlink_to(outside)
+    (planted / "dirlink").symlink_to("/etc")
+    sh(f"chown -h -R holly:pihealth {planted}")
     # Let the collector write once more so the SQLite file really changes between preflight and the stop.
     time.sleep(22)
     started = time.monotonic()
@@ -900,6 +915,13 @@ def cycle1_activate():
     check(all(Path(f"/etc/systemd/system/{u}.d/{GUARD}").exists() for u in CLAIMANTS), "the cutover guards are missing")
     for tree, account in PACKAGE_TREES.items():
         check(not foreign_entries(tree, account), f"{tree} has entries not owned by {account} after activation", entries=foreign_entries(tree, account)[:10])
+    check(owner_mode(outside)[:2] == (0, 0) and owner_mode("/etc")[:2] == (0, 0), "the takeover followed a planted symlink out of the tree", outside=owner_mode(outside), etc=owner_mode("/etc"))
+    check(os.lstat(planted / "escape").st_uid == pwd.getpwnam("limeos-assistant").pw_uid, "the planted symlink itself was not given back")
+    # The limeops writer, an account in group pihealth, still writes through the root:root 0755 directory.
+    beats = lambda: sqlite3.connect(f"file:{SUPERVISION_DB}?mode=ro", uri=True).execute("select count(*) from beats").fetchone()[0]  # noqa: E731
+    before_beats = beats()
+    fx.eventually(lambda: beats() > before_beats, timeout=20)
+    check(active("limeops-worker.service") == "active", "the limeops writer stopped after the takeover")
     # Detached by default, inside the snapshot's transient scope, which is gone once the run ends.
     scope = (snap / "activation-scope").read_text().strip()
     check(re.fullmatch(r"limeos-cutover-activate-[0-9a-f]{32}\.scope", scope) and f"running detached in scope {scope}" in out, "activation did not run detached in its scope", out=out[:800])
@@ -1484,8 +1506,11 @@ def package_lifecycle():
     apt = "DEBIAN_FRONTEND=noninteractive apt-get"
     data = package_data()
     started = time.time() - 1
+    check(all(Path(f"/etc/systemd/system/{u}.d/{GUARD}").exists() for u in CLAIMANTS), "the activation's guards are missing")
     rc, out = sh(f"{apt} remove -y limeos", check_rc=False, timeout=600, log="apt-remove-1")
     check(rc == 0, "apt-get remove failed", out=out[-2500:])
+    # LimeOS removed by hand cannot leave the frozen app unstartable: postrm deletes the guards.
+    check(not any(Path(f"/etc/systemd/system/{u}.d/{GUARD}").exists() for u in CLAIMANTS) and "removed the cutover guard" in out, "removal left a cutover guard", out=out[-1500:])
     stops = journal_stops(started)
     order_seen = [u for u, *_ in stops]
     check(order_seen == ["limeos-core.service", "limeos-containerd.service", "limeos-storaged.service", "limeos-storage-reader.service"], "units were not stopped core, executors, reader", stops=stops)
@@ -1517,18 +1542,48 @@ def package_lifecycle():
     check(rc5 == 0, "upgrade failed", out=out5[-2500:])
     version = sh("dpkg-query -W -f='${Status} ${Version}' limeos")[1].strip()
     check(version == f"install ok installed {UPGRADE_VERSION}", "upgrade not installed", version=version)
+    check("giving every entry of LimeOS's trees" not in out5, "an ordinary upgrade reclaimed LimeOS's trees", out=out5[-1500:])
     after = {u: (active(u), enabled(u), unit(u)["MainPID"]) for u in [*RUST_UNITS, "limeos-storage-reader.service"]}
     check(all(after[u][0] == "active" and after[u][1] == "enabled" for u in RUST_UNITS) and after["limeos-storage-reader.service"][0] == "active", "a service is not running after the upgrade", after=after)
     check(all(after[u][2] != pids[u] for u in pids), "the upgrade did not restart every running service", before=pids, after=after)
     check(not Path("/run/limeos-package").exists(), "the restart record outlived the upgrade")
     check(package_data() == data, "the upgrade changed state or configuration")
     check(login("holly")[0] == 200, "login through the proxy failed after the upgrade")
+    # An interrupted package change finished by `dpkg --configure -a` while the activation's guards are in place
+    # (they were deleted with the removal above; put them back as activate.sh writes them).
+    for name in CLAIMANTS:
+        Path(f"/etc/systemd/system/{name}.d").mkdir(exist_ok=True)
+        Path(f"/etc/systemd/system/{name}.d/{GUARD}").write_text(f"[Unit]\nAssertPathExists=!/etc/systemd/system/{name}.d/{GUARD}\n")
+    sh("systemctl daemon-reload")
+    upgrade_deb = glob.glob(f"/opt/limeos-repo/**/limeos_{UPGRADE_VERSION}_*.deb", recursive=True)[0]
+    sh(f"dpkg --unpack {upgrade_deb}", timeout=300, log="dpkg-unpack-under-guard")
+    check("unpacked" in sh("dpkg-query -W -f='${Status}' limeos")[1], "the unpack did not leave the package unconfigured")
+    rc7, out7 = sh("DEBIAN_FRONTEND=noninteractive dpkg --configure -a", check_rc=False, timeout=600, log="dpkg-configure-a-under-guard")
+    check(rc7 == 0 and sh("dpkg-query -W -f='${Status}' limeos")[1].strip() == "install ok installed", "dpkg --configure -a did not finish the package", out=out7[-1500:])
+    check(all(active(u) == "active" for u in RUST_UNITS) and owner_mode("/var/lib/limeos") == (0, 0, 0o755), "configure under the guard did not start LimeOS in the taken-over directory")
+    check(sh("systemctl start pi-health.service", check_rc=False)[0] != 0 and active("pi-health.service") != "active", "the guard did not hold after dpkg --configure -a")
     # Back to the frozen app; the upgraded package stays installed.
     rc6, out6 = run_script("return.sh", snap, log="return-after-package")
     check(rc6 == 0 and "return verified" in out6, "return.sh after the package changes failed", problems=problems(out6), out=out6[-1500:])
     expect_frozen_serving("after the package changes", snap)
     expect_world_equal("after the package changes", before_c, state["baseline_bystanders"])
     return {"stops": stops, "second_remove": out2.strip().splitlines()[-2:], "dpkg_second_remove": out3.strip().splitlines()[-2:], "after_upgrade": after, "seconds": {k: state["timings"].get(k) for k in ("activate-snapP", "return-after-package")}}
+
+
+@case("22b package change while the frozen app owns /var/lib/limeos: configure leaves it and LimeOS's units alone, says so on stderr and in the journal")
+def package_change_elsewhere():
+    before_c = containers()
+    apt = "DEBIAN_FRONTEND=noninteractive apt-get"
+    started = time.strftime("%Y-%m-%d %H:%M:%S")
+    rc, out = sh(f"{apt} install -y --allow-downgrades limeos={state['version']}", check_rc=False, timeout=600, log="apt-downgrade-elsewhere")
+    check(rc == 0, "the package change failed", out=out[-2500:])
+    check("/var/lib/limeos belongs to holly:pihealth (750)" in out and "neither enabled nor started" in out, "configure did not say it left LimeOS stopped", out=out[-1500:])
+    journal = sh(f"journalctl -t limeos-postinst --since '{started}' --no-pager", check_rc=False)[1]
+    check("neither enabled nor started" in journal, "the notice is not in the journal", journal=journal[-1000:])
+    check(all(active(u) in ("inactive", "failed") and enabled(u) == "disabled" for u in RUST_UNITS), "configure started or enabled a LimeOS unit", units={u: (active(u), enabled(u)) for u in RUST_UNITS})
+    expect_frozen_serving("after a package change while the frozen app owns the directory")
+    expect_world_equal("after a package change while the frozen app owns the directory", before_c, state["baseline_bystanders"])
+    return {"notice": [l for l in out.splitlines() if l.startswith("LimeOS")], "journal": journal.strip().splitlines()[-3:]}
 
 
 @case("23 PR-32: a reader run as root by a leftover drop-in is refused by core (reader-status, degraded, journal); with the drop-in removed, a package upgrade brings it back as limeos-storage-reader and core's reads turn fresh; activation itself refuses a root reader and rolls back")
