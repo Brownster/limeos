@@ -1,0 +1,18 @@
+{
+  "format": "limeos-evidence-bundle/1",
+  "policy": "docs/rewrite-evidence/README.md",
+  "unit": "docs/rewrite-evidence/p06/2026-11-26-cutover-shared-state-vm",
+  "bundle": {
+    "release": "evidence-bundles-2026-11-26",
+    "name": "limeos-evidence-p06-2026-11-26-cutover-shared-state-vm.tar.gz",
+    "size": 67843,
+    "sha256": "23a115cd3fba0a41f65f2bb6ccfecacc23953069df8658a8ddcc7d17e0613353",
+    "tar_sha256": "1e62193b64bb1f4c13cf76b5e1e3111f5ede648fa78a40c9056487e15e05ffe8"
+  },
+  "files": [
+    {"path": "raw/branch-binaries/result.json", "size": 240545, "sha256": "dd1de772973e801b8ff3a3da4561fc1a627e5c85a92579927ace19b8e169bdae"},
+    {"path": "raw/branch-binaries/run-output.log.gz", "size": 3359, "sha256": "077ffabe63bcc59de13148076e326c5c1a65558cd86fc2b02e79f81816c77e53"},
+    {"path": "raw/old-binaries/result.json", "size": 244026, "sha256": "b4960450ae7f4c73e8218fb2d26a7c6c3f9570783b646ad6b46f57d1348586b7"},
+    {"path": "raw/old-binaries/run-output.log.gz", "size": 4145, "sha256": "018053b7841bb7d0195539b73e2576c19fdc06a99e8bc50b80a601311b62b7b5"}
+  ]
+}
