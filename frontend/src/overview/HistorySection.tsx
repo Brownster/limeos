@@ -7,6 +7,7 @@ import type { HistoryRange, MetricHistory } from "../../../contracts/generated/t
 import { api, ApiError } from "../api";
 import { HistoryTable } from "../ObservationView";
 import { StateMessage } from "../ui/primitives";
+import { HistoryChart } from "./HistoryChart";
 
 const ranges: { value: HistoryRange; label: string; long: string }[] = [
   { value: "24h", label: "24h", long: "24 hours" },
@@ -62,17 +63,29 @@ export function HistorySection({ refreshKey, expired }: { refreshKey: number; ex
           {shown.legacy_history && <p>{shown.legacy_history}</p>}
         </StateMessage>
       ) : (
-        <HistoryBody history={shown} />
+        <HistoryBody history={shown} range={range} />
       )}
     </section>
   );
 }
 
-function HistoryBody({ history }: { history: MetricHistory }) {
+function HistoryBody({ history, range }: { history: MetricHistory; range: HistoryRange }) {
   return (
-    <details className="history-table">
-      <summary>Show the numbers</summary>
-      <HistoryTable history={history} />
-    </details>
+    <>
+      <div className="chart-grid-layout">
+        <HistoryChart title="CPU and memory" icon="cpu" history={history} range={range} unit="%"
+          series={[{ key: "cpu_percent", label: "CPU", tone: "info" }, { key: "memory_percent", label: "Memory", tone: "success", dashed: true }]} />
+        <HistoryChart title="Temperature" icon="temperature" history={history} range={range} unit=" °C"
+          series={[{ key: "temperature_celsius", label: "Temperature", tone: "warning" }]} />
+        <div className="chart-wide">
+          <HistoryChart title="Root disk" icon="disk" history={history} range={range} unit="%"
+            series={[{ key: "disk_percent", label: "Root disk", tone: "accent" }]} />
+        </div>
+      </div>
+      <details className="history-table">
+        <summary>Show the numbers</summary>
+        <HistoryTable history={history} />
+      </details>
+    </>
   );
 }

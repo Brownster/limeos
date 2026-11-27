@@ -143,6 +143,31 @@ def desktop_checks(browser, checks, problems, screens):
     page.get_by_text("Updated ", exact=False).first.wait_for()
     checks.append("overview banner, thresholds, load, uptime and workload counts")
 
+    # History charts: lines per series with gaps, tooltip, keyboard, ranges, table.
+    for key in ["cpu_percent", "memory_percent", "temperature_celsius", "disk_percent"]:
+        assert page.locator(f'path[data-history-line="{key}"]').count() >= 2, key  # a gap splits the line
+    plot = page.get_by_test_id("history-chart-cpu_percent").locator("svg")
+    plot.scroll_into_view_if_needed()
+    box = plot.bounding_box()
+    page.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + box["height"] / 2)
+    tooltip = page.locator("[data-history-tooltip]")
+    tooltip.wait_for()
+    assert "CPU" in tooltip.inner_text() and "Memory" in tooltip.inner_text()
+    page.mouse.move(0, 0)
+    plot.focus()
+    page.keyboard.press("ArrowLeft")
+    live = page.get_by_test_id("history-chart-cpu_percent").locator('[aria-live="polite"]')
+    assert "CPU" in live.inner_text(), live.inner_text()
+    assert "average" in plot.get_attribute("aria-label")
+    before = [c for c in fixture.calls if c[0] == "/api/v1/system/history"]
+    page.get_by_role("group", name="History range").get_by_role("button", name="7d").click()
+    page.get_by_text("168 samples", exact=False).wait_for()
+    assert page.get_by_role("button", name="7d").get_attribute("aria-pressed") == "true"
+    assert len([c for c in fixture.calls if c[0] == "/api/v1/system/history"]) == len(before) + 1
+    page.get_by_text("Show the numbers").click()
+    page.get_by_role("region", name="History values").wait_for()
+    checks.append("history charts: gaps, pointer tooltip, keyboard readout, ranges and table")
+
     # Stale sources never read as healthy.
     fixture.stale_docker = True
     page.get_by_role("button", name="Refresh now").click()
@@ -166,6 +191,12 @@ def desktop_checks(browser, checks, problems, screens):
     assert "fixture-overview" in alert.inner_text() or alert.locator("details").count() == 1
     fixture.overview_down = False
     checks.append("failed refresh keeps the last observation and says so")
+    streams = [c for c in fixture.calls if c[0] == "/api/v1/observations/stream"]
+    overviews = [c for c in fixture.calls if c[0] == "/api/v1/overview"]
+    # One stream per page load (the fixture refuses it), no reconnect loop,
+    # and overview GETs only on load, refresh and the 30 s fallback.
+    assert len(streams) <= 16 and len(overviews) <= 24, (len(streams), len(overviews))
+    checks.append(f"shared observation load: {len(streams)} stream opens, {len(overviews)} overview GETs over the run")
     page.close()
     return fixture
 

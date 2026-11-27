@@ -5,6 +5,7 @@ import { liveState, pollNeeded, STREAM_GRACE_SECONDS } from "../src/app/live-sta
 import { healthSummary, metricTone, metricBarValue, workloadCounts, thresholds } from "../src/overview/overview-model.ts";
 import { describeError } from "../src/ui/error-copy.ts";
 import { formatBytes, formatDuration, formatPercent, formatCelsius, formatAge, formatLoad } from "../src/ui/format.ts";
+import { seriesPaths, summarize, domainFor, nearestIndex, timeSpan, xFor, yFor, axisTimes } from "../src/overview/chart-model.ts";
 
 const NOW = 1_800_000_000;
 const fresh = (source) => ({ source, state: "fresh", sampled_at: NOW - 5, max_age_seconds: 90, warnings: [] });
@@ -144,4 +145,40 @@ test("formatting says unknown instead of zero", () => {
   assert.equal(formatAge(NOW - 2, NOW), "just now");
   assert.equal(formatAge(NOW - 300, NOW), "5 min ago");
   assert.equal(formatAge(null, NOW), "never");
+});
+
+const pt = (at, cpu, temp = 50) => ({ at, cpu_percent: cpu, memory_percent: null, temperature_celsius: temp, disk_percent: 40 });
+
+test("chart scaling: time axis, clamped values and broken lines over unknown time", () => {
+  const span = timeSpan([pt(100, 1), pt(200, 2)], 0, 400);
+  assert.deepEqual(span, { from: 0, to: 400 });
+  assert.deepEqual(timeSpan([pt(100, 1), pt(200, 2)]), { from: 100, to: 200 });
+  assert.deepEqual(timeSpan([pt(100, 1)]), { from: 99, to: 101 });
+  assert.deepEqual(timeSpan([]), { from: -1, to: 1 });
+  assert.equal(xFor(200, span), 500);
+  assert.equal(yFor(0, [0, 100]), 200);
+  assert.equal(yFor(100, [0, 100]), 0);
+  assert.equal(yFor(150, [0, 100]), 0);
+  assert.equal(yFor(-5, [0, 100]), 200);
+  const points = [pt(0, 10), pt(100, 20), pt(200, null), pt(300, 30), pt(400, 40), pt(1000, 50)];
+  const paths = seriesPaths(points, "cpu_percent", [0, 100], { from: 0, to: 1000 }, 100);
+  assert.deepEqual(paths, ["M 0.0 180.0 L 100.0 160.0", "M 300.0 140.0 L 400.0 120.0", "M 1000.0 100.0 L 1000.0 100.0"]);
+  assert.deepEqual(seriesPaths(points, "memory_percent", [0, 100], { from: 0, to: 1000 }, 100), []);
+});
+
+test("chart summaries, domains and the nearest sample", () => {
+  assert.deepEqual(summarize([pt(0, 10), pt(1, null), pt(2, 30)], "cpu_percent"), { current: 30, min: 10, max: 30, average: 20 });
+  assert.equal(summarize([pt(0, 10), pt(1, null)], "cpu_percent").current, 10);
+  assert.deepEqual(summarize([pt(0, null)], "cpu_percent"), { current: null, min: null, average: null, max: null });
+  assert.deepEqual(domainFor("cpu_percent", []), [0, 100]);
+  assert.deepEqual(domainFor("temperature_celsius", [pt(0, 1, 46), pt(1, 1, 59)]), [40, 70]);
+  assert.deepEqual(domainFor("temperature_celsius", [pt(0, 1, 52), pt(1, 1, 54)]), [40, 70]);
+  assert.deepEqual(domainFor("temperature_celsius", [pt(0, 1, 2)]), [0, 30]);
+  assert.deepEqual(domainFor("temperature_celsius", [pt(0, 1, null)]), [20, 80]);
+  const points = [pt(0, 1), pt(100, 1), pt(400, 1)];
+  assert.equal(nearestIndex(points, 0.3, { from: 0, to: 400 }), 1);
+  assert.equal(nearestIndex(points, 0.9, { from: 0, to: 400 }), 2);
+  assert.equal(nearestIndex(points, -2, { from: 0, to: 400 }), 0);
+  assert.equal(nearestIndex([], 0.5, { from: 0, to: 1 }), null);
+  assert.deepEqual(axisTimes({ from: 0, to: 100 }), [0, 50, 100]);
 });

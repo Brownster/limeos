@@ -54,6 +54,7 @@ export function OverviewProvider({ expired, children }: { expired: () => void; c
     let stream: EventSource | null = null;
     let snapshotAt: number | null = null;
     let connectedAt = 0;
+    let readAt = 0;
     const mark = (patch: Partial<typeof marks>) => setMarks((m) => ({ ...m, ...patch }));
     const connect = () => {
       stream?.close();
@@ -75,10 +76,12 @@ export function OverviewProvider({ expired, children }: { expired: () => void; c
       stream.onerror = () => {
         // The stream ends every 25 s and the browser reconnects by itself;
         // only a stream the browser gave up on needs the GET fallback now.
-        if (active && stream?.readyState === EventSource.CLOSED) read(false);
+        // A GET from the last 10 s already covers it.
+        if (active && stream?.readyState === EventSource.CLOSED && seconds() - readAt > 10) read(false);
       };
     };
     const read = (manual: boolean) => {
+      readAt = seconds();
       if (manual) setRefreshing(true);
       void api
         .overview()
