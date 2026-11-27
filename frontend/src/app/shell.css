@@ -1,0 +1,315 @@
+/* App shell: sidebar (>= 980px), top bar and drawer (< 980px), sign-in page. */
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 80;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: 600 var(--text-sm) var(--font-mono);
+  text-decoration: none;
+}
+.skip-link:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand .mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: 700 var(--text-md) var(--font-mono);
+}
+.brand-name {
+  font: 600 15px var(--font-mono);
+  white-space: nowrap;
+}
+.brand-name span { color: var(--accent); }
+.brand small {
+  display: block;
+  font: var(--text-2xs) var(--font-mono);
+  color: var(--dim);
+  letter-spacing: 0.04em;
+}
+
+/* Sidebar */
+.sidebar {
+  display: none;
+}
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--sidebar);
+}
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  height: 72px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--divider);
+}
+.primary-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 12px;
+}
+.nav-group + .nav-group { margin-top: 18px; }
+.nav-group-label {
+  margin: 0;
+  padding: 0 12px 8px;
+  font: var(--text-2xs) var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.nav-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--touch);
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font: var(--text-sm) var(--font-mono);
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+.nav-link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.nav-link[aria-current="page"] {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.nav-link .nav-count {
+  margin-left: auto;
+}
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--divider);
+}
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--accent);
+  font: 600 var(--text-sm) var(--font-mono);
+}
+.account-who {
+  min-width: 0;
+  flex: 1;
+}
+.account-name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+.account-role {
+  margin: 0;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--dim);
+}
+.sign-out {
+  min-height: var(--touch);
+  padding: 0 10px;
+  background: transparent;
+  color: var(--text-muted);
+  border-color: transparent;
+  font-size: var(--text-xs);
+}
+.sign-out:hover:enabled {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Top bar and drawer (small screens) */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 60px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--sidebar);
+}
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.menu-button {
+  width: var(--touch);
+  padding: 0;
+}
+.drawer {
+  width: min(86vw, 300px);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  inset: 0 auto 0 0;
+  border: 0;
+  border-right: 1px solid var(--divider);
+  background: var(--sidebar);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overscroll-behavior: contain;
+}
+.drawer::backdrop { background: var(--overlay); }
+.drawer[open] { animation: drawer-in 0.18s ease-out; }
+@keyframes drawer-in { from { transform: translateX(-100%); } }
+.drawer .sidebar-head { justify-content: space-between; padding-right: 12px; }
+.drawer-close {
+  width: var(--touch);
+  padding: 0;
+}
+
+/* Main column */
+.main {
+  display: block;
+  min-width: 0;
+  padding: 20px 16px 48px;
+}
+.main:focus { outline: none; }
+.main-inner {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+.app-error { margin-bottom: 16px; }
+
+@media (min-width: 640px) {
+  .main { padding: 28px 24px 56px; }
+}
+@media (min-width: 980px) {
+  .sidebar {
+    display: block;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: var(--sidebar-width);
+    border-right: 1px solid var(--divider);
+  }
+  .topbar { display: none; }
+  .main {
+    margin-left: var(--sidebar-width);
+    padding: 32px 32px 64px;
+  }
+}
+@media (min-width: 1280px) {
+  .main { padding-inline: 40px; }
+}
+
+/* Sub-navigation inside a page (Alerts) */
+.subnav {
+  display: flex;
+  gap: 4px;
+  margin: -8px 0 20px;
+  border-bottom: 1px solid var(--divider);
+  overflow-x: auto;
+}
+.subnav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font: var(--text-sm) var(--font-mono);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.subnav a:hover { color: var(--text); }
+.subnav a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Sign-in page */
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px 16px;
+}
+.login-card {
+  width: min(420px, 100%);
+}
+.login-card .brand { margin-bottom: 28px; }
+.login-card .card { padding: 24px; }
+@media (min-width: 640px) {
+  .login-card .card { padding: 32px; }
+}
+.login-card h1 {
+  margin: 8px 0 6px;
+  font: 600 var(--text-2xl) / 1.25 var(--font-mono);
+}
+.login-card .intro { margin: 0 0 20px; font-size: var(--text-sm); }
+.login-form {
+  display: grid;
+  gap: 6px;
+}
+.login-form label { margin-top: 10px; }
+.login-form input { width: 100%; }
+.login-form button {
+  margin-top: 20px;
+  width: 100%;
+  justify-content: space-between;
+}
+.login footer {
+  margin-top: 20px;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--dim);
+  text-align: center;
+}

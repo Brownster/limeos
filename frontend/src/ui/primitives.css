@@ -1,0 +1,272 @@
+/* Primitives: see primitives.tsx. Tokens only; no literal colours. */
+.icon {
+  flex: none;
+  vertical-align: middle;
+}
+.tone-accent { color: var(--accent); }
+.tone-text-success { color: var(--success); }
+.tone-text-warning { color: var(--warning); }
+.tone-text-danger { color: var(--danger); }
+.tone-text-info { color: var(--info); }
+.tone-text-neutral { color: var(--text); }
+.tone-text-accent { color: var(--accent); }
+.tone-bg-accent { background: var(--accent); }
+.tone-bg-success { background: var(--success); }
+.tone-bg-warning { background: var(--warning); }
+.tone-bg-danger { background: var(--danger); }
+.tone-bg-info { background: var(--info); }
+.tone-bg-neutral { background: var(--text-muted); }
+
+/* Card */
+.card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 16px;
+}
+@media (min-width: 640px) {
+  .card { padding: 20px; }
+}
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.card-title h2,
+.card-title h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: 600 var(--text-md) / 1.3 var(--font-mono);
+  color: var(--text);
+}
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--touch);
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.card-link:hover { color: var(--accent); }
+
+/* Badge */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font: 500 var(--text-xs) / 1.2 var(--font-mono);
+  white-space: nowrap;
+}
+.ui-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ui-badge.tone-neutral { background: var(--neutral-soft); color: var(--text-muted); }
+.ui-badge.tone-accent { background: var(--accent-soft); color: var(--accent); }
+.ui-badge.tone-success { background: var(--success-soft); color: var(--success); }
+.ui-badge.tone-warning { background: var(--warning-soft); color: var(--warning); }
+.ui-badge.tone-danger { background: var(--danger-soft); color: var(--danger); }
+.ui-badge.tone-info { background: var(--info-soft); color: var(--info); }
+
+/* Metric bar */
+.metric-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.metric-bar .fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+.metric-bar.unknown {
+  background: repeating-linear-gradient(90deg, var(--border-strong) 0 6px, transparent 6px 10px);
+}
+
+/* Page header */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media (min-width: 720px) {
+  .page-header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+.page-header-text { min-width: 0; }
+.page-eyebrow {
+  margin: 0 0 4px;
+  font: var(--text-xs) var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.page-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+.page-title-row h1 {
+  margin: 0;
+  font: 600 var(--text-xl) / 1.25 var(--font-mono);
+  color: var(--text);
+}
+@media (min-width: 640px) {
+  .page-title-row h1 { font-size: var(--text-2xl); }
+}
+.page-title-row h1:focus { outline: none; }
+.page-title-row h1:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.page-description {
+  margin-top: 6px;
+  font: var(--text-sm) / 1.5 var(--font-mono);
+  color: var(--dim);
+  max-width: 70ch;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Refresh control */
+.refresh-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.refresh-time {
+  font: var(--text-xs) var(--font-mono);
+  color: var(--dim);
+}
+.icon-button {
+  width: var(--touch);
+  padding: 0;
+}
+.spin { animation: spin 0.9s linear infinite; }
+.pulse { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+/* State message */
+.state-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--dim-decor);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.state-message.compact { padding: 12px 14px; }
+.state-message > .icon { margin-top: 1px; }
+.state-error { border-left-color: var(--danger); background: var(--danger-soft); }
+.state-error > .icon { color: var(--danger); }
+.state-unavailable > .icon,
+.state-empty > .icon { color: var(--info); }
+.state-loading > .icon { color: var(--text-muted); }
+.state-text { min-width: 0; }
+.state-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+.state-detail {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+}
+.state-detail p { margin: 4px 0 0; }
+.state-support {
+  margin-top: 8px;
+  font-size: var(--text-xs);
+  color: var(--dim);
+}
+.state-support summary {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+.state-support p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.state-text > button { margin-top: 12px; }
+
+/* Stat */
+.stat { min-width: 0; }
+.stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.stat-value {
+  font: 500 24px / 1.1 var(--font-mono);
+  color: var(--text);
+}
+.stat-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* Segmented control (range buttons, filters): buttons with aria-pressed. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.segmented button {
+  min-width: 48px;
+  min-height: var(--touch);
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.segmented button:hover:enabled {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--surface-2);
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}

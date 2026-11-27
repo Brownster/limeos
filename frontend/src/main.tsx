@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import type { SessionView } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
+import "./ui/tokens.css";
+import "./ui/primitives.css";
+import "./app/shell.css";
 import "./style.css";
 import { Dashboard } from "./Dashboard";
 function App() {
@@ -60,7 +63,8 @@ function App() {
     }
   }
   return (
-    <main id="main" className={session ? "signed-in" : ""}>
+    <main id="main" className={session ? "main" : "login"}>
+      <div className={session ? "main-inner panel" : "login-card"}>
       <a className="skip-link" href="#content">
         Skip to content
       </a>
@@ -68,8 +72,8 @@ function App() {
         <span className="mark" aria-hidden="true">
           L
         </span>
-        <span>
-          LimeOS<small>Your home, in order.</small>
+        <span className="brand-name">
+          lime<span>os</span><small>Your home, in order.</small>
         </span>
       </div>
       {session ? (
@@ -93,7 +97,7 @@ function App() {
           </div>
         </>
       ) : (
-        <section id="content" aria-labelledby="heading">
+        <section id="content" className="card" aria-labelledby="heading">
           <p className="eyebrow">LOCAL CONTROL</p>
           <h1 id="heading">Welcome home.</h1>
           <p className="intro">Sign in to your LimeOS host.</p>
@@ -102,7 +106,7 @@ function App() {
               {error}
             </p>
           )}
-          <form onSubmit={(e) => void login(e)} aria-busy={pending}>
+          <form className="login-form" onSubmit={(e) => void login(e)} aria-busy={pending}>
             <label htmlFor="username">Username</label>
             <input
               id="username"
@@ -130,6 +134,7 @@ function App() {
         </section>
       )}
       <footer>LimeOS · Secure host management</footer>
+      </div>
     </main>
   );
 }
