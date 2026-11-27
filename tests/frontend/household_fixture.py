@@ -41,7 +41,7 @@ def _storage(kind, identifier, name, parent=None, mountpoint=None, size=None):
         "id": identifier,
         "kind": kind,
         "name": name,
-        "status": "online" if kind != "pool" else "healthy",
+        "status": "unmounted" if kind == "disk" else "mounted",
         "source": "pools" if kind == "pool" else "storage",
         "parent": parent,
         "identity": identifier,
@@ -85,13 +85,13 @@ def resources():
         _container(6, "jackett", "running", "downloads", None, 0.3, 2.2),
         _container(7, "audiobookshelf", "running", None, None, 0.2, 2.9),
         _container(8, "navidrome", "running", None, "healthy", 0.1, 1.4),
-        _stack("media", "partial"),
+        _stack("media", "degraded"),
         _stack("downloads", "running"),
         _storage("disk", "disk:sda", "sda", size=4 * tb),
         _storage("disk", "disk:sdb", "sdb", size=2 * tb),
         _storage("partition", "uuid:media", "sda1", "disk:sda", "/mnt/storage", 4 * tb),
         _storage("partition", "uuid:backup", "sdb1", "disk:sdb", "/mnt/backup", 2 * tb),
-        _storage("pool", "pool:media", "media pool", None, "/mnt/media", 6 * tb),
+        _storage("pool", "pool:/mnt/media", "/mnt/media", None, "/mnt/media", 6 * tb),
     ]
 
 

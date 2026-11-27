@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import type { SessionView } from "../../contracts/generated/types";
 import { api, ApiError } from "./api";
@@ -6,19 +6,44 @@ import "./ui/tokens.css";
 import "./ui/primitives.css";
 import "./app/shell.css";
 import "./style.css";
-import { Dashboard } from "./Dashboard";
+import "./overview/overview.css";
+import { Login } from "./app/Login";
+import { Shell } from "./app/Shell";
+import { OverviewProvider } from "./app/overview-data";
+import { navigate, usePathname } from "./app/router";
+import { documentTitle, parseRoute, routeById } from "./app/routes";
+import { Pages } from "./pages/Pages";
+
 function App() {
   const [session, setSession] = useState<SessionView | null>(null);
   const [pending, setPending] = useState(true);
+  const [checked, setChecked] = useState(false);
   const [error, setError] = useState("");
+  const pathname = usePathname();
+  const route = parseRoute(pathname);
   const expired = useCallback(() => setSession(null), []);
   const reauthenticate = useCallback(() => {
     setSession(null);
     setError("Health scheduling enabled. Sign in again to use the updated permission.");
   }, []);
   useEffect(() => {
-    document.title = session ? "LimeOS · Observations" : "LimeOS · Sign in";
-  }, [session]);
+    if (route.redirect) navigate(route.path, { replace: true });
+  }, [route.redirect, route.path]);
+  useEffect(() => {
+    document.title = session ? documentTitle(route.id) : "LimeOS · Sign in";
+  }, [session, route.id]);
+  // After an in-app navigation, move focus to the new page's heading so
+  // keyboard and screen-reader users start at the top of the new content.
+  const previous = useRef(pathname);
+  useEffect(() => {
+    if (previous.current === pathname) return;
+    previous.current = pathname;
+    window.scrollTo(0, 0);
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-page-title]")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
   useEffect(() => {
     void api
       .session()
@@ -27,7 +52,10 @@ function App() {
         if (!(e instanceof ApiError && e.detail.code === "unauthenticated"))
           setError(e instanceof Error ? e.message : "LimeOS is unavailable.");
       })
-      .finally(() => setPending(false));
+      .finally(() => {
+        setPending(false);
+        setChecked(true);
+      });
   }, []);
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,80 +90,20 @@ function App() {
       setPending(false);
     }
   }
+  if (!session) {
+    // Avoid flashing the sign-in form while the existing session is checked.
+    if (!checked) return <main id="main" className="login" aria-busy="true"><p className="sr-only" role="status">Connecting to LimeOS…</p></main>;
+    return <Login pending={pending} error={error} onSubmit={(e) => void login(e)} />;
+  }
+  const canManage = ["operator", "administrator"].includes(session.principal.role);
+  const section = route.id === "not-found" ? null : routeById(route.id).section;
   return (
-    <main id="main" className={session ? "main" : "login"}>
-      <div className={session ? "main-inner panel" : "login-card"}>
-      <a className="skip-link" href="#content">
-        Skip to content
-      </a>
-      <div className="brand">
-        <span className="mark" aria-hidden="true">
-          L
-        </span>
-        <span className="brand-name">
-          lime<span>os</span><small>Your home, in order.</small>
-        </span>
-      </div>
-      {session ? (
-        <>
-          <div className="account">
-            <span>
-              {session.principal.id} ·{" "}
-              {session.principal.role.replace("_", " ")}
-            </span>
-            <button onClick={() => void logout()} disabled={pending}>
-              Sign out
-            </button>
-          </div>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <div id="content" tabIndex={-1}>
-            <Dashboard expired={expired} session={session} reauthenticate={reauthenticate} />
-          </div>
-        </>
-      ) : (
-        <section id="content" className="card" aria-labelledby="heading">
-          <p className="eyebrow">LOCAL CONTROL</p>
-          <h1 id="heading">Welcome home.</h1>
-          <p className="intro">Sign in to your LimeOS host.</p>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          <form className="login-form" onSubmit={(e) => void login(e)} aria-busy={pending}>
-            <label htmlFor="username">Username</label>
-            <input
-              id="username"
-              name="username"
-              autoComplete="username"
-              required
-              maxLength={64}
-              disabled={pending}
-            />
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              maxLength={1024}
-              disabled={pending}
-            />
-            <button disabled={pending} type="submit">
-              {pending ? "Connecting…" : "Sign in"}
-              <span aria-hidden="true">↗</span>
-            </button>
-          </form>
-        </section>
-      )}
-      <footer>LimeOS · Secure host management</footer>
-      </div>
-    </main>
+    <OverviewProvider key={session.csrf_token} expired={expired}>
+      <Shell session={session} section={section} canManage={canManage} pending={pending} logout={() => void logout()}>
+        {error && <p className="error app-error" role="alert">{error}</p>}
+        <Pages route={route.id} session={session} expired={expired} reauthenticate={reauthenticate} />
+      </Shell>
+    </OverviewProvider>
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);

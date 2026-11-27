@@ -92,7 +92,7 @@ def main():
           catch (error) { return error.name + ": " + error.message; }
         }""")
         assert "Illegal invocation" in timer_probe
-        page.get_by_role("button", name="Stacks", exact=True).click()
+        page.get_by_role("link", name="Stacks", exact=True).click()
         panel = page.locator('section[aria-labelledby="stack-management-heading"]')
         panel.get_by_role("heading", name="Stacks and services").wait_for()
         try:

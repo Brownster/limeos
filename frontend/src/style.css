@@ -16,6 +16,7 @@
   .panel { padding: 24px; }
 }
 .panel + .panel { margin-top: 20px; }
+.panel:empty { display: none; }
 .panel section {
   margin-top: 28px;
   padding-top: 24px;

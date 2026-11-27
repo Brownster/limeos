@@ -165,12 +165,11 @@ def main():
                     body=json.dumps(data),
                 )
                 return
-            file = (
-                ROOT
-                / "frontend/dist"
-                / ("index.html" if path == "/" else path.lstrip("/"))
-            )
-            assert file.is_file()
+            file = ROOT / "frontend/dist" / path.lstrip("/")
+            if not file.is_file():
+                # Caddy: try_files {path} /index.html (history-API routes).
+                assert "." not in path.rsplit("/", 1)[-1], path
+                file = ROOT / "frontend/dist/index.html"
             route.fulfill(
                 body=file.read_bytes(),
                 content_type=mimetypes.guess_type(file)[0]
@@ -179,6 +178,9 @@ def main():
 
         page.route("https://limeos-test.invalid/**", respond)
         page.goto("https://limeos-test.invalid/")
+        # Container lifecycle lives on the Containers page of the app shell.
+        page.get_by_role("link", name="Containers", exact=True).click()
+        page.wait_for_url("**/containers")
         restart = page.get_by_role("button", name="Restart", exact=True)
         restart.click()
         dialog = page.get_by_role("dialog")
@@ -263,7 +265,7 @@ def main():
         page.screenshot(path=str(evidence / "lifecycle-progress.png"), full_page=True)
         session["principal"]["role"] = "viewer"
         page.reload()
-        page.get_by_role("heading", name="At home.").wait_for()
+        page.get_by_role("heading", name="Containers", level=1).wait_for()
         for label in ["Start", "Stop", "Restart", "Logs"]:
             assert page.get_by_role("button", name=label, exact=True).count() == 0
         (evidence / "lifecycle-browser-result.json").write_text(

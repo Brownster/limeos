@@ -58,7 +58,7 @@ code = code
     JSON.stringify(new URL("../src/model.ts", import.meta.url).href),
   )
   .replace('"./ContainerActions"', JSON.stringify(actionsURL));
-const { ObservationView } = await import(
+const { PartialNotice, SourceList, ResourceTable, HistoryTable } = await import(
   `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
 );
 const resource = {
@@ -94,20 +94,24 @@ const overview = {
 };
 
 test("missing evidence is never displayed as zero or a complete inventory", () => {
+  // The old single ObservationView became PartialNotice, SourceList and
+  // ResourceTable (Overview, Containers and Storage pages); host metrics moved
+  // to the Overview cards, whose "Unknown" is covered in overview-model.test.
   const html = renderToStaticMarkup(
-    React.createElement(ObservationView, {
-      value: overview,
-      items: [resource],
-      history: null,
-    }),
+    React.createElement(React.Fragment, null,
+      React.createElement(PartialNotice, { value: overview }),
+      React.createElement(SourceList, { value: overview }),
+      React.createElement(ResourceTable, { items: [resource] }),
+    ),
   );
-  assert.match(html, /Unknown/);
   assert.match(html, /incomplete or out of date/);
   assert.match(html, /unavailable/);
   assert.match(html, /missing/);
   assert.match(html, /Read failed/);
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>/);
+  const container = { ...resource, kind: "container", id: "container:x", image: "img", source: "docker", status: "running" };
+  assert.match(renderToStaticMarkup(React.createElement(ResourceTable, { items: [container] })), /CPU Unknown · memory Unknown/);
 });
 test("pagination, stale timestamps and legitimate zero metrics remain distinct", () => {
   assert.equal(percent(null), "Unknown");
@@ -138,23 +142,21 @@ test("pagination, stale timestamps and legitimate zero metrics remain distinct",
   assert.equal(page(resources, "container", 0).length, 0);
 });
 test("history explicitly preserves the separate legacy view", () => {
-  const html = renderToStaticMarkup(
-    React.createElement(ObservationView, {
-      value: overview,
-      items: [],
-      history: {
-        range: "24h",
-        from: 1,
-        to: 2,
-        bucket_seconds: 300,
-        points: [],
-        legacy_history:
-          "Earlier history remains in the current build’s System history view.",
-      },
-    }),
-  );
+  const history = {
+    range: "24h",
+    from: 1,
+    to: 2,
+    bucket_seconds: 300,
+    points: [{ at: 1, cpu_percent: 0, memory_percent: null, temperature_celsius: 41.25, disk_percent: 50 }],
+    legacy_history:
+      "Earlier history remains in the current build’s System history view.",
+  };
+  const html = renderToStaticMarkup(React.createElement(HistoryTable, { history }));
   assert.match(html, /Earlier history remains/);
-  assert.match(html, /No resources in this view/);
+  assert.match(html, /0\.0%/);
+  assert.match(html, /Unknown/);
+  assert.match(html, /41\.3 °C|41\.2 °C/);
+  assert.match(renderToStaticMarkup(React.createElement(ResourceTable, { items: [] })), /No resources in this view/);
 });
 test("inventory requests use bounded pagination and propagate server details", async () => {
   const original = globalThis.fetch;

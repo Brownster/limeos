@@ -8,6 +8,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { Icon, type IconName } from "./icons";
 import { describeError } from "./error-copy";
 import { formatAge, formatClock } from "./format";
+import type { LiveState } from "../app/live-status";
 
 export type Tone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
 
@@ -79,10 +80,10 @@ export function PageHeader({ title, description, status, actions, eyebrow }: {
  * 25-second rotation (see app/live-status.ts).
  */
 export function RefreshControl({ updatedAt, live, refreshing = false, onRefresh, now }: {
-  updatedAt: number | null; live: "live" | "polling" | "reconnecting" | "offline"; refreshing?: boolean; onRefresh?: () => void; now?: number;
+  updatedAt: number | null; live: LiveState; refreshing?: boolean; onRefresh?: () => void; now?: number;
 }) {
-  const label = { live: "Live", polling: "Updating every 30 s", reconnecting: "Reconnecting", offline: "Offline" }[live];
-  const tone: Tone = live === "live" ? "success" : live === "polling" ? "info" : live === "reconnecting" ? "warning" : "danger";
+  const label = { connecting: "Connecting", live: "Live", polling: "Updating every 30 s", reconnecting: "Reconnecting", offline: "Offline" }[live];
+  const tone: Tone = live === "live" ? "success" : live === "polling" || live === "connecting" ? "info" : live === "reconnecting" ? "warning" : "danger";
   return (
     <div className="refresh-control">
       <StatusBadge label={label} tone={tone} />

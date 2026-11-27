@@ -8,8 +8,10 @@ export type MountState = {
   jobs: StorageMountJob[]; historyLoading: boolean; historyError: string;
   proposal: PlannedStorageMount | null; reviewOpen: boolean; pending: boolean; error: string;
   retryAvailable: boolean; canceling: string | null; expired: boolean; denied: boolean;
+  /** The last catalog read answered "unavailable": the storage helper is not running or not enabled. */
+  catalogUnavailable: boolean;
 };
-const initial = (): MountState => ({ target: "", targets: [], catalogLoading: true, catalogError: "", jobs: [], historyLoading: true, historyError: "", proposal: null, reviewOpen: false, pending: false, error: "", retryAvailable: false, canceling: null, expired: false, denied: false });
+const initial = (): MountState => ({ target: "", targets: [], catalogLoading: true, catalogError: "", jobs: [], historyLoading: true, historyError: "", proposal: null, reviewOpen: false, pending: false, error: "", retryAvailable: false, canceling: null, expired: false, denied: false, catalogUnavailable: false });
 const invalid = () => new Error("Invalid mount response");
 const opaque = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 const text = (value: unknown, limit: number): value is string => typeof value === "string" && value.length > 0 && new TextEncoder().encode(value).length <= limit && !/\p{Cc}/u.test(value);
@@ -73,8 +75,8 @@ export class StorageMountController {
         const catalog = await this.api.targets(scope.signal); if (!scope.active()) return;
         if (!catalog || !Array.isArray(catalog.targets) || catalog.targets.length > 32 || !catalog.targets.every(device) || new Set(catalog.targets.map(value => value.id)).size !== catalog.targets.length) throw invalid();
         const target = catalog.targets.some(value => value.id === this.state.target) ? this.state.target : catalog.targets[0]?.id ?? "";
-        this.update({ targets: catalog.targets, target, catalogError: "" });
-      } catch (error) { if (scope.active() && !this.accessFailure(error)) this.update({ targets: [], target: "", catalogError: message(error) }); }
+        this.update({ targets: catalog.targets, target, catalogError: "", catalogUnavailable: false });
+      } catch (error) { if (scope.active() && !this.accessFailure(error)) this.update({ targets: [], target: "", catalogError: message(error), catalogUnavailable: error instanceof ApiError && error.detail.code === "unavailable" }); }
       finally { scope.close(); if (scope.active()) { this.catalogRead = null; this.update({ catalogLoading: false }); } }
     };
     const pending = Promise.resolve().then(work); this.catalogRead = pending; this.update({ catalogLoading: true, catalogError: "" }); return pending;

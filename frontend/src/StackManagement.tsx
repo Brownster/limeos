@@ -81,12 +81,12 @@ function Services({ value, stale }: { value: ServiceView[]; stale: boolean }) {
   </div>)}</>;
 }
 
-/** Mount with the shared authenticated principal/grant identity. */
-export function StackPanel({ principal, grantRevision, csrf, expired, admin }: { principal: string; grantRevision: number; csrf:string; expired: () => void; admin?: boolean }) {
-  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} csrf={csrf} expired={expired} admin={admin} />;
+/** Mount with the shared authenticated principal/grant identity. `manage` false hides lifecycle controls a viewer cannot use. */
+export function StackPanel({ principal, grantRevision, csrf, expired, admin, manage = true }: { principal: string; grantRevision: number; csrf:string; expired: () => void; admin?: boolean; manage?: boolean }) {
+  return <OwnedStackPanel key={JSON.stringify([principal,grantRevision,csrf])} csrf={csrf} expired={expired} admin={admin} manage={manage} />;
 }
 const useOwnerEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
-function OwnedStackPanel({ csrf, expired, admin }: { csrf:string; expired:()=>void; admin?: boolean }) {
+function OwnedStackPanel({ csrf, expired, admin, manage }: { csrf:string; expired:()=>void; admin?: boolean; manage: boolean }) {
   const [revision, setRevision] = useState(0);
   const expiry = useRef(expired); expiry.current = expired;
   const stableExpired = useCallback(() => expiry.current(), []);
@@ -100,5 +100,5 @@ function OwnedStackPanel({ csrf, expired, admin }: { csrf:string; expired:()=>vo
   if (state.expired) return null;
   const changed = () => { setRevision(value => value + 1); void controller.refresh(); };
   return <StackManagement value={state.value} loading={state.loading} stale={state.stale} error={state.error} refresh={() => { void controller.refresh(); }}
-    operations={{ csrf, revision, changed, expired: stableExpired, admin }} />;
+    operations={manage ? { csrf, revision, changed, expired: stableExpired, admin } : undefined} />;
 }

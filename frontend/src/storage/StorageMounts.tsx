@@ -34,6 +34,16 @@ function SessionStorageMounts({ csrf, expired }: { csrf: string; expired: () => 
     if (state.reviewOpen && !dialog.current?.open) dialog.current?.showModal();
     if (!state.reviewOpen && dialog.current?.open) dialog.current.close();
   }, [state.reviewOpen]);
+  if (state.catalogUnavailable && !catalogLoading && targets.length === 0 && jobs.length === 0 && !unavailable) {
+    // The storage helper is not running or not enabled: explain, don't alarm.
+    return (
+      <section className="operations" aria-labelledby="mount-heading">
+        <h2 id="mount-heading">Mount a managed disk</h2>
+        <p className="notice">Disk mounting isn't available on this host right now. LimeOS mounts disks through its storage helper, which isn't running or hasn't been enabled. Disks that are already mounted keep working and are listed above.</p>
+        <button type="button" className="quiet" onClick={() => { void controller.refreshTargets(); void controller.refreshJobs(); }}>Check again</button>
+      </section>
+    );
+  }
   return (
     <section className="operations" aria-labelledby="mount-heading">
       <h2 id="mount-heading">Mount a managed disk</h2>
