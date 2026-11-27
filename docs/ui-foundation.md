@@ -189,6 +189,13 @@ UI only hides what would be refused.
   stacks", "Manage alert policy" (now a link on the Overview), "Save health
   settings", "Sign in", "Sign out"; headings "Stacks and services", "Recent
   container operations", "Welcome home." (sign-in) and each page's `<h1>`.
+- Containers rows: the primary action is a button named "Restart" or
+  "Start"; "Start", "Stop" and "Restart" are also `menuitem`s in the menu
+  button "More actions for <name>" (unavailable items are `aria-disabled`
+  and say why); "Logs" is a button; the name is a link that opens the
+  detail drawer (`?container=<name>`). Job rows keep `.job-row` and the
+  state word. `tests/frontend/containers_fixture.py` extends the household
+  fixture with jobs, logs and container mounts.
 - If you change a label, role or class a test uses, update the test in the
   same commit and say so in the message.
 - The node tests transpile some components and rewrite their relative
@@ -208,6 +215,7 @@ cd frontend && npm ci --ignore-scripts && npm test && npm run build && npm audit
 python3 tests/frontend/restart.py
 python3 tests/frontend/stacks.py --output /tmp/stacks
 python3 tests/frontend/shell.py --output /tmp/shell --screens /tmp/shell-screens
+python3 tests/frontend/containers.py --output /tmp/containers --screens /tmp/containers-screens
 ```
 
 `health_history.py`, `health_policy.py` and `schedules.py` also need a
@@ -217,9 +225,8 @@ test.
 ## Known follow-ups (frontend)
 
 - The privileged-VM browser guests (`tests/privileged_vm/p04_*_browser_guest.py`)
-  still wait for the `<h1>` "At home." and click a "Stacks" *button*. They
-  need `h1` "Overview" (or the page's title) and a click on the "Stacks"
-  *link* (`/stacks`). They could not be run here.
+  now drive the shell (`PAGE_TITLE`, `follow` and `alerts_section` in
+  `p04_automation_browser_guest.py`) but have not been run in a VM since.
 - `/overview` and the stream snapshot have no strict decoder yet. Add one in
   `api.ts` that every overview read passes, as the feature clients do.
 - `MediaActivityPanel`, `NetworkGroups`, `ToolsStatus` and `ResolutionPanel`'s
