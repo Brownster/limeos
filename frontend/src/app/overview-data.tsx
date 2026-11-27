@@ -53,9 +53,11 @@ export function OverviewProvider({ expired, children }: { expired: () => void; c
     let active = true;
     let stream: EventSource | null = null;
     let snapshotAt: number | null = null;
+    let connectedAt = 0;
     const mark = (patch: Partial<typeof marks>) => setMarks((m) => ({ ...m, ...patch }));
     const connect = () => {
       stream?.close();
+      connectedAt = seconds();
       stream = new EventSource("/api/v1/observations/stream");
       stream.addEventListener("snapshot", (event) => {
         if (!active) return;
@@ -86,8 +88,9 @@ export function OverviewProvider({ expired, children }: { expired: () => void; c
           setError(null);
           setInvalid(false);
           mark({ succeededAt: seconds() });
-          // The host answers again: retry a stream the browser had given up on.
-          if (!document.hidden && (!stream || stream.readyState === EventSource.CLOSED)) connect();
+          // The host answers again: retry a stream the browser had given up
+          // on, at most once per poll interval.
+          if (!document.hidden && (!stream || stream.readyState === EventSource.CLOSED) && seconds() - connectedAt >= 30) connect();
         })
         .catch((e: unknown) => {
           if (!active) return;
