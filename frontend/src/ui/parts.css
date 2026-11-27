@@ -1,0 +1,105 @@
+/*
+ * Small shared page parts used by the Stacks and Storage pages (and free for
+ * others): the summary band, quiet secondary buttons and copyable values.
+ *
+ * A summary band: a row of labelled figures in one bordered strip, as the
+ * previous app's disk summary. Two columns on phones, four from 960 px.
+ * Markup: .summary-band > .summary-cell > .summary-label, .summary-value,
+ * .summary-note and optionally a MetricBar. Tokens only.
+ */
+.summary-band {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+@media (min-width: 960px) {
+  .summary-band { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.summary-cell {
+  min-width: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.summary-cell:nth-child(odd) { border-right: 1px solid var(--border); }
+.summary-cell:nth-last-child(-n + 2) { border-bottom: 0; }
+@media (min-width: 960px) {
+  .summary-cell { padding: 14px 16px; border-bottom: 0; border-right: 1px solid var(--border); }
+  .summary-cell:last-child { border-right: 0; }
+}
+.summary-label {
+  margin: 0;
+  font: var(--text-2xs) var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.summary-value {
+  margin: 6px 0 0;
+  font: 500 var(--text-xl) / 1.2 var(--font-mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.summary-value-small {
+  font-size: var(--text-md);
+  line-height: 1.4;
+  margin-top: 8px;
+}
+.summary-note {
+  margin: 4px 0 0;
+  font: var(--text-xs) / 1.45 var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.summary-cell .metric-bar { margin-top: 10px; }
+
+/* Secondary page actions: quiet, small type, still a 44 px target. */
+button.compact {
+  padding: 6px 12px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+button.compact:hover:enabled { color: var(--text); }
+
+/* <CopyValue>: selectable code and its copy button (src/ui/copy.tsx). */
+.copy-value {
+  /* Contains the sr-only "copied" status, so it scrolls and clips with a table. */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.copy-value code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-xs);
+}
+.copy-button { flex: none; color: var(--text-muted); }
+
+/*
+ * A quiet disclosure inside a card: a divider, a chevron and small mono text,
+ * instead of the bordered box feature panels use. Put
+ * <Icon name="chevron" className="disclosure-chevron" /> first in the summary.
+ */
+details.card-disclosure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--divider);
+  border-radius: 0;
+}
+details.card-disclosure > summary {
+  justify-content: flex-start;
+  gap: 6px;
+  list-style: none;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+}
+details.card-disclosure > summary::-webkit-details-marker { display: none; }
+details.card-disclosure > summary:hover { color: var(--text); }
+details.card-disclosure[open] > summary { border-bottom: 0; margin-bottom: 0; }
+.disclosure-chevron { transition: transform 0.15s; }
+details[open] > summary > .disclosure-chevron { transform: rotate(90deg); }

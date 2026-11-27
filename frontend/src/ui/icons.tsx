@@ -9,7 +9,8 @@ import type { ReactNode } from "react";
 export type IconName =
   | "overview" | "containers" | "stacks" | "storage" | "alerts" | "menu" | "close" | "logout"
   | "refresh" | "ok" | "warning" | "critical" | "unknown" | "info" | "temperature" | "cpu"
-  | "memory" | "disk" | "activity" | "clock" | "chevron" | "server";
+  | "memory" | "disk" | "activity" | "clock" | "chevron" | "server"
+  | "play" | "stop" | "restart" | "copy" | "check" | "pool" | "external";
 
 const shapes: Record<IconName, ReactNode> = {
   overview: <><path d="m12 14 4-4" /><path d="M3.34 19a10 10 0 1 1 17.32 0" /></>,
@@ -34,6 +35,13 @@ const shapes: Record<IconName, ReactNode> = {
   clock: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
   chevron: <path d="m9 18 6-6-6-6" />,
   server: <><rect width="20" height="8" x="2" y="2" rx="2" /><rect width="20" height="8" x="2" y="14" rx="2" /><path d="M6 6h.01M6 18h.01" /></>,
+  play: <path d="M6 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 6 3.5Z" />,
+  stop: <rect width="16" height="16" x="4" y="4" rx="2" />,
+  restart: <><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></>,
+  copy: <><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></>,
+  check: <path d="M20 6 9 17l-5-5" />,
+  pool: <><path d="M20 10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2.5a1 1 0 0 1-.8-.4l-.9-1.2A1 1 0 0 0 15 3h-2a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z" /><path d="M20 21a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-2.9a1 1 0 0 1-.88-.55l-.42-.85a1 1 0 0 0-.92-.6H13a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1Z" /><path d="M3 5a2 2 0 0 0 2 2h3" /><path d="M3 3v13a2 2 0 0 0 2 2h3" /></>,
+  external: <><path d="M7 7h10v10" /><path d="M7 17 17 7" /></>,
 };
 
 export function Icon({ name, size = 18, className }: { name: IconName; size?: number; className?: string }) {
