@@ -28,21 +28,10 @@ function moduleCode(source) {
       JSON.stringify(pathToFileURL(require.resolve("react")).href),
     );
 }
-const actions = moduleCode(
-  await readFile(
-    new URL("../src/ContainerActions.tsx", import.meta.url),
-    "utf8",
-  ),
-).replace(
-  '"./api"',
-  JSON.stringify(new URL("../src/api.ts", import.meta.url).href),
-).replace(
-  '"./ResolutionPanel"',
-  JSON.stringify(
-    `data:text/javascript,${encodeURIComponent("export const NeedsAttention = () => null; export const mergeAttention = (own) => own;")}`,
-  ),
-);
-const actionsURL = `data:text/javascript;base64,${Buffer.from(actions).toString("base64")}`;
+// ContainerActions (row controls and dialogs) is rendered only for managers;
+// these tests render ResourceTable without lifecycle controls, so a stub
+// stands in for it and its component tree.
+const actionsURL = `data:text/javascript,${encodeURIComponent("export const ContainerActions = () => null;")}`;
 const source = await readFile(
   new URL("../src/ObservationView.tsx", import.meta.url),
   "utf8",

@@ -224,9 +224,19 @@ def main():
         )
         jobs[1]["state"] = "succeeded"
         page.locator(".job-row").nth(0).get_by_text("succeeded", exact=True).wait_for()
-        assert not page.get_by_role("button", name="Start", exact=True).is_enabled()
+        # The row offers one contextual action; Start and Stop live in its
+        # actions menu, where an unavailable item stays and says why.
+        more = page.get_by_role("button", name="More actions for Test television", exact=True)
+
+        def menu_item(label):
+            if more.get_attribute("aria-expanded") != "true":
+                more.click()
+            return page.get_by_role("menuitem", name=label, exact=True)
+
+        assert not menu_item("Start").is_enabled()
+        page.keyboard.press("Escape")
         for action, next_status in [("stop", "exited"), ("start", "running")]:
-            page.get_by_role("button", name=action.capitalize(), exact=True).click()
+            menu_item(action.capitalize()).click()
             page.get_by_role("button", name=f"Approve and {action}", exact=True).click()
             dialog.wait_for(state="hidden")
             assert jobs[-1]["plan"]["operation"] == action
@@ -236,12 +246,10 @@ def main():
             page.locator(".job-row").nth(0).get_by_text(
                 "succeeded", exact=True
             ).wait_for()
-            assert page.get_by_role(
-                "button", name="Start", exact=True
-            ).is_enabled() == (next_status == "exited")
-            assert page.get_by_role("button", name="Stop", exact=True).is_enabled() == (
-                next_status == "running"
-            )
+            assert menu_item("Start").is_enabled() == (next_status == "exited")
+            assert menu_item("Stop").is_enabled() == (next_status == "running")
+            page.keyboard.press("Escape")
+            assert more.evaluate("element => document.activeElement === element")
         mutation_count = len([c for c in calls if c[1] == "POST"])
         log_button = page.get_by_role("button", name="Logs", exact=True)
         log_button.click()
@@ -266,7 +274,7 @@ def main():
         session["principal"]["role"] = "viewer"
         page.reload()
         page.get_by_role("heading", name="Containers", level=1).wait_for()
-        for label in ["Start", "Stop", "Restart", "Logs"]:
+        for label in ["Start", "Stop", "Restart", "Logs", "More actions for Test television"]:
             assert page.get_by_role("button", name=label, exact=True).count() == 0
         (evidence / "lifecycle-browser-result.json").write_text(
             json.dumps(
@@ -281,7 +289,7 @@ def main():
                         "lost queue response requires explicit retry with the same plan, approval and key",
                         "explicit retry recovers the same job without another approval",
                         "stop and start previews bind their actions and require explicit approval",
-                        "lifecycle controls reflect running state",
+                        "lifecycle controls reflect running state (actions menu with reasons)",
                         "log HTML is escaped text and clipping is visible",
                         "log refresh uses GET without queueing any effect",
                         "log dialog contains keyboard focus and Escape restores its trigger",
