@@ -82,8 +82,8 @@ _ARM64 = "tests/qualification/arm64"
 _PINS = [
     ("p01/gate-probes.json", "written by scripts/test_gates.py in CI"),
     ("p01/vm-result.json", "default output of tests/privileged_vm/run.py"),
-    ("p03/lifecycle-browser-result.json", "written by tests/frontend/restart.py"),
-    ("p03/lifecycle-progress.png", "written by tests/frontend/restart.py in CI"),
+    ("p03/lifecycle-browser-result.json", "written by tests/frontend/restart.py --evidence"),
+    ("p03/lifecycle-progress.png", "written by tests/frontend/restart.py --evidence"),
     ("p03/compose-validation.json", f"default output of {_COMPOSE}"),
     ("p03/lifecycle-validation.json", f"output of {_P03}; read by {_COMPOSE}"),
     ("p03/compose-source-sha256.json", f"output of {_COMPOSE}; read by {_STORAGE}"),

@@ -8,10 +8,14 @@
 import argparse
 import json
 import mimetypes
+import sys
 import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from browser_checks import cdp_value, forbid_page_eval  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,6 +46,7 @@ def main():
             args=["--disable-dev-shm-usage"],
         )
         page = browser.new_page(viewport={"width": 1100, "height": 900})
+        forbid_page_eval(page)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
 
@@ -87,10 +92,10 @@ def main():
 
         page.route("https://limeos-stacks.invalid/**", respond)
         page.goto("https://limeos-stacks.invalid/")
-        timer_probe = page.evaluate("""() => {
+        timer_probe = cdp_value(page, """(() => {
           try { const clock = { schedule: window.setTimeout }; clock.schedule(() => {}, 1); return "accepted"; }
           catch (error) { return error.name + ": " + error.message; }
-        }""")
+        })()""")
         assert "Illegal invocation" in timer_probe
         page.get_by_role("link", name="Stacks", exact=True).click()
         panel = page.locator('section[aria-labelledby="stack-management-heading"]')
@@ -107,7 +112,7 @@ def main():
                         "calls": calls,
                         "errors": errors,
                         "fixture": value,
-                        "browser_clock": page.evaluate("Date.now() / 1000"),
+                        "browser_clock": cdp_value(page, "Date.now() / 1000"),
                     },
                     indent=2,
                 )

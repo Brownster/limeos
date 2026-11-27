@@ -196,6 +196,21 @@ UI only hides what would be refused.
   `StackManagement.tsx`, `StorageMounts.tsx`, `HealthHistory.tsx`,
   `ContainerActions.tsx` or `ObservationView.tsx` needs the matching helper
   updated. Prefer importing primitives from new page components.
+- **Never evaluate JavaScript in the page from a browser test.** The UI's CSP
+  has no `'unsafe-eval'`, and Playwright 1.62 runs `page.evaluate`,
+  `locator.evaluate`, `evaluate_all`, `evaluate_handle` and
+  `wait_for_function` by calling `eval` in the page, so they fail in a browser
+  that enforces the CSP (CI's Chrome does; some local builds let it through).
+  Use locators and `expect` instead: `expect(el).to_be_focused()`,
+  `page.locator("dialog :focus")`, `bounding_box()`, `to_have_class`, or
+  polling from Python. `tests/frontend/browser_checks.py` has `fits_viewport`
+  (no horizontal overflow, read over DevTools), `focus_within`,
+  `scrolls_horizontally` and `cdp_value` (for the rare probe only JavaScript
+  can answer). Call `forbid_page_eval(page)` on every new page: it makes any
+  stray page evaluation fail locally too.
+- Tests write screenshots and results to `--output` or a temporary directory,
+  never into tracked `docs/rewrite-evidence/` unless asked (`restart.py
+  --evidence`).
 - Browser fixtures must serve `index.html` for non-file paths, as Caddy does.
   `tests/frontend/household_fixture.py` is a ready household host (CPU,
   memory, temperature, disks, containers, stacks, alerts) for new browser
@@ -205,7 +220,7 @@ UI only hides what would be refused.
 
 ```sh
 cd frontend && npm ci --ignore-scripts && npm test && npm run build && npm audit --audit-level=high
-python3 tests/frontend/restart.py
+python3 tests/frontend/restart.py            # --output DIR, or --evidence to rewrite docs/rewrite-evidence/p03
 python3 tests/frontend/stacks.py --output /tmp/stacks
 python3 tests/frontend/shell.py --output /tmp/shell --screens /tmp/shell-screens
 ```

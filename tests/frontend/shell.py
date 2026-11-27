@@ -16,10 +16,11 @@ import json
 import sys
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from household_fixture import Household  # noqa: E402
+from browser_checks import fits_viewport, focus_within, forbid_page_eval  # noqa: E402
 
 HOST = "limeos-shell.invalid"
 BASE = f"https://{HOST}"
@@ -32,17 +33,25 @@ PAGES = [
 ]
 
 
-def no_overflow(page):
-    return page.evaluate(
-        "document.documentElement.scrollWidth <= window.innerWidth + 1"
-    )
+def small_targets(page):
+    """Visible controls in the page chrome and content under 44 px tall.
 
-
-def h1(page):
-    return page.locator("h1").first.inner_text()
+    Controls inside tables, inline links in prose and the support
+    disclosure are exempt. Read through locators (no page eval: the CSP
+    forbids it)."""
+    small = []
+    exempt = "xpath=ancestor::table | ancestor::p | ancestor::*[contains(concat(' ', @class, ' '), ' state-support ') or contains(concat(' ', @class, ' '), ' link-list ')]"
+    for control in page.locator("main button, main a, header button").all():
+        if not control.is_visible() or control.locator(exempt).count():
+            continue
+        height = round(control.bounding_box()["height"])
+        if height < 44:
+            small.append((control.inner_text().strip() or control.get_attribute("aria-label"), height))
+    return small
 
 
 def watch(page, problems):
+    forbid_page_eval(page)
     page.on("pageerror", lambda error: problems.append(f"pageerror: {error}"))
     page.on(
         "console",
@@ -87,11 +96,9 @@ def desktop_checks(browser, checks, problems, screens):
         assert page.title() == f"LimeOS · {title}", page.title()
         current = page.locator('.sidebar [aria-current="page"]')
         assert current.count() == 1 and current.inner_text() == heading
-        page.wait_for_function(
-            "document.activeElement && document.activeElement.matches('h1')"
-        )
+        expect(page.locator("h1[data-page-title]")).to_be_focused()
         settle(page)
-        assert no_overflow(page), name
+        assert fits_viewport(page), name
         if screens:
             page.screenshot(path=str(screens / f"{name}-1440.png"), full_page=True)
     checks.append("sidebar links route, title, mark current and focus the heading")
@@ -208,7 +215,7 @@ def mobile_checks(browser, checks, problems, screens):
     page.route(f"{BASE}/**", fixture.respond)
     page.goto(f"{BASE}/")
     page.get_by_role("heading", name="Welcome home.").wait_for()
-    assert no_overflow(page)
+    assert fits_viewport(page)
     if screens:
         page.screenshot(path=str(screens / "login-390.png"), full_page=True)
     fixture.signed_in = True
@@ -220,24 +227,22 @@ def mobile_checks(browser, checks, problems, screens):
         menu.click()
         drawer = page.get_by_role("dialog", name="Navigation")
         drawer.wait_for(state="visible")
-        assert page.evaluate("!!document.activeElement.closest('dialog')")
+        expect(page.locator("#navigation-drawer :focus")).to_have_count(1)
         if name == "overview":
             for _ in range(10):
                 page.keyboard.press("Tab")
-                assert page.evaluate("!!document.activeElement.closest('dialog')")
+                assert focus_within(page, "#navigation-drawer")
             for _ in range(3):
                 page.keyboard.press("Shift+Tab")
-                assert page.evaluate("!!document.activeElement.closest('dialog')")
-            sizes = drawer.evaluate(
-                "d => [...d.querySelectorAll('a, button')].map(e => e.getBoundingClientRect().height)"
-            )
-            assert min(sizes) >= 44, sizes
+                assert focus_within(page, "#navigation-drawer")
+            sizes = [c.bounding_box()["height"] for c in drawer.locator("a, button").all()]
+            assert sizes and min(sizes) >= 44, sizes
             if screens:
                 page.wait_for_timeout(400)  # let the slide-in finish
                 page.screenshot(path=str(screens / "drawer-390.png"))
             page.keyboard.press("Escape")
             drawer.wait_for(state="hidden")
-            assert menu.evaluate("e => document.activeElement === e")
+            expect(menu).to_be_focused()
             menu.click()
             drawer.wait_for(state="visible")
         drawer.get_by_role("link", name=heading, exact=True).click()
@@ -245,13 +250,8 @@ def mobile_checks(browser, checks, problems, screens):
         page.wait_for_url(f"{BASE}{path}")
         page.get_by_role("heading", name=heading, level=1).wait_for()
         settle(page)
-        assert no_overflow(page), name
-        small = page.evaluate(
-            """() => [...document.querySelectorAll('main button, main a, header button')]
-              .filter(e => e.getClientRects().length && !e.closest('table, .state-support, .link-list, p'))
-              .map(e => [e.textContent.trim() || e.getAttribute('aria-label'), Math.round(e.getBoundingClientRect().height)])
-              .filter(([, h]) => h < 44)"""
-        )
+        assert fits_viewport(page), name
+        small = small_targets(page)
         assert not small, (name, small)
         if screens:
             page.screenshot(path=str(screens / f"{name}-390.png"), full_page=True)

@@ -9,11 +9,15 @@ import argparse
 import hashlib
 import json
 import mimetypes
+import sys
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from playwright.sync_api import Error, sync_playwright
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from browser_checks import fits_viewport, forbid_page_eval, scrolls_horizontally  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -83,6 +87,7 @@ def main():
             args=["--disable-dev-shm-usage"],
         )
         page = browser.new_page(viewport={"width": 1100, "height": 900})
+        forbid_page_eval(page)
         page.on("pageerror", lambda error: errors.append(str(error)))
 
         def respond(route):
@@ -252,19 +257,14 @@ def main():
                 path=str(args.output / "history-desktop.png"), full_page=True
             )
             page.set_viewport_size({"width": 390, "height": 844})
-            assert page.evaluate(
-                "document.documentElement.scrollWidth <= window.innerWidth + 1"
-            )
+            assert fits_viewport(page)
             page.screenshot(
                 path=str(args.output / "history-mobile.png"), full_page=True
             )
             region = page.get_by_role(
                 "region", name="Recorded notification delivery", exact=True
             )
-            assert region.evaluate("el => el.scrollWidth > el.clientWidth")
-            assert region.evaluate(
-                "el => { el.scrollLeft = el.scrollWidth; return el.scrollLeft > 0; }"
-            )
+            assert scrolls_horizontally(page, region, region.locator("th").first)
             page.screenshot(
                 path=str(args.output / "history-mobile-delivery.png"), full_page=True
             )

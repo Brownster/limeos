@@ -8,10 +8,14 @@
 import argparse
 import json
 import mimetypes
+import sys
 import time
 from pathlib import Path
 
 from playwright.sync_api import Error, sync_playwright
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from browser_checks import fits_viewport, forbid_page_eval  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,6 +51,7 @@ def main():
             args=["--disable-dev-shm-usage"],
         )
         page = browser.new_page(viewport={"width": 1100, "height": 900})
+        forbid_page_eval(page)
         page.on("pageerror", lambda error: errors.append(str(error)))
 
         def respond(route):
@@ -294,9 +299,7 @@ def main():
             page.screenshot(path=str(args.output / "schedules.png"), full_page=True)
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.locator(".schedules-table").bounding_box()["height"] < 500
-            assert page.evaluate(
-                "document.documentElement.scrollWidth <= window.innerWidth + 1"
-            )
+            assert fits_viewport(page)
             page.screenshot(
                 path=str(args.output / "schedules-mobile.png"), full_page=True
             )

@@ -5,17 +5,29 @@
 # ///
 """Browser regression against the built UI and a closed API fixture; no live host."""
 
+import argparse
 import json
 import mimetypes
+import sys
+import tempfile
 import time
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from browser_checks import cdp_value, focus_within, forbid_page_eval  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, help="where to write the screenshot and result (default: a new temporary directory)")
+    parser.add_argument("--evidence", action="store_true", help="rewrite the tracked docs/rewrite-evidence/p03 files instead")
+    args = parser.parse_args()
+    if args.output is None:
+        args.output = Path(tempfile.mkdtemp(prefix="limeos-restart-browser-"))
     identifier = "b" * 64
     resource = {
         "id": "container:" + identifier,
@@ -63,6 +75,7 @@ def main():
             args=["--disable-dev-shm-usage"],
         )
         page = browser.new_page(viewport={"width": 1100, "height": 850})
+        forbid_page_eval(page)
 
         def respond(route):
             nonlocal previews, lose_response
@@ -188,10 +201,10 @@ def main():
         page.get_by_role("button", name="Approve and restart", exact=True).wait_for()
         for _ in range(6):
             page.keyboard.press("Tab")
-            assert page.evaluate("!!document.activeElement.closest('dialog')")
+            assert focus_within(page, "dialog[open]")
         page.keyboard.press("Escape")
         dialog.wait_for(state="hidden")
-        assert restart.evaluate("element => document.activeElement === element")
+        expect(restart).to_be_focused()
         restart.click()
         page.get_by_role("button", name="Approve and restart", exact=True).click()
         page.get_by_role("heading", name="Recent container operations").wait_for()
@@ -249,18 +262,19 @@ def main():
         log_dialog.wait_for(state="visible")
         page.locator(".container-logs").get_by_text("<img", exact=False).wait_for()
         assert page.locator(".container-logs img").count() == 0
-        assert not page.evaluate("!!window.logExecuted")
+        assert cdp_value(page, "window.logExecuted === true") is False
         page.get_by_text("Output reached the size limit.", exact=True).wait_for()
         for _ in range(4):
             page.keyboard.press("Tab")
-            assert page.evaluate("!!document.activeElement.closest('dialog')")
+            assert focus_within(page, "dialog[open]")
         page.get_by_role("button", name="Refresh logs", exact=True).click()
         assert len([c for c in calls if c[0].endswith("/logs")]) == 2
         assert len([c for c in calls if c[1] == "POST"]) == mutation_count
         page.keyboard.press("Escape")
         log_dialog.wait_for(state="hidden")
-        assert log_button.evaluate("element => document.activeElement === element")
-        evidence = ROOT / "docs/rewrite-evidence/p03"
+        expect(log_button).to_be_focused()
+        # Tracked evidence is rewritten only when asked (--evidence).
+        evidence = ROOT / "docs/rewrite-evidence/p03" if args.evidence else args.output
         evidence.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(evidence / "lifecycle-progress.png"), full_page=True)
         session["principal"]["role"] = "viewer"
@@ -297,7 +311,7 @@ def main():
             + "\n"
         )
         browser.close()
-    print("Browser lifecycle, logs and focus regressions passed.")
+    print(f"Browser lifecycle, logs and focus regressions passed ({evidence}).")
 
 
 if __name__ == "__main__":
