@@ -185,12 +185,11 @@ def main():
             if path == "/favicon.ico":
                 route.fulfill(status=204)
                 return
-            asset = (
-                ROOT
-                / "frontend/dist"
-                / ("index.html" if path == "/" else path.lstrip("/"))
-            )
+            asset = ROOT / "frontend/dist" / path.lstrip("/")
             assert asset.resolve().is_relative_to((ROOT / "frontend/dist").resolve())
+            if not asset.is_file():
+                # Caddy: try_files {path} /index.html (history-API routes).
+                asset = ROOT / "frontend/dist/index.html"
             content = asset.read_bytes()
             name = str(asset.relative_to(ROOT))
             assert hashlib.sha256(content).hexdigest() == build["ui"][name]
@@ -205,9 +204,8 @@ def main():
         page.route("**/*", respond)
         try:
             page.goto("https://limeos-history.invalid/")
-            button = page.get_by_role(
-                "button", name="View alerts and notifications", exact=True
-            )
+            # Alert history is the Alerts page of the app shell (was a toggle button).
+            button = page.get_by_role("link", name="Alerts", exact=True)
             button.wait_for()
             assert not any("/automation/" in call["path"] for call in calls)
             button.click()
@@ -240,10 +238,9 @@ def main():
                 )
                 page.wait_for_timeout(10)
             assert len(held) == 1
-            page.get_by_role("button", name="Close alert history", exact=True).click()
-            page.get_by_role(
-                "button", name="View alerts and notifications", exact=True
-            ).click()
+            page.get_by_role("link", name="Overview", exact=True).click()
+            page.get_by_role("heading", name="Overview", level=1).wait_for()
+            page.get_by_role("link", name="Alerts", exact=True).click()
             page.get_by_text(alert["incident"]["summary"], exact=True).wait_for()
             try:
                 held[0].fulfill(status=401, content_type="application/json", body="{}")

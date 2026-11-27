@@ -198,12 +198,11 @@ def main():
             if path == "/favicon.ico":
                 route.fulfill(status=204)
                 return
-            asset = (
-                ROOT
-                / "frontend/dist"
-                / ("index.html" if path == "/" else path.lstrip("/"))
-            )
+            asset = ROOT / "frontend/dist" / path.lstrip("/")
             assert asset.resolve().is_relative_to((ROOT / "frontend/dist").resolve())
+            if not asset.is_file():
+                # Caddy: try_files {path} /index.html (history-API routes).
+                asset = ROOT / "frontend/dist/index.html"
             route.fulfill(
                 status=200,
                 content_type=mimetypes.guess_type(str(asset))[0]
@@ -213,10 +212,9 @@ def main():
 
         page.route("**/*", respond)
         try:
+            # Schedules are a sub-page of Alerts, linked from the Overview (was a toggle button).
             page.goto("https://limeos-schedules.invalid/")
-            page.get_by_role(
-                "button", name="Manage health schedules", exact=True
-            ).click()
+            page.get_by_role("link", name="Health schedules", exact=True).click()
             page.get_by_text("No schedules on this page.", exact=True).wait_for()
             page.get_by_role(
                 "button", name="Create observation schedule", exact=True
@@ -239,9 +237,7 @@ def main():
             page.get_by_label("Username", exact=True).fill("fixture-admin")
             page.get_by_label("Password", exact=True).fill("synthetic-password")
             page.get_by_role("button", name="Sign in", exact=True).click()
-            page.get_by_role(
-                "button", name="Manage health schedules", exact=True
-            ).click()
+            # Signing in again returns to the same route.
             page.get_by_text("No schedules on this page.", exact=True).wait_for()
             page.get_by_label("Interval in minutes", exact=True).fill("2")
             page.get_by_label("Use a daily UTC maintenance window", exact=True).check()
@@ -268,12 +264,8 @@ def main():
             ).click()
             page.get_by_text("Scheduling permission confirmed.", exact=True).wait_for()
             assert page.locator(".account").is_visible()
-            page.get_by_role(
-                "button", name="Close health schedules", exact=True
-            ).click()
-            page.get_by_role(
-                "button", name="Manage health schedules", exact=True
-            ).click()
+            page.get_by_role("link", name="Overview", exact=True).click()
+            page.get_by_role("link", name="Health schedules", exact=True).click()
             page.get_by_role(
                 "button", name=f"Pause {identifier}", exact=True
             ).wait_for()
@@ -287,13 +279,9 @@ def main():
             ).wait_for()
             assert len(held) == 1
             assert page.get_by_label("Current password", exact=True).input_value() == ""
-            page.get_by_role(
-                "button", name="Close health schedules", exact=True
-            ).click()
+            page.get_by_role("link", name="Overview", exact=True).click()
             assert page.get_by_label("Current password", exact=True).count() == 0
-            page.get_by_role(
-                "button", name="Manage health schedules", exact=True
-            ).click()
+            page.get_by_role("link", name="Health schedules", exact=True).click()
             try:
                 held[0].fulfill(status=401, content_type="application/json", body="{}")
                 late_delivery = "late 401 fulfilled after owner disposal"

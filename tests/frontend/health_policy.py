@@ -163,12 +163,11 @@ def main():
             if path == "/favicon.ico":
                 route.fulfill(status=204)
                 return
-            asset = (
-                ROOT
-                / "frontend/dist"
-                / ("index.html" if path == "/" else path.lstrip("/"))
-            )
+            asset = ROOT / "frontend/dist" / path.lstrip("/")
             assert asset.resolve().is_relative_to((ROOT / "frontend/dist").resolve())
+            if not asset.is_file():
+                # Caddy: try_files {path} /index.html (history-API routes).
+                asset = ROOT / "frontend/dist/index.html"
             content = asset.read_bytes()
             name = str(asset.relative_to(ROOT))
             assert hashlib.sha256(content).hexdigest() == build["ui"][name]
@@ -183,7 +182,8 @@ def main():
         page.route("**/*", respond)
         try:
             page.goto("https://limeos-policy.invalid/")
-            button = page.get_by_role("button", name="Manage alert policy", exact=True)
+            # The policy is a sub-page of Alerts, linked from the Overview (was a toggle button).
+            button = page.get_by_role("link", name="Manage alert policy", exact=True)
             button.wait_for()
             assert not any("/automation/" in call["path"] for call in calls)
             button.click()
@@ -241,8 +241,8 @@ def main():
             while not held:
                 assert time.monotonic() < until
                 page.wait_for_timeout(10)
-            page.get_by_role("button", name="Close alert policy", exact=True).click()
-            page.get_by_role("button", name="Manage alert policy", exact=True).click()
+            page.get_by_role("link", name="Overview", exact=True).click()
+            page.get_by_role("link", name="Manage alert policy", exact=True).click()
             page.get_by_text("Saved revision 4", exact=False).wait_for()
             try:
                 held[0].fulfill(status=401, content_type="application/json", body="{}")

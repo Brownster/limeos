@@ -259,6 +259,11 @@ def policy():
     }
 
 
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; "
+    "connect-src 'self'; frame-ancestors 'none'"
+)
+
 UNAVAILABLE = {
     "code": "unavailable",
     "message": "The storage helper is not running.",
@@ -359,5 +364,7 @@ class Household:
             status=200,
             content_type=mimetypes.guess_type(str(asset))[0]
             or "application/octet-stream",
+            # The production policy from packaging/Caddyfile.cutover.example.
+            headers={"Content-Security-Policy": CSP},
             body=asset.read_bytes(),
         )
