@@ -213,7 +213,7 @@ def login(user, password=PASSWORD):
     ready("#username").send_keys(user)
     find("#password").send_keys(password)
     click_button("Sign in")
-    ready("h1", "At home.")
+    ready(browser.PAGE_TITLE)
 
 
 def logout():
@@ -221,24 +221,34 @@ def logout():
     ready("h1", "Welcome home.")
 
 
+def account_text():
+    """'<principal> · <role>', as the old header's account line read."""
+    return js("const a=document.querySelector('.account');return a?a.querySelector('.account-name').textContent+' · '+a.querySelector('.account-role').textContent:''")
+
+
 def home(user=ADMIN):
-    """Reload the app as `user` (logging in when the page shows the sign-in form)."""
+    """Reload the app as `user` (logging in when the page shows the sign-in form), on the Containers page.
+
+    The old home page held the container operations list; in the app shell it is on /containers."""
     driver.get("https://localhost/")
-    state = wait_for(lambda: "in" if finds("h1") and "At home." in finds("h1")[0].text else ("out" if finds("#username") else None))
-    account = js("const a=document.querySelector('.account span');return a?a.textContent:''")
-    if state == "in" and user in account:
-        return
-    if state == "in":
+    state = wait_for(lambda: "in" if finds(browser.PAGE_TITLE) else ("out" if finds("#username") else None))
+    if state == "in" and user not in account_text():
         logout()
-    login(user)
+        state = "out"
+    if state == "out":
+        login(user)
+    container_list()
 
 
 def stacks_view():
-    click_button("Stacks", scope="nav.resource-nav")
+    if js("return location.pathname") != "/stacks":
+        browser.follow(driver, "Stacks")
     ready("section[aria-labelledby='stack-operations-heading']")
 
 
 def container_list():
+    if js("return location.pathname") != "/containers":
+        browser.follow(driver, "Containers")
     return ready("section[aria-labelledby='operations-heading']")
 
 
@@ -381,7 +391,7 @@ def banner_admin():
 @case("2 operator sees read-only text without the button (containers and stacks)")
 def banner_operator():
     home(OPERATOR)
-    account = js("return document.querySelector('.account span').textContent")
+    account = account_text()
     check("operator" in account, "not signed in as operator", account=account)
     container_list()
     section = attention("section[aria-labelledby='operations-heading']")

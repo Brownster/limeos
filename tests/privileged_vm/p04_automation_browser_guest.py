@@ -74,6 +74,43 @@ def wait_for(observe, timeout=20):
     raise AssertionError("Installed browser observation deadline expired")
 
 
+# The app shell (from the ui-shell branch): every signed-in page has one
+# <h1 data-page-title>; pages are links in the "Primary" navigation (a sidebar
+# from 980 px, a drawer behind "Open navigation" below); Alerts history,
+# schedules and policy are links in its "Alerts sections" navigation.
+PAGE_TITLE = "h1[data-page-title]"
+
+
+def follow(driver, label, scope='nav[aria-label="Primary"]'):
+    """Click the visible link named `label` in `scope`, opening the drawer when the sidebar is hidden."""
+
+    def observed():
+        matches = [
+            value
+            for value in driver.find_elements("css selector", scope + " a")
+            if value.text.strip() == label and value.is_displayed()
+        ]
+        require(len(matches) <= 1, "ambiguous visible browser link: " + label)
+        if matches:
+            return matches[0]
+        if scope.startswith('nav[aria-label="Primary"]'):
+            for menu in driver.find_elements(
+                "css selector", 'button[aria-label="Open navigation"]'
+            ):
+                if menu.is_displayed():
+                    menu.click()
+        return None
+
+    wait_for(observed).click()
+
+
+def alerts_section(driver, section):
+    """Open Alerts' History, Schedules or Policy (the old toggle buttons' panels)."""
+    if not driver.execute_script("return location.pathname").startswith("/alerts"):
+        follow(driver, "Alerts")
+    follow(driver, section, 'nav[aria-label="Alerts sections"]')
+
+
 def oom_events(path=Path("/proc/vmstat")):
     # The root cgroup has no memory.events file. This kernel counter covers
     # OOM kills throughout this disposable guest, including browser descendants.
@@ -229,10 +266,12 @@ def browser_flow(driver, password, identifier, evidence):
         return wait_for(observed)
 
     def login():
+        # Signing in shows the page of the current URL (after reauthentication,
+        # the schedules page), so wait for any page title.
         ready("#username").send_keys("b1-browser-admin")
         element("#password").send_keys(password)
         button("Sign in").click()
-        ready("h1", "At home.")
+        ready(PAGE_TITLE)
 
     def fill(selector, value):
         field = ready(selector)
@@ -261,7 +300,7 @@ def browser_flow(driver, password, identifier, evidence):
     evidence["stage"] = "browser_authentication"
     driver.get(ORIGIN + "/")
     login()
-    button("Manage health schedules").click()
+    alerts_section(driver, "Schedules")
     fill("#observation-interval", "1")
     original = fixture.history()
     button("Create observation schedule").click()
@@ -281,7 +320,7 @@ def browser_flow(driver, password, identifier, evidence):
     )
 
     evidence["stage"] = "browser_policy_and_schedule"
-    button("Manage alert policy").click()
+    alerts_section(driver, "Policy")
     fill("#health-fail-threshold", "1")
     button("Save health settings").click()
     ready("#health-policy-panel", "Health settings saved.")
@@ -295,7 +334,7 @@ def browser_flow(driver, password, identifier, evidence):
         "policy still denies automatic checks",
     )
     screenshot(driver, evidence, "policy-desktop", "#health-policy-panel")
-    button("Manage health schedules").click()
+    alerts_section(driver, "Schedules")
     fill("#observation-interval", "1")
     button("Create observation schedule").click()
     ready(".schedules-table tbody tr abbr")
@@ -303,7 +342,7 @@ def browser_flow(driver, password, identifier, evidence):
     require(len(created["schedules"]) == 1, "UI did not create one schedule")
     schedule_id = created["schedules"][0][0]
     evidence["schedule_id"] = schedule_id
-    button("View alerts and notifications").click()
+    alerts_section(driver, "History")
     ready("#health-history-panel .notifications-table")
     evidence["stage"] = "browser_incident"
     opening = history_notice("incident")
@@ -325,8 +364,8 @@ def browser_flow(driver, password, identifier, evidence):
         time.sleep(0.25)
     # Refresh through the actual session; no cookie injection or API substitution.
     driver.refresh()
-    ready("h1", "At home.")
-    button("View alerts and notifications").click()
+    ready(PAGE_TITLE)
+    alerts_section(driver, "History")
     ready("#health-history-panel", "Incident opened")
     evidence["after_restart"] = fixture.history()
     require(
@@ -355,7 +394,7 @@ def browser_flow(driver, password, identifier, evidence):
         f'button[aria-label="Acknowledge incident for container:{identifier}"]'
     ).click()
     ready(".notifications-table", "Acknowledged")
-    button("Manage health schedules").click()
+    alerts_section(driver, "Schedules")
     ready(".schedules-table tbody tr abbr")
     element(f'button[aria-label="Pause {schedule_id}"]').click()
     ready(".schedules-table", "Paused")
@@ -363,10 +402,10 @@ def browser_flow(driver, password, identifier, evidence):
     require(before_restart["schedules"][0][1:3] == [2, 1], "UI pause revision differs")
     evidence["restarts"].append(restart_core())
     driver.refresh()
-    ready("h1", "At home.")
-    button("Manage health schedules").click()
+    ready(PAGE_TITLE)
+    alerts_section(driver, "Schedules")
     ready(".schedules-table", "Paused")
-    button("View alerts and notifications").click()
+    alerts_section(driver, "History")
     ready(".notifications-table", "Acknowledged")
     require(
         fixture.history() == before_restart,
@@ -393,6 +432,9 @@ def browser_flow(driver, password, identifier, evidence):
     )
     driver.execute_script("arguments[0].scrollLeft=arguments[0].scrollWidth;", delivery)
     screenshot(driver, evidence, "acknowledged-mobile-right", "#health-history-panel")
+    # History and schedules are separate Alerts pages in the shell.
+    alerts_section(driver, "Schedules")
+    ready(".schedules-table", "Paused")
     screenshot(driver, evidence, "paused-mobile", "#health-schedules-panel")
     evidence["availability_copy_verified"] = True
     evidence["final_history"] = fixture.history()

@@ -525,7 +525,8 @@ def main(package_version="0.4.14+healthui.1"):
             ready("#username").send_keys("b2-reader")
             driver.find_element("css selector", "#password").send_keys(password)
             click("Sign in")
-            ready("h1", "At home.")
+            # The page of the current URL: Overview, or Stacks after sign-out.
+            ready(browser.PAGE_TITLE)
 
         def stack(index):
             return ready('article[aria-label="Stack fixture' + str(index) + '"]')
@@ -542,7 +543,7 @@ def main(package_version="0.4.14+healthui.1"):
         evidence["stage"] = "empty_browser"
         driver.get("https://localhost/")
         login()
-        click("Stacks")
+        browser.follow(driver, "Stacks")
         refreshed("No service containers")
         require(
             len(
@@ -660,8 +661,8 @@ def main(package_version="0.4.14+healthui.1"):
         evidence["stage"] = "restarts"
         evidence["core_restart"] = browser.restart_core()
         driver.refresh()
-        ready("h1", "At home.")
-        click("Stacks")
+        ready(browser.PAGE_TITLE)
+        browser.follow(driver, "Stacks")
         refreshed("15 declared services have no ordinary container")
         evidence["states"]["core_restarted"] = reader.fresh(maximum, members)
         old_pid = fixture.unit("limeos-storage-reader")["MainPID"]
@@ -683,7 +684,7 @@ def main(package_version="0.4.14+healthui.1"):
             "abandoned owner facts remain after logout",
         )
         login()
-        click("Stacks")
+        browser.follow(driver, "Stacks")
         refreshed("15 declared services have no ordinary container")
         stack(7).find_element("tag name", "summary").click()
         driver.set_window_size(390, 844)
