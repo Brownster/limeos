@@ -149,6 +149,7 @@ jobs:
           /tmp/limeos-browser-check/bin/python tests/frontend/restart.py
           /tmp/limeos-browser-check/bin/python tests/frontend/stacks.py --output docs/rewrite-evidence/p04/ci-stack-browser
           /tmp/limeos-browser-check/bin/python tests/frontend/shell.py --output /tmp/limeos-shell-browser
+          /tmp/limeos-browser-check/bin/python tests/frontend/containers.py --output /tmp/limeos-containers-browser
       - name: Deliberate release-gate rejection probes
         run: python3 scripts/test_gates.py
       # Candidates: published by the publish job once the soak passed too.
