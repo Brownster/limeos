@@ -16,7 +16,7 @@ import { MetricBar, StateMessage, StatusBadge } from "../ui/primitives";
 import { formatAge, formatClock, formatPercent } from "../ui/format";
 import { metricBarValue, metricTone, toneWord } from "../overview/overview-model";
 import { containerClient } from "./container-client";
-import { actionStates, containerId, jobBadge, type DockerSource, type Row } from "./container-model";
+import { actionStates, containerId, jobBadge, STARTABLE, type DockerSource, type Row } from "./container-model";
 import { CopyButton } from "./CopyButton";
 import { CIcon } from "./icons";
 import { healthCue, statusCue } from "./ContainerList";
@@ -137,8 +137,11 @@ export function ContainerDetail({ name, row, docker, now, jobs, canManage, canRe
           )}
           {canManage && (
             <div className="detail-actions" role="group" aria-label={`Actions for ${row.name}`}>
-              {actionStates(row).filter((state) => !state.disabled).map((state) => (
-                <button key={state.action} type="button" className="quiet" onClick={(event) => onAction(state.action, event.currentTarget)}>
+              {actionStates(row).filter((state) => (state.action === "start") !== row.running && (row.running || STARTABLE.has(row.resource.status))).map((state) => (
+                // Relevant actions stay while an operation runs (aria-disabled), so focus is not lost.
+                <button key={state.action} type="button" className="quiet" aria-disabled={state.disabled ? true : undefined}
+                  aria-describedby={state.disabled ? "detail-why" : undefined}
+                  onClick={(event) => !state.disabled && onAction(state.action, event.currentTarget)}>
                   <CIcon name={state.action === "start" ? "play" : state.action === "stop" ? "square" : "rotate"} />
                   {state.label}
                 </button>
@@ -147,7 +150,7 @@ export function ContainerDetail({ name, row, docker, now, jobs, canManage, canRe
                 <CIcon name="logs" />Logs
               </button>
               {actionStates(row).every((state) => state.disabled) && (
-                <p className="detail-note detail-why">Start, stop and restart are unavailable: {actionStates(row)[0].disabled!.replace(/^./, (c) => c.toLowerCase())}.</p>
+                <p className="detail-note detail-why" id="detail-why">Start, stop and restart are unavailable: {actionStates(row)[0].disabled!.replace(/^./, (c) => c.toLowerCase())}.</p>
               )}
             </div>
           )}

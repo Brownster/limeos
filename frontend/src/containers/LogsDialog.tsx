@@ -132,7 +132,7 @@ export function LogsDialog({ target, onClosed }: { target: LogsTarget | null; on
       <div className="log-toolbar">
         <label className="log-tail">
           <span>Lines</span>
-          <select value={tail} onChange={(event) => changeTail(Number(event.target.value) as LogTail)}>
+          <select aria-label="Lines to show" value={tail} onChange={(event) => changeTail(Number(event.target.value) as LogTail)}>
             {LOG_TAILS.map((value) => <option key={value} value={value}>Last {value}</option>)}
           </select>
         </label>

@@ -184,7 +184,8 @@ export function latestJobs(jobs: RestartJob[]): Map<string, RestartJob> {
  * 4. it "exited" while another member of its stack is running. Docker's
  *    exit code is not in the overview, so a stopped stack member beside
  *    running siblings is the evidence of an unexpected exit; a standalone
- *    exited container, or a wholly stopped stack, is a deliberate stop;
+ *    exited container, a wholly stopped stack, or one the principal's own
+ *    latest operation stopped, is a deliberate stop;
  * 5. the principal's latest operation on it needs intervention or has an
  *    unknown outcome.
  * Stopped, created and paused containers are not, by themselves, a problem.
@@ -195,7 +196,8 @@ export function attentionReason(r: Resource, runningStacks: Set<string>, job?: R
   if (r.status === "dead") return "Docker reports it dead";
   if (r.status === "missing") return "The host no longer reports it";
   const stack = stackOf(r);
-  if (r.status === "exited" && stack && runningStacks.has(stack)) return "Stopped while the rest of its stack runs";
+  const stoppedHere = job?.state === "succeeded" && job.plan.operation === "stop";
+  if (r.status === "exited" && stack && runningStacks.has(stack) && !stoppedHere) return "Stopped while the rest of its stack runs";
   if (job && jobStuck(job)) return "Its last operation needs attention";
   return null;
 }

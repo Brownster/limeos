@@ -188,7 +188,8 @@
   border-color: var(--accent-line);
   font-size: var(--text-xs);
 }
-.row-primary:hover:enabled { background: var(--accent-soft); border-color: var(--accent); }
+.row-primary:hover:enabled:not([aria-disabled="true"]) { background: var(--accent-soft); border-color: var(--accent); }
+.row-primary[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 .row-logs { font-size: var(--text-xs); color: var(--text-muted); }
 .row-logs:hover:enabled { color: var(--text); }
 
@@ -610,4 +611,22 @@
   .job-row,
   .panel article.job-row { grid-template-columns: minmax(0, 1fr) auto; }
   .job-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* The name opens the detail: a full 44 px target in a card without taking more room. */
+.container-card .container-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  margin: -12px 0 -10px;
+}
+.card-group .group-name a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  margin-block: -12px;
+}
+@media (max-width: 639px) {
+  .clear-filters { min-height: var(--touch); }
+  .container-card .row-job { min-height: var(--touch); margin-block: -10px; }
 }

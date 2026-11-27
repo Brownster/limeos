@@ -44,6 +44,9 @@ test("needs attention: unhealthy, restart loop, dead, missing, a stopped member 
   assert.equal(reason("watchtower"), null);
   assert.equal(reason("old"), null);
   assert.equal(reason("jellyfin"), null);
+  const lidarr = all.find((r) => r.name === "lidarr");
+  assert.equal(reason("lidarr", job(1, lidarr.id, "succeeded", { operation: "stop" })), null);
+  assert.equal(reason("lidarr", job(1, lidarr.id, "succeeded")), "Stopped while the rest of its stack runs");
   assert.equal(attentionReason(container(20, "d", "dead", null), running), "Docker reports it dead");
   assert.equal(attentionReason(container(21, "m", "missing", null), running), "The host no longer reports it");
   assert.equal(attentionReason(container(22, "p", "paused", null), running), null);

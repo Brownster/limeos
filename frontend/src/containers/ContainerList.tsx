@@ -141,6 +141,7 @@ function Notes({ row, handlers }: { row: Row; handlers: RowHandlers }) {
 export function RowActions({ row, handlers, describedBy, compact }: { row: Row; handlers: RowHandlers; describedBy?: string; compact: boolean }) {
   const states = actionStates(row);
   const primary = primaryAction(row);
+  const reasonId = useId();
   const primaryState = states.find((s) => s.action === primary);
   const items: MenuItem[] = [
     ...states.map((state) => ({
@@ -156,11 +157,14 @@ export function RowActions({ row, handlers, describedBy, compact }: { row: Row; 
   return (
     <div className="row-actions">
       {primary && primaryState && (
-        <button type="button" className="quiet row-primary" disabled={!!primaryState.disabled} title={primaryState.disabled ?? undefined}
-          aria-describedby={describedBy} onClick={(event) => handlers.onAction(row, primary, event.currentTarget)}>
+        // aria-disabled, not disabled: the button keeps focus while its own job runs, and says why.
+        <button type="button" className="quiet row-primary" aria-disabled={primaryState.disabled ? true : undefined} title={primaryState.disabled ?? undefined}
+          aria-describedby={[describedBy, primaryState.disabled ? `${reasonId}-why` : null].filter(Boolean).join(" ") || undefined}
+          onClick={(event) => !primaryState.disabled && handlers.onAction(row, primary, event.currentTarget)}>
           <CIcon name={actionIcon[primary]} />{actionLabel(primary)}
         </button>
       )}
+      {primary && primaryState?.disabled && <span className="sr-only" id={`${reasonId}-why`}>{primaryState.disabled}</span>}
       <button type="button" className={compact ? "quiet icon-button row-logs" : "quiet row-logs"} aria-label="Logs" title={`Logs of ${row.name}`}
         aria-describedby={describedBy} onClick={(event) => handlers.onLogs(row, event.currentTarget)}>
         <CIcon name="logs" />{!compact && <span aria-hidden="true">Logs</span>}
