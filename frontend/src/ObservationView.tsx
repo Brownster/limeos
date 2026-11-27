@@ -61,7 +61,7 @@ export function ResourceTable({
 }) {
   return (
     <div className="table-wrap">
-      <table>
+      <table className="resource-table">
         <caption>{caption}</caption>
         <thead>
           <tr>
@@ -79,11 +79,11 @@ export function ResourceTable({
               </th>
               <td>
                 <span
-                  className={`badge ${["missing", "degraded", "dead"].includes(r.status) ? "warning" : ""}`}
+                  className={`badge ${["missing", "degraded", "dead"].includes(r.status) ? "warning" : ["running", "mounted"].includes(r.status) ? "ok" : ""}`}
                 >
                   {r.status}
                 </span>
-                {r.health && <small>{r.health}</small>}
+                {r.health && <small className={r.health === "unhealthy" ? "tone-text-danger" : undefined}>{r.health}</small>}
               </td>
               <td>
                 {r.image ?? r.mountpoint ?? r.filesystem ?? "—"}

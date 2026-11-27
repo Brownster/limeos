@@ -123,6 +123,11 @@
   border-radius: 50%;
   background: currentColor;
 }
+.badge.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+td small.tone-text-danger { color: var(--danger); }
 .badge.warning,
 .warning {
   background: var(--warning-soft);
@@ -411,6 +416,35 @@ th small {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+/* Small screens: each resource becomes a stacked card; the header row is
+   kept for screen readers only. */
+@media (max-width: 639px) {
+  .panel { padding: 12px; }
+  .resource-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .resource-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    padding: 14px 12px;
+    border-top: 1px solid var(--divider);
+  }
+  .resource-table th,
+  .resource-table td {
+    padding: 0;
+    border: 0;
+  }
+  .resource-table td:nth-child(2) { text-align: right; }
+  .resource-table td:nth-child(3) { grid-column: 1 / -1; }
+  .resource-table td[colspan] { grid-column: 1 / -1; text-align: left; }
+  .resource-table td small,
+  .resource-table th small { max-width: none; }
 }
 @media (max-width: 650px) {
   .side-by-side { grid-template-columns: minmax(0, 1fr); }

@@ -13,9 +13,9 @@ import { canManage, type PageProps } from "./Pages";
 type Tab = "alerts" | "alerts-schedules" | "alerts-policy";
 
 const tabs: { id: Tab; path: string; label: string; manage: boolean }[] = [
-  { id: "alerts", path: "/alerts", label: "Alert history", manage: false },
-  { id: "alerts-schedules", path: "/alerts/schedules", label: "Health schedules", manage: true },
-  { id: "alerts-policy", path: "/alerts/policy", label: "Alert policy", manage: true },
+  { id: "alerts", path: "/alerts", label: "History", manage: false },
+  { id: "alerts-schedules", path: "/alerts/schedules", label: "Schedules", manage: true },
+  { id: "alerts-policy", path: "/alerts/policy", label: "Policy", manage: true },
 ];
 
 const descriptions: Record<Tab, string> = {

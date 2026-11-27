@@ -108,7 +108,7 @@ def desktop_checks(browser, checks, problems, screens):
         page.reload()
         page.get_by_role("heading", name=heading, level=1).wait_for()
     sub = page.get_by_role("navigation", name="Alerts sections")
-    assert sub.locator('[aria-current="page"]').inner_text() == "Alert policy"
+    assert sub.locator('[aria-current="page"]').inner_text() == "Policy"
     page.get_by_role("button", name="Save health settings").wait_for()
     if screens:
         page.screenshot(path=str(screens / "alerts-policy-1440.png"), full_page=True)
@@ -233,6 +233,7 @@ def mobile_checks(browser, checks, problems, screens):
             )
             assert min(sizes) >= 44, sizes
             if screens:
+                page.wait_for_timeout(400)  # let the slide-in finish
                 page.screenshot(path=str(screens / "drawer-390.png"))
             page.keyboard.press("Escape")
             drawer.wait_for(state="hidden")
