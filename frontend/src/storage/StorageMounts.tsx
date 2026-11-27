@@ -40,15 +40,15 @@ function SessionStorageMounts({ csrf, expired }: { csrf: string; expired: () => 
       <section className="operations" aria-labelledby="mount-heading">
         <h2 id="mount-heading">Mount a managed disk</h2>
         <p className="notice">Disk mounting isn't available on this host right now. LimeOS mounts disks through its storage helper, which isn't running or hasn't been enabled. Disks that are already mounted keep working and are listed above.</p>
-        <button type="button" className="quiet" onClick={() => { void controller.refreshTargets(); void controller.refreshJobs(); }}>Check again</button>
+        <button type="button" className="quiet compact" onClick={() => { void controller.refreshTargets(); void controller.refreshJobs(); }}>Check again</button>
       </section>
     );
   }
   return (
     <section className="operations" aria-labelledby="mount-heading">
       <h2 id="mount-heading">Mount a managed disk</h2>
-      <p>This mounts an approved ext4 data disk until restart. Review its identity and destination before approving.</p>
-      <form onSubmit={(event) => { event.preventDefault(); void controller.preview(); }}>
+      <p className="mount-lead">This mounts an approved ext4 data disk until restart. Review its identity and destination before approving.</p>
+      <form className="mount-form" onSubmit={(event) => { event.preventDefault(); void controller.preview(); }}>
         <label>Managed disk
           <select value={target} onChange={(event) => controller.setTarget(event.target.value)} required disabled={unavailable || pending || catalogLoading || targets.length === 0}>
             {targets.length === 0 && <option value="">{catalogLoading ? "Loading managed disks…" : "No managed ext4 data disks"}</option>}
@@ -57,7 +57,7 @@ function SessionStorageMounts({ csrf, expired }: { csrf: string; expired: () => 
         </label>
         {targets.filter((item) => item.id === target).map((item) => <p key={item.id}>UUID: {item.filesystem_uuid} · {item.mountpoint}</p>)}
         <button ref={trigger} type="submit" disabled={unavailable || pending || catalogLoading || !target}>Review mount</button>
-        <button type="button" className="quiet" disabled={unavailable || pending || catalogLoading} onClick={() => void controller.refreshTargets()}>Refresh managed disks</button>
+        <button type="button" className="quiet compact" disabled={unavailable || pending || catalogLoading} onClick={() => void controller.refreshTargets()}>Refresh managed disks</button>
       </form>
       {retryAvailable && !state.reviewOpen && <button className="quiet" onClick={() => controller.reopenReview()}>Return to pending mount request</button>}
       {catalogError && <p className="error" role="alert">{catalogError}</p>}
@@ -90,7 +90,7 @@ function SessionStorageMounts({ csrf, expired }: { csrf: string; expired: () => 
       {!historyError && !historyLoading && !unavailable && jobs.length === 0 && <p>No recent mount jobs.</p>}
       {jobs.map((job) => <article className="job-row" key={job.id}>
         <div><strong>{job.plan.effect.device.id}</strong><p>{job.plan.effect.device.mountpoint}</p>
-          <span className="badge">{job.state.replaceAll("_", " ")}</span>
+          <span className={`badge${job.state === "succeeded" ? " ok" : job.state === "queued" || job.state === "running" || job.state === "verifying" ? "" : " warning"}`}>{job.state.replaceAll("_", " ")}</span>
           {job.state === "needs_intervention" && <p className="notice">The outcome needs reconciliation. Its resource claims remain held.</p>}
         </div>
         {job.state === "queued" && <button className="quiet" disabled={pending || canceling !== null}

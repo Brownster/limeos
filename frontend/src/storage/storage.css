@@ -1,0 +1,193 @@
+/* Storage page: summary band, disk and pool cards. Tokens only. */
+.storage-page {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.storage-banner {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.storage-section { display: grid; gap: 12px; min-width: 0; }
+.storage-section h2 {
+  margin: 0;
+  font: 600 var(--text-lg) / 1.3 var(--font-mono);
+  color: var(--text);
+}
+.storage-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+.summary-of { font-size: var(--text-sm); color: var(--text-muted); }
+
+.disk-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .disk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1500px) {
+  .disk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.disk-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: border-color 0.2s;
+}
+.disk-card:hover { border-color: var(--border-strong); }
+.disk-card.tone-warning { border-top: 2px solid var(--warning); }
+.disk-card.tone-danger { border-top: 2px solid var(--danger); }
+.disk-card > * { min-width: 0; }
+.disk-card p { margin: 0; }
+.disk-card > details:last-child { margin-bottom: -10px; }
+.disk-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.disk-card-name { min-width: 0; }
+.disk-card-name h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: 600 var(--text-lg) / 1.3 var(--font-mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.disk-card-sub {
+  margin-top: 2px;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+.disk-card-badges {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.disk-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 8px 0;
+  border-block: 1px solid var(--divider);
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+}
+.disk-card-meta .dim { color: var(--dim); }
+
+.fs-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fs-row {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  min-width: 0;
+}
+.fs-row + .fs-row { border-top: 1px solid var(--divider); }
+.fs-row.depth-1 { padding-left: 16px; }
+.fs-row.depth-2,
+.fs-row.depth-3 { padding-left: 32px; }
+.fs-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.fs-name {
+  font: 500 var(--text-sm) var(--font-mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.fs-size {
+  margin-left: auto;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+}
+.fs-mount {
+  font: var(--text-xs) var(--font-mono);
+  color: var(--success);
+  overflow-wrap: anywhere;
+}
+.fs-unmounted { font-size: var(--text-xs); color: var(--text-muted); }
+.fs-line .ui-badge:last-child { margin-left: auto; }
+.fs-line .fs-size + .ui-badge,
+.fs-line .ui-badge + .fs-size { margin-left: auto; }
+.fs-usage { display: grid; gap: 6px; padding-top: 2px; }
+.fs-usage-label {
+  font: var(--text-2xs) var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.fs-usage-value { margin-left: auto; font: var(--text-xs) var(--font-mono); }
+
+.disk-facts {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, max-content) minmax(0, 1fr);
+  gap: 2px 12px;
+  margin: 0 0 8px;
+  font-size: var(--text-sm);
+}
+.disk-facts dt { color: var(--text-muted); padding-top: 12px; }
+.disk-facts dd { margin: 0; min-width: 0; display: grid; align-content: center; min-height: var(--touch); color: var(--text); }
+.disk-mount { display: block; font-size: var(--text-xs); color: var(--text-muted); }
+.disk-mount code { color: var(--text); }
+@media (max-width: 479px) {
+  .disk-facts { grid-template-columns: minmax(0, 1fr); }
+  .disk-facts dt { padding-top: 6px; }
+  .disk-facts dd { min-height: 0; }
+}
+.fs-details { padding-top: 8px; border-top: 1px dashed var(--divider); }
+.fs-details-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 var(--text-sm) var(--font-mono);
+  color: var(--text);
+}
+.disk-details-note { padding: 4px 0 8px; font-size: var(--text-xs); color: var(--dim); }
+
+/* Mounting a managed disk: the existing flow, on the primitives' look. */
+.storage-mounts-panel { margin-top: 20px; }
+.storage-mounts-panel .mount-form {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 44rem;
+}
+@media (min-width: 720px) {
+  .storage-mounts-panel .mount-form { grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; }
+  .storage-mounts-panel .mount-form > p { grid-column: 1 / -1; order: 2; }
+}
+.storage-mounts-panel .mount-form select { width: 100%; }
+.storage-mounts-panel .mount-form > p {
+  margin: 0;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.storage-mounts-panel .mount-lead { color: var(--text-muted); font-size: var(--text-sm); }
+.storage-mounts-panel h3 { font-size: var(--text-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
