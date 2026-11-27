@@ -36,16 +36,20 @@ def _container(index, name, status, stack, health=None, cpu=None, memory=None):
     }
 
 
-def _storage(kind, identifier, name, parent=None, mountpoint=None, size=None):
+def _storage(kind, identifier, name, parent=None, mountpoint=None, size=None, filesystem=None):
+    if kind == "partition" and filesystem is None:
+        filesystem = "ext4"
+    if kind == "pool":
+        filesystem = "fuse.mergerfs"
     return {
         "id": identifier,
         "kind": kind,
         "name": name,
-        "status": "unmounted" if kind == "disk" else "mounted",
+        "status": "mounted" if mountpoint else "unmounted",
         "source": "pools" if kind == "pool" else "storage",
         "parent": parent,
         "identity": identifier,
-        "filesystem": "ext4" if kind == "partition" else None,
+        "filesystem": filesystem,
         "mountpoint": mountpoint,
         "size_bytes": size,
         "image": None,
@@ -87,11 +91,45 @@ def resources():
         _container(8, "navidrome", "running", None, "healthy", 0.1, 1.4),
         _stack("media", "degraded"),
         _stack("downloads", "running"),
-        _storage("disk", "disk:sda", "sda", size=4 * tb),
-        _storage("disk", "disk:sdb", "sdb", size=2 * tb),
-        _storage("partition", "uuid:media", "sda1", "disk:sda", "/mnt/storage", 4 * tb),
-        _storage("partition", "uuid:backup", "sdb1", "disk:sdb", "/mnt/backup", 2 * tb),
-        _storage("pool", "pool:/mnt/media", "/mnt/media", None, "/mnt/media", 6 * tb),
+    ] + storage_resources()
+
+
+# Filesystem UUIDs and disk serials shared by the overview and the storage inventory.
+UUID = {
+    "boot": "4A1B-2C3D",
+    "root": "7d1f3a52-9c1e-4b8e-a0f4-2f6c1d9e8b10",
+    "media": "a1b2c3d4-0e5f-4a6b-9c7d-8e9f0a1b2c3d",
+    "backup": "5e6f7a8b-1c2d-4e3f-8a9b-0c1d2e3f4a5b",
+    "spare": "c0ffee00-1234-4abc-9def-001122334455",
+}
+SERIAL = {"sd": "0x8d3e2f1a", "sda": "WD-WX12A3456789", "sdb": "ZA1B2C3D", "sdc": "S5H2NS0N123456"}
+
+
+def storage_resources():
+    """A Pi 5 with its SD card, two data disks, a new unmounted disk and a pool.
+    Disks are identified by serial and filesystems by UUID, as the observer
+    does; pools carry no size, as on a real host."""
+    tb, gb = 1000**4, 1000**3
+
+    def disk(key, name, size):
+        return _storage("disk", f"serial:{SERIAL[key]}", name, size=size)
+
+    def part(key, name, parent, mount, size, filesystem=None):
+        return _storage(
+            "partition", f"uuid:{UUID[key]}", name, f"serial:{SERIAL[parent]}", mount, size, filesystem
+        )
+
+    return [
+        disk("sd", "mmcblk0", 64 * gb),
+        part("boot", "mmcblk0p1", "sd", "/boot/firmware", 536_870_912, "vfat"),
+        part("root", "mmcblk0p2", "sd", "/", 63 * gb),
+        disk("sda", "sda", 4 * tb),
+        part("media", "sda1", "sda", "/mnt/storage", 4 * tb),
+        disk("sdb", "sdb", 2 * tb),
+        part("backup", "sdb1", "sdb", "/mnt/backup", 2 * tb),
+        disk("sdc", "sdc", 1 * tb),
+        part("spare", "sdc1", "sdc", None, 1 * tb),
+        _storage("pool", "pool:/mnt/media", "/mnt/media", None, "/mnt/media", None),
     ]
 
 
@@ -164,6 +202,118 @@ def stacks(now=None):
     for source in ("catalog", "engine"):
         value[source].update(sampled_at=now, valid_for_millis=90_000)
     return value
+
+
+def _member(index, running, image="a"):
+    return {
+        "container": {
+            "resource": f"container:{index:064x}",
+            "image": "sha256:" + image * 64,
+            "started_at": "2026-11-24T06:12:00Z",
+            "running": running,
+        },
+        "one_off": False,
+    }
+
+
+def _service(name, members):
+    running = sum(1 for m in members if m["container"]["running"])
+    counts = {"ordinary": len(members), "running": running, "one_offs": 0, "one_off_running": 0}
+    runtime = "running" if running == len(members) else "stopped" if running == 0 else "partial"
+    return {"name": name, "declared": True, "runtime": runtime, "counts": counts, "members": members}
+
+
+def _registered(name, services):
+    ordinary = sum(s["counts"]["ordinary"] for s in services)
+    running = sum(s["counts"]["running"] for s in services)
+    runtime = "running" if running == ordinary else "stopped" if running == 0 else "partial"
+    return {
+        "stack": name,
+        "project": name,
+        "working_directory": f"/opt/stacks/{name}",
+        "config_files": [f"/opt/stacks/{name}/compose.yaml"],
+        "files": {"state": "not_inspected"},
+        "runtime": runtime,
+        "counts": {"ordinary": ordinary, "running": running, "one_offs": 0, "one_off_running": 0},
+        "missing_services": 0,
+        "services": services,
+        "issues": [],
+    }
+
+
+def household_stacks(now=None, reader_down=False):
+    """The stack inventory for the household's containers above (same IDs),
+    or what core answers while the stack reader is not running."""
+    now = int(now or time.time())
+    if reader_down:
+        source = {"state": "unavailable", "sampled_at": None, "max_age_seconds": 90, "valid_for_millis": 0}
+        return {
+            "version": 1, "generated_at": now, "catalog": dict(source), "engine": dict(source),
+            "engine_matches_catalog": None, "stacks": [], "omitted_containers": [], "other_projects": [],
+            "standalone_containers": None, "truncated_containers": None, "unattributed_containers": None,
+        }
+    source = {"state": "fresh", "sampled_at": now, "max_age_seconds": 90, "valid_for_millis": 90_000}
+    media = _registered("media", [
+        _service("jellyfin", [_member(1, True, "1")]),
+        _service("sonarr", [_member(2, True, "2")]),
+        _service("radarr", [_member(3, True, "3")]),
+        _service("lidarr", [_member(4, False, "4")]),
+    ])
+    downloads = _registered("downloads", [
+        _service("transmission", [_member(5, True, "5")]),
+        _service("jackett", [_member(6, True, "6")]),
+    ])
+    return {
+        "version": 1, "generated_at": now, "catalog": dict(source), "engine": dict(source),
+        "engine_matches_catalog": True, "stacks": [downloads, media], "omitted_containers": [],
+        "other_projects": [], "standalone_containers": 2, "truncated_containers": 0,
+        "unattributed_containers": 0,
+    }
+
+
+def storage_inventory():
+    """GET /storage/inventory for an administrator: the same filesystems with
+    serials, every mount and the /etc/fstab entries (backup is LimeOS-managed)."""
+
+    def device(major, minor, key, fs, serial, mounts, boot=False):
+        return {
+            "device": {"major": major, "minor": minor},
+            "filesystem_uuid": UUID[key],
+            "filesystem": fs,
+            "serial": SERIAL[serial],
+            "boot_backing": boot,
+            "in_use_as_swap": False,
+            "mounts": [
+                {"mountpoint": m, "mount_id": 20 + i + minor, "filesystem_root": "/", "filesystem": fs, "writable": True}
+                for i, m in enumerate(mounts)
+            ],
+        }
+
+    def fstab(key, mount, managed=False):
+        return {"filesystem_uuid": UUID[key], "device": None, "mountpoint": mount, "managed": managed}
+
+    return {
+        "inventory": {
+            "host_root_mount_id": 1,
+            "topology_digest": "1" * 64,
+            "mounts_digest": "2" * 64,
+            "fstab_digest": "3" * 64,
+            "fstab_entries": [
+                fstab("boot", "/boot/firmware"),
+                fstab("root", "/"),
+                fstab("media", "/mnt/storage"),
+                fstab("backup", "/mnt/backup", managed=True),
+            ],
+            "devices": [
+                device(179, 1, "boot", "vfat", "sd", ["/boot/firmware"], boot=True),
+                device(179, 2, "root", "ext4", "sd", ["/"], boot=True),
+                device(8, 1, "media", "ext4", "sda", ["/mnt/storage", "/srv/media"]),
+                device(8, 17, "backup", "ext4", "sdb", ["/mnt/backup"]),
+                device(8, 33, "spare", "ext4", "sdc", []),
+            ],
+        },
+        "digest": "4" * 64,
+    }
 
 
 def alerts():
@@ -282,6 +432,17 @@ class Household:
         self.signed_in = signed_in
         self.stale_docker = False
         self.overview_down = False
+        # Stack inventory: "household" (default), "wire" (the Rust-bound
+        # fixture), "reader_down" or "error".
+        self.stacks_mode = "household"
+        # Storage inventory: "ok", "denied" (403) or "down" (503).
+        self.storage_inventory = "ok"
+        # Whole-stack jobs queued through the fixture, newest first.
+        # `job_state` is what the newest reports until it succeeds or fails;
+        # `job_receipt` gives a running job a partial receipt.
+        self.stack_jobs = []
+        self.job_state = "running"
+        self.job_receipt = False
         self.session = {
             "principal": {"id": "alex", "role": role, "grant_revision": 1},
             "csrf_token": "a" * 64,
@@ -323,11 +484,34 @@ class Household:
         if path == "/api/v1/system/history":
             return 200, history(query.get("range", ["24h"])[0])
         if path == "/api/v1/deployment/stacks":
-            return 200, stacks()
-        if path in ("/api/v1/container/jobs", "/api/v1/stack/jobs"):
+            if self.stacks_mode == "error":
+                return 503, {
+                    "code": "unavailable",
+                    "message": "Stack inventory is unavailable.",
+                    "retry": True,
+                    "audit_id": "fixture-stacks",
+                }
+            if self.stacks_mode == "wire":
+                return 200, stacks()
+            return 200, household_stacks(reader_down=self.stacks_mode == "reader_down")
+        if path == "/api/v1/container/jobs":
             return 200, []
+        if path.startswith("/api/v1/stack/"):
+            return self.stack_api(path, method, body)
         if path == "/api/v1/jobs/needs-attention":
             return 200, []
+        if path == "/api/v1/storage/inventory":
+            assert method == "GET"
+            if self.storage_inventory == "denied":
+                return 403, {"code": "forbidden", "message": "Forbidden", "retry": False, "audit_id": "fixture-storage"}
+            if self.storage_inventory == "down":
+                return 503, {
+                    "code": "unavailable",
+                    "message": "The storage reader is not running.",
+                    "retry": True,
+                    "audit_id": "fixture-storage",
+                }
+            return 200, storage_inventory()
         if path.startswith("/api/v1/storage/mounts/"):
             return 503, UNAVAILABLE
         if path == "/api/v1/automation/alerts":
@@ -339,6 +523,58 @@ class Household:
         if path == "/api/v1/automation/health-policy":
             return 200, policy()
         raise AssertionError(f"Unexpected fixture request: {method} {path}")
+
+    def stack_api(self, path, method, body):
+        """Whole-stack plan, approval, queue, job list and progress."""
+        now = int(time.time())
+        if path == "/api/v1/stack/plans" and method == "POST":
+            assert body["operation"] in ("start", "stop", "restart")
+            inventory = household_stacks(now)
+            stack = next(s for s in inventory["stacks"] if s["project"] == body["project"])
+            members = [m["container"] for svc in stack["services"] for m in svc["members"]]
+            plan = {
+                "id": f"{len(self.stack_jobs) + 1:064x}",
+                "version": 1,
+                "operation": body["operation"],
+                "principal": self.session["principal"]["id"],
+                "grant_revision": 1,
+                "catalog_stack": stack["stack"],
+                "expected": {"resource": f"stack:{stack['project']}", "members": members},
+                "created_at": now,
+                "expires_at": now + 300,
+            }
+            return 201, {"plan": plan, "digest": "d" * 64}
+        if path.endswith("/approval") and method == "POST":
+            return 200, {"token": "f" * 64, "expires_at": now + 300}
+        if path == "/api/v1/stack/jobs" and method == "POST":
+            plan = body["proposal"]["plan"]
+            job = {"id": "9" * 56 + f"{len(self.stack_jobs) + 1:08x}", "state": "queued", "plan": plan}
+            self.stack_jobs.insert(0, job)
+            return 201, job
+        if path == "/api/v1/stack/jobs" and method == "GET":
+            for job in self.stack_jobs[:1]:
+                if job["state"] not in ("succeeded", "failed"):
+                    job["state"] = self.job_state
+            return 200, self.stack_jobs
+        if path.startswith("/api/v1/stack/jobs/") and method == "GET":
+            job_id = path.rsplit("/", 1)[1]
+            job = next(j for j in self.stack_jobs if j["id"] == job_id)
+            receipt = None
+            if self.job_receipt or job["state"] in ("succeeded", "failed"):
+                operation = job["plan"]["operation"]
+                targets = [m for m in job["plan"]["expected"]["members"] if m["running"] != (operation == "start")]
+                done = targets if job["state"] == "succeeded" else targets[:1]
+                receipt = {
+                    "action": job["id"],
+                    "plan_digest": "d" * 64,
+                    "operation": operation,
+                    "before": job["plan"]["expected"],
+                    "state": "verified" if job["state"] == "succeeded" else "effect_accepted",
+                    "members": [{"resource": m["resource"], "state": "verified", "error": None} for m in done],
+                    "error": None,
+                }
+            return 200, {"job": job, "events": [], "receipt": receipt}
+        raise AssertionError(f"Unexpected stack request: {method} {path}")
 
     def respond(self, route):
         request = route.request
