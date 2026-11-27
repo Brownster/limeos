@@ -1,32 +1,23 @@
 import { useOverview } from "../app/overview-data";
-import { ResourceTable } from "../ObservationView";
 import { StackPanel } from "../StackManagement";
 import { PageHeader } from "../ui/primitives";
-import { workloadCounts } from "../overview/overview-model";
 import { canManage, isAdmin, type PageProps } from "./Pages";
+import "../ui/parts.css";
+import "../stacks/stacks.css";
 
+/**
+ * The stack inventory is read by its own controller while this page is open;
+ * the shared overview only names containers and stands in when the
+ * inventory can't be read.
+ */
 export function StacksPage({ session, expired }: PageProps) {
-  const { value } = useOverview();
-  const stacks = value ? value.resources.filter((r) => r.kind === "stack") : [];
-  const counts = value ? workloadCounts(value.resources).stacks : null;
+  const { value, now } = useOverview();
   return (
     <>
-      <PageHeader
-        title="Stacks"
-        description={counts && counts.total > 0
-          ? `${counts.running} running · ${counts.partial} partly running · ${counts.stopped} stopped`
-          : "Compose projects and the services in them."}
-      />
-      <div className="panel">
-        <StackPanel principal={session.principal.id} grantRevision={session.principal.grant_revision}
-          csrf={session.csrf_token} expired={expired} admin={isAdmin(session)} manage={canManage(session)} />
-      </div>
-      {stacks.length > 0 && (
-        <details className="panel-details">
-          <summary>Stack resources reported by the host observer · {stacks.length}</summary>
-          <ResourceTable items={stacks} caption="Observed stacks" />
-        </details>
-      )}
+      <PageHeader title="Stacks" description="Your Compose stacks, the services in them and how each container is doing." />
+      <StackPanel principal={session.principal.id} grantRevision={session.principal.grant_revision}
+        csrf={session.csrf_token} expired={expired} admin={isAdmin(session)} manage={canManage(session)}
+        resources={value?.resources} sources={value?.sources} now={now} />
     </>
   );
 }

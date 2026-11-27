@@ -1,0 +1,305 @@
+/* Stacks page: cards per stack, as the previous app's stack cards. Tokens only. */
+.stack-management {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.stack-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.stack-toolbar-text { min-width: 0; flex: 1 1 18rem; }
+.stack-toolbar h2 {
+  margin: 0;
+  font: 600 var(--text-lg) / 1.3 var(--font-mono);
+  color: var(--text);
+}
+.stack-toolbar p,
+.stack-section-note {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.stack-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--info);
+  border-radius: var(--radius);
+  background: var(--info-soft);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.stack-banner .icon { margin-top: 2px; color: var(--info); }
+.stack-section-title {
+  margin: 12px 0 0;
+  font: 600 var(--text-md) / 1.3 var(--font-mono);
+  color: var(--text);
+}
+.stack-section-note { margin-top: -10px; }
+
+/* Card grid: one column on phones, two from 900 px, three from 1500 px. */
+.stack-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .stack-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1500px) {
+  .stack-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.stack-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition: border-color 0.2s;
+}
+.stack-card:hover { border-color: var(--border-strong); }
+.stack-card.tone-warning { border-top: 2px solid var(--warning); }
+.stack-card.tone-danger { border-top: 2px solid var(--danger); }
+.stack-card > * { min-width: 0; }
+.stack-card p { margin: 0; }
+.stack-card > details:last-child { margin-bottom: -10px; }
+.stack-card .notice,
+.stack-card .error { margin: 0; font-size: var(--text-sm); }
+.stack-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stack-card-name { min-width: 0; }
+.stack-card-name h3,
+.stack-card-name h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: 600 var(--text-lg) / 1.3 var(--font-mono);
+  color: var(--text);
+}
+.stack-card-name h4 { font-size: var(--text-md); }
+.stack-card-path {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--dim);
+}
+.stack-card-badges {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.stack-card-meter { display: grid; gap: 8px; }
+.stack-card-counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+}
+.stack-card-oneoffs { color: var(--dim); }
+.stack-card-note {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Services and their containers */
+.stack-service-empty {
+  padding: 6px 0 8px;
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+.stack-members {
+  display: grid;
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--divider);
+}
+.member-service {
+  flex: none;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--dim);
+}
+.member-empty .member-name { color: var(--text-muted); }
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--touch);
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  min-width: 0;
+}
+a.member-row:hover { background: var(--surface-2); }
+a.member-row:hover .member-name { color: var(--accent); }
+.member-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.member-dot.tone-bg-neutral { background: var(--dim-decor); }
+.member-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.member-id { color: var(--text-muted); }
+.member-state {
+  margin-left: auto;
+  flex: none;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+}
+.stack-omitted {
+  padding: 8px 12px 4px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.stack-omitted p { font-size: var(--text-sm); color: var(--text-muted); }
+.stack-omitted ul { margin: 4px 0 0; padding: 0; list-style: none; }
+
+/* A job in flight on its card */
+.stack-job {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--info);
+  border-radius: var(--radius);
+  background: var(--info-soft);
+}
+.stack-job.tone-success { border-left-color: var(--success); background: var(--success-soft); }
+.stack-job.tone-warning { border-left-color: var(--warning); background: var(--warning-soft); }
+.stack-job.tone-danger { border-left-color: var(--danger); background: var(--danger-soft); }
+.stack-job.tone-neutral { border-left-color: var(--dim-decor); background: var(--surface-2); }
+.stack-job-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 var(--text-sm) var(--font-mono);
+  color: var(--text);
+}
+.stack-job.tone-info .stack-job-head .icon { color: var(--info); }
+.stack-job.tone-success .stack-job-head .icon { color: var(--success); }
+.stack-job.tone-warning .stack-job-head .icon { color: var(--warning); }
+.stack-job.tone-danger .stack-job-head .icon { color: var(--danger); }
+.stack-job-members {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 23px;
+  list-style: none;
+  font: var(--text-xs) / 1.6 var(--font-mono);
+}
+.stack-job-members li { display: flex; gap: 10px; justify-content: space-between; }
+.stack-job-members .member-name { color: var(--text-muted); }
+.member-outcome.tone-text-neutral { color: var(--text-muted); }
+.stack-job-note { padding-left: 23px; font-size: var(--text-xs); color: var(--text-muted); }
+
+/* Whole-stack actions: Start (success), Stop (danger), Restart (warning). */
+.stack-controls { margin-top: 0; }
+.stack-action { gap: 6px; flex: 1 1 auto; }
+@media (min-width: 640px) {
+  .stack-action { flex: 0 1 auto; }
+}
+.stack-action.action-start { background: var(--success-soft); color: var(--success); border-color: var(--success-line); }
+.stack-action.action-start:hover:enabled { background: var(--success-soft); border-color: var(--success); }
+.stack-action.action-stop { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-line); }
+.stack-action.action-stop:hover:enabled { background: var(--danger-hover); }
+.plan-targets { margin: 0; padding-left: 1.1rem; }
+.plan-targets strong { font-family: var(--font-sans); font-weight: 600; }
+
+/* The technical disclosure */
+.stack-details-hint { color: var(--dim); }
+.stack-facts {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  gap: 0 12px;
+  margin: 0 0 12px;
+  font-size: var(--text-sm);
+}
+.stack-facts dt,
+.stack-facts dd {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  min-width: 0;
+  margin: 0;
+}
+.stack-facts dt { color: var(--text-muted); }
+.stack-facts dd { flex-direction: column; align-items: stretch; justify-content: center; color: var(--text); }
+.stack-facts dd p { margin: 0; color: var(--text-muted); }
+.stack-facts dd .error { margin: 0; }
+@media (max-width: 479px) {
+  .stack-facts { grid-template-columns: minmax(0, 1fr); }
+  .stack-facts dt { min-height: 0; padding-top: 8px; }
+}
+/* Fixed columns, so a long ID is cut with an ellipsis instead of widening the table. */
+.stack-member-table { min-width: 30rem; table-layout: fixed; }
+.stack-member-table th:nth-child(1) { width: 24%; }
+.stack-member-table th:nth-child(2) { width: 16%; }
+.stack-member-table th:nth-child(3) { width: 22%; }
+.stack-member-table th,
+.stack-member-table td { overflow-wrap: anywhere; }
+.stack-member-table th[scope="row"] { font-weight: 400; }
+.member-table-name { display: block; font: 600 var(--text-sm) var(--font-mono); color: var(--text); }
+.stack-member-table small { display: block; color: var(--dim); font-size: var(--text-xs); }
+/* IDs and digests stay on one line, cut with an ellipsis; copy takes them whole. */
+.member-ids .copy-value code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.stack-card.observed .stack-card-path,
+.stack-card.other-project .stack-card-path { white-space: normal; }
+
+.stack-footnotes p { margin: 0 0 8px; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.6; }
+.stack-footnotes a { color: var(--text); text-decoration-color: var(--border-hover); text-underline-offset: 3px; }
+.stack-footnotes a:hover { color: var(--accent); }
+
+/* Recent stack operations, as a quiet card under the stacks */
+.stack-operations {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.stack-operations h3 { margin: 0 0 4px; font: 600 var(--text-md) / 1.3 var(--font-mono); }
+.stack-operations .job-row { padding: 12px 0; }
+.stack-operations .job-row:last-child { border-bottom: 0; }
+.stack-operations .job-row strong { font: 600 var(--text-sm) var(--font-mono); }
+.stack-operations .job-row p { font-size: var(--text-sm); color: var(--text-muted); }
+.stack-operations .job-events { margin: 0; padding-left: 1.1rem; font: var(--text-xs) / 1.7 var(--font-mono); }

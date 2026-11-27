@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -8,6 +9,7 @@ import {
 import type {
   ContainerAction,
   NeedsAttentionJob,
+  Resource,
   StackJob,
   StackReceipt,
   EventKind,
@@ -21,6 +23,8 @@ import {
   type StackActionClient,
 } from "./stack-action-controller";
 import type { StackView } from "./stack-inventory-client";
+import { Icon, type IconName } from "./ui/icons";
+import { activeJobStates, jobHeadline, jobOutcomes, shortId } from "./stacks/stack-model";
 
 /**
  * Network failures and 5xx may have reached the host, so the same request is
@@ -46,12 +50,14 @@ const labels: Record<ContainerAction, string> = {
   start: "Start",
   stop: "Stop",
 };
+const actionIcons: Record<ContainerAction, IconName> = { start: "play", stop: "stop", restart: "restart" };
 const actions: ContainerAction[] = ["start", "stop", "restart"];
 const client: StackActionClient = {
   plan: api.planStack,
   approve: api.approveStack,
   queue: api.queueStack,
 };
+const noNames = new Map<string, Resource>();
 
 /** Why an action is unavailable, or null. The server decides again at plan time. */
 export function stackAvailability(
@@ -74,16 +80,32 @@ export function stackAvailability(
   return counts.running > 0 ? null : "No service container is running.";
 }
 
+/** A container named from the overview where it is known, with its short ID. */
+function Target({ resource, names }: { resource: string; names: Map<string, Resource> }) {
+  const name = names.get(resource)?.name;
+  return <>{name && <strong>{name} </strong>}<code>{shortId(resource)}</code></>;
+}
+
+/**
+ * Whole-stack Start, Stop and Restart. Each previews a durable plan, asks
+ * for approval in a dialog and queues one job. A job already in flight for
+ * this stack (`busy`) holds the buttons.
+ */
 export function StackActions({
   stack,
   stale,
   csrf,
   changed,
+  names = noNames,
+  busy = false,
 }: {
   stack: StackView;
   stale: boolean;
   csrf: string;
   changed: () => void;
+  /** Overview containers by resource id, to name the containers a plan touches. */
+  names?: Map<string, Resource>;
+  busy?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const latest = useRef(changed);
@@ -118,18 +140,19 @@ export function StackActions({
   const heading = `stack-action-${stack.project}`;
   return (
     <>
-      <div className="container-controls" role="group" aria-label={`Whole-stack actions for ${stack.stack}`}>
+      <div className="container-controls stack-controls" role="group" aria-label={`Whole-stack actions for ${stack.stack}`}>
         {actions.map((name) => {
-          const reason = stackAvailability(stack, stale, name);
+          const reason = busy ? "An operation on this stack is in progress." : stackAvailability(stack, stale, name);
           return (
             <button
               key={name}
-              className="container-action"
+              type="button"
+              className={`container-action stack-action action-${name}`}
               disabled={state.pending || reason !== null}
               title={reason ?? undefined}
               onClick={() => void controller.preview(name)}
             >
-              {labels[name]} stack
+              <Icon name={actionIcons[name]} size={14} />{labels[name]} stack
             </button>
           );
         })}
@@ -175,10 +198,10 @@ export function StackActions({
               <dd>{stack.project}</dd>
               <dt>Containers to {action}</dt>
               <dd>
-                <ul>
+                <ul className="plan-targets">
                   {targets.map((member) => (
                     <li key={member.resource}>
-                      <code>{member.resource.slice(10, 22)}</code>{" "}
+                      <Target resource={member.resource} names={names} />{" "}
                       {member.running ? "running" : "not running"}
                     </li>
                   ))}
@@ -232,11 +255,12 @@ export function StackActions({
 
 const outcome = (state: string) => state.replaceAll("_", " ");
 /** Per-member outcomes recorded by the executor; absent until the job runs. */
-export function StackReceiptView({ receipt }: { receipt: StackReceipt }) {
+export function StackReceiptView({ receipt, names = noNames }: { receipt: StackReceipt; names?: Map<string, Resource> }) {
   return (
     <ul className="job-events" aria-label="Per-container outcomes">
       {receipt.members.map((member) => (
         <li key={member.resource}>
+          {names.get(member.resource) && <>{names.get(member.resource)!.name} </>}
           <code>{member.resource.slice(10, 22)}</code> ·{" "}
           {member.state === "precondition_changed"
             ? "not attempted"
@@ -261,12 +285,14 @@ export function StackJobRow({
   labels: eventLabels,
   cancel,
   details,
+  names = noNames,
 }: {
   job: StackJob;
   receipt?: StackReceipt | null;
   labels?: string[];
   cancel: () => void;
   details: () => void;
+  names?: Map<string, Resource>;
 }) {
   return (
     <article className="job-row">
@@ -302,40 +328,65 @@ export function StackJobRow({
           ))}
         </ol>
       )}
-      {receipt && <StackReceiptView receipt={receipt} />}
+      {receipt && <StackReceiptView receipt={receipt} names={names} />}
     </article>
   );
 }
-export function StackJobs({
+
+export interface StackJobsData {
+  jobs: StackJob[];
+  /** Other principals' stuck jobs, for administrators only. */
+  listed: NeedsAttentionJob[];
+  /** Per-member receipts by job id, where the job reported one. */
+  receipts: Record<string, StackReceipt | null>;
+  error: string;
+  shown: { id: string; labels: string[]; receipt: StackReceipt | null } | null;
+  cancel: (id: string) => void;
+  details: (id: string) => void;
+}
+
+/**
+ * The signed-in principal's stack jobs, read while the Stacks page is open
+ * and polled every 2 s only while one is queued or running. Receipts are read
+ * every poll for a job in flight (so its card shows per-container progress),
+ * and once for a failed job or one finished in the last 15 minutes.
+ */
+export function useStackJobs({
   csrf,
   revision,
   expired,
   admin = false,
-  changed = () => {},
+  enabled = true,
+  recentSince = 0,
 }: {
   csrf: string;
   revision: number;
   expired: () => void;
-  /** Only administrators may resolve; others see the banner as information. */
   admin?: boolean;
-  changed?: () => void;
-}) {
+  enabled?: boolean;
+  /** Finished jobs planned after this time (epoch seconds) get their receipt once. */
+  recentSince?: number;
+}): StackJobsData {
   const [jobs, setJobs] = useState<StackJob[]>([]);
-  // Other principals' stuck jobs, for administrators only.
   const [listed, setListed] = useState<NeedsAttentionJob[]>([]);
-  // A failed job is a partly-done run: its per-member receipt is needed to say so.
   const [receipts, setReceipts] = useState<Record<string, StackReceipt | null>>({});
   const requested = useRef(new Set<string>());
   const [error, setError] = useState("");
-  const [shown, setShown] = useState<{
-    id: string;
-    labels: string[];
-    receipt: StackReceipt | null;
-  } | null>(null);
+  const [shown, setShown] = useState<StackJobsData["shown"]>(null);
+  const since = useRef(recentSince);
+  since.current = recentSince;
   useEffect(() => {
+    if (!enabled) return;
     let active = true,
       inFlight = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const receipt = (id: string) =>
+      api
+        .stackProgress(id)
+        .then((p) => {
+          if (active) setReceipts((all) => ({ ...all, [id]: p.receipt }));
+        })
+        .catch(() => requested.current.delete(id));
     async function refresh() {
       if (inFlight) return;
       inFlight = true;
@@ -351,20 +402,16 @@ export function StackJobs({
             .catch(() => active && setListed([]));
         setError("");
         for (const job of next) {
-          if (job.state !== "failed" || requested.current.has(job.id)) continue;
+          if (activeJobStates.includes(job.state)) {
+            void receipt(job.id);
+            continue;
+          }
+          const recent = job.plan.created_at >= since.current;
+          if ((job.state !== "failed" && !recent) || requested.current.has(job.id)) continue;
           requested.current.add(job.id);
-          api
-            .stackProgress(job.id)
-            .then((p) => {
-              if (active) setReceipts((all) => ({ ...all, [job.id]: p.receipt }));
-            })
-            .catch(() => requested.current.delete(job.id));
+          void receipt(job.id);
         }
-        if (
-          next.some((job) =>
-            ["queued", "running", "verifying"].includes(job.state),
-          )
-        )
+        if (next.some((job) => activeJobStates.includes(job.state)))
           timer = setTimeout(() => void refresh(), 2000);
       } catch (e) {
         if (active) {
@@ -381,16 +428,16 @@ export function StackJobs({
       active = false;
       clearTimeout(timer);
     };
-  }, [revision, expired, admin]);
-  async function cancel(id: string) {
+  }, [revision, expired, admin, enabled]);
+  const cancel = useCallback(async (id: string) => {
     try {
       await api.cancelStack(id, csrf);
       setJobs(await api.stackJobs());
     } catch (e) {
       setError(message(e));
     }
-  }
-  async function details(id: string) {
+  }, [csrf]);
+  const details = useCallback(async (id: string) => {
     try {
       const progress = await api.stackProgress(id);
       setShown({
@@ -401,7 +448,71 @@ export function StackJobs({
     } catch (e) {
       setError(message(e));
     }
-  }
+  }, []);
+  return {
+    jobs, listed, receipts, error, shown,
+    cancel: (id) => void cancel(id),
+    details: (id) => void details(id),
+  };
+}
+
+/** A stack's job in flight (or just finished) on its card, with per-container progress. */
+export function StackJobStrip({
+  job,
+  receipt,
+  names = noNames,
+}: {
+  job: StackJob;
+  receipt?: StackReceipt | null;
+  names?: Map<string, Resource>;
+}) {
+  const headline = jobHeadline(job, receipt);
+  const rows = jobOutcomes(job, receipt, names);
+  const inFlight = activeJobStates.includes(job.state);
+  return (
+    <div className={`stack-job tone-${headline.tone}`} role="status" aria-label={`Operation on ${job.plan.catalog_stack}`}>
+      <p className="stack-job-head">
+        <Icon name={inFlight ? "clock" : headline.tone === "success" ? "ok" : headline.tone === "danger" ? "warning" : "info"} size={15} className={inFlight ? "pulse" : undefined} />
+        <span>{headline.text}</span>
+      </p>
+      {rows.length > 0 && (
+        <ul className="stack-job-members" aria-label="Containers in this operation">
+          {rows.map((row) => (
+            <li key={row.resource}>
+              <span className="member-name">{row.label}</span>
+              <span className={`tone-text-${row.tone === "neutral" ? "neutral" : row.tone} member-outcome`}>{row.outcome}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {job.state === "needs_intervention" && (
+        <p className="stack-job-note">The stack stays locked until an administrator settles this operation (see Recent stack operations).</p>
+      )}
+      {job.state === "queued" && (
+        <p className="stack-job-note">It can still be canceled under Recent stack operations.</p>
+      )}
+    </div>
+  );
+}
+
+/** "Recent stack operations": the job list and anything needing intervention. */
+export function StackJobs({
+  data,
+  csrf,
+  expired,
+  admin = false,
+  changed = () => {},
+  names = noNames,
+}: {
+  data: StackJobsData;
+  csrf: string;
+  expired: () => void;
+  /** Only administrators may resolve; others see the banner as information. */
+  admin?: boolean;
+  changed?: () => void;
+  names?: Map<string, Resource>;
+}) {
+  const { jobs, listed, receipts, error, shown } = data;
   const attention = mergeAttention(
     jobs
       .filter((job) => job.state === "needs_intervention")
@@ -414,7 +525,7 @@ export function StackJobs({
   );
   if (!jobs.length && !attention.length && !error) return null;
   return (
-    <section className="operations" aria-labelledby="stack-operations-heading">
+    <section className="operations stack-operations" aria-labelledby="stack-operations-heading">
       <h3 id="stack-operations-heading">Recent stack operations</h3>
       {error && (
         <p className="error" role="alert">
@@ -432,10 +543,11 @@ export function StackJobs({
         <StackJobRow
           key={job.id}
           job={job}
+          names={names}
           labels={shown?.id === job.id ? shown.labels : undefined}
           receipt={shown?.id === job.id ? shown.receipt : receipts[job.id]}
-          cancel={() => void cancel(job.id)}
-          details={() => void details(job.id)}
+          cancel={() => data.cancel(job.id)}
+          details={() => data.details(job.id)}
         />
       ))}
     </section>
