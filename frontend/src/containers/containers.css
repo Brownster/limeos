@@ -630,3 +630,9 @@
   .clear-filters { min-height: var(--touch); }
   .container-card .row-job { min-height: var(--touch); margin-block: -10px; }
 }
+@media (min-width: 640px) {
+  /* One column grid across rows, so states and buttons line up. */
+  .operations-panel article.job-row { grid-template-columns: minmax(0, 1fr) 11rem 17rem; }
+  .operations-panel .job-state { justify-self: start; }
+}
+.operations-panel .attention h3 { margin-top: 12px; }
