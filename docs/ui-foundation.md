@@ -34,6 +34,8 @@ ourselves. Pin it to an exact version and say why in the commit.
 | `src/ui/tokens.css` | Colour, type and spacing tokens; base element styles (buttons, inputs, focus, reduced motion) |
 | `src/ui/primitives.tsx` + `.css` | Card, CardTitle, Badge, StatusBadge, MetricBar, PageHeader, RefreshControl, StateMessage, Stat, `.segmented` |
 | `src/ui/icons.tsx` | `<Icon name="…" />` |
+| `src/ui/copy.tsx` | `CopyValue` / `CopyButton`: an ID, digest or path as selectable code with a copy button |
+| `src/ui/parts.css` | `.summary-band` (a strip of labelled figures), `button.compact` (quiet secondary action, still 44 px), `details.card-disclosure` (a quiet disclosure inside a card) |
 | `src/ui/format.ts` | Percent, °C, bytes, durations, clock and age. Unknown is always the word "Unknown", never 0 |
 | `src/ui/error-copy.ts` | `describeError(error, subject)` returns friendly copy and keeps the server reference |
 | `src/app/routes.ts` | The route table, aliases, `parseRoute`, nav entries by role, document titles |
@@ -43,6 +45,8 @@ ourselves. Pin it to an exact version and say why in the commit.
 | `src/app/live-status.ts` | Whether the observations are live, polling, reconnecting or offline |
 | `src/pages/*` | One file per page; `Pages.tsx` maps route to page |
 | `src/overview/*` | Overview model (thresholds, health, counts), parts, history charts |
+| `src/stacks/*` | Stacks page: `stack-model.ts` (status, member names, jobs on cards), `StackCard.tsx`, `stacks.css` |
+| `src/storage/*` | Storage page: `storage-model.ts` (disk tree, summary, inventory facts), `inventory-client.ts`, `StorageView.tsx`, `storage.css`; `StorageMounts` |
 | `src/style.css` | The existing feature components, on tokens |
 
 ## Tokens
@@ -116,6 +120,11 @@ links. A signed-out deep link shows the sign-in page and then that page.
 
 Link with `<Link to="/path">`, which keeps ctrl- and middle-click behaviour.
 Navigate in code with `navigate("/path")`.
+
+Linking to one container: `/containers?search=<container name>` (URL-encoded).
+The Stacks page links each member this way. The Containers page is expected
+to read the `search` query and filter to (or open) that container; until it
+does, the link opens the Containers page unfiltered.
 
 ## Sharing the overview data
 
@@ -193,13 +202,20 @@ UI only hides what would be refused.
   same commit and say so in the message.
 - The node tests transpile some components and rewrite their relative
   imports by exact string (`tests/helpers/*.mjs`). Adding an import to
-  `StackManagement.tsx`, `StorageMounts.tsx`, `HealthHistory.tsx`,
-  `ContainerActions.tsx` or `ObservationView.tsx` needs the matching helper
-  updated. Prefer importing primitives from new page components.
+  `StorageMounts.tsx`, `HealthHistory.tsx`, `ContainerActions.tsx` or
+  `ObservationView.tsx` needs the matching helper updated. Prefer importing
+  primitives from new page components. `tests/helpers/modules.mjs` instead
+  follows relative imports itself (with named stubs for the network and
+  dialogs); the stack helper uses it, so `StackManagement.tsx`,
+  `StackActions.tsx` and `src/stacks/*` can import freely. Pure `*-model.ts`
+  files with only type imports are imported by node tests directly.
 - Browser fixtures must serve `index.html` for non-file paths, as Caddy does.
   `tests/frontend/household_fixture.py` is a ready household host (CPU,
   memory, temperature, disks, containers, stacks, alerts) for new browser
-  tests and screenshots.
+  tests and screenshots. Its stack inventory names the same containers as
+  its overview, it answers whole-stack plan/approve/queue and job progress,
+  and `/storage/inventory`; `stacks_mode`, `storage_inventory`,
+  `job_state` and `job_receipt` switch the states the tests need.
 
 ## Running
 
@@ -208,6 +224,8 @@ cd frontend && npm ci --ignore-scripts && npm test && npm run build && npm audit
 python3 tests/frontend/restart.py
 python3 tests/frontend/stacks.py --output /tmp/stacks
 python3 tests/frontend/shell.py --output /tmp/shell --screens /tmp/shell-screens
+python3 tests/frontend/stack_cards.py --output /tmp/stack-cards --screens /tmp/stack-screens
+python3 tests/frontend/storage_page.py --output /tmp/storage --screens /tmp/storage-screens
 ```
 
 `health_history.py`, `health_policy.py` and `schedules.py` also need a
@@ -224,10 +242,8 @@ test.
   `api.ts` that every overview read passes, as the feature clients do.
 - `MediaActivityPanel`, `NetworkGroups`, `ToolsStatus` and `ResolutionPanel`'s
   wider views exist but are not mounted on any page.
-- The internals of the moved feature components are unchanged: big primary
-  buttons for secondary actions such as "Refresh stacks", the ISO timestamps
-  in stack sources, the pager. These belong to the Containers, Stacks and
-  Storage redesigns.
+- The internals of the moved Containers components are unchanged (the
+  pager, big buttons). Stacks and Storage are redesigned (see below).
 - IBM Plex is used only when installed. Self-hosted WOFF2 files would be
   allowed by the CSP (`font-src` falls back to `'self'`), at roughly 100–200 KB.
 
@@ -255,7 +271,10 @@ test.
    A list of permitted operations in `SessionView` would let pages hide
    exactly what will be refused.
 6. **Storage fullness.** `Resource.size_bytes` is capacity only. Used or free
-   bytes per partition and pool are needed for storage bars.
+   bytes per partition and pool are needed for storage bars; today only the
+   root filesystem has one (from `HostMetrics.disk_percent`). Pools carry no
+   size at all, and no branch list. Disk model, bus, temperature and SMART
+   health (the previous app's disk cards) are not observed.
 7. **Container detail.** Start time or uptime and restart count are not in
    `Resource`. The Containers redesign will want them, and the previous app
    showed them.
@@ -264,4 +283,14 @@ test.
    from failure without a timing heuristic.
 9. **Stack status.** `degraded` covers both "some members stopped" and "a
    member unhealthy". Per-stack running/total counts in the overview would
-   let the Overview say which without reading the stacks inventory.
+   let the Overview say which without reading the stacks inventory. (The
+   Stacks page now derives it from the inventory, and from the overview's
+   containers when the inventory can't be read.)
+10. **Stack reader state.** When the stack reader is not running (after a
+    reboot it does not start by itself) the inventory answers both sources
+    `unavailable`, the same as a reader that is running but not yet
+    permitted to read. The Stacks page says "isn't running" and how to start
+    it; a reader status field would let it be exact.
+11. **Stack logs and edits.** The previous stack cards had logs, pull,
+    edit Compose, backups and delete. None has an API here (by design so
+    far); only whole-stack start, stop and restart are offered.
